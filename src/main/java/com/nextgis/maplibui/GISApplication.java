@@ -38,26 +38,35 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
+import com.nextgis.maplib.api.ILayer;
 import com.nextgis.maplib.datasource.ngw.SyncAdapter;
 import com.nextgis.maplib.location.GpsEventSource;
 import com.nextgis.maplib.map.LayerFactory;
 import com.nextgis.maplib.map.MLP.AuthInterceptorNG;
 import com.nextgis.maplib.map.MapBase;
+import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapDrawable;
+import com.nextgis.maplib.map.MaplibreMapInteraction;
+import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.FeatureChanges;
 import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.mapui.LayerFactoryUI;
+import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
 import com.nextgis.maplibui.util.SettingsConstantsUI;
+
+import org.json.JSONException;
 
 import java.io.File;
 import java.io.IOException;
@@ -115,6 +124,10 @@ public abstract class GISApplication extends Application
 
 
     boolean isStylingInProgress  = false;
+
+    private volatile boolean mLayerFillDeferHeavyMapReload;
+
+    private volatile boolean mLayerFillServiceBusy;
 
     String account = null;
     String errorMessage = null;
@@ -557,6 +570,114 @@ public abstract class GISApplication extends Application
 
     public int getErrorCode(){
         return errorCode;
+    }
+
+    @Override
+    public boolean isLayerFillBatchDeferringHeavyMapReload() {
+        return mLayerFillDeferHeavyMapReload;
+    }
+
+    @Override
+    public void setLayerFillBatchDeferringHeavyMapReload(boolean defer) {
+        mLayerFillDeferHeavyMapReload = defer;
+    }
+
+    @Override
+    public void requestMapReloadAfterLayerFillBatch() {
+        if (mMap == null) {
+            return;
+        }
+        MaplibreMapInteraction host = mMap.mapFragment.get();
+        if (host == null) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).post(() -> host.reloadMapStyleAndLayersAfterLayerFillBatch());
+    }
+
+    @Override
+    public boolean isLayerFillServiceBusy() {
+        return mLayerFillServiceBusy;
+    }
+
+    @Override
+    public void setLayerFillServiceBusy(boolean busy) {
+        mLayerFillServiceBusy = busy;
+    }
+
+    @Override
+    public void scheduleNgwLayerRebuildAfterSchemaMismatch(final NGWVectorLayer layer) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (layer == null || mMap == null) {
+                return;
+            }
+            if (FeatureChanges.isChanges(layer.getChangeTableName())) {
+                Intent alert = new Intent(MESSAGE_ALERT_INTENT);
+                alert.putExtra(MESSAGE_EXTRA,
+                        getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_has_local_changes));
+                alert.putExtra(MESSAGE_TITLE_EXTRA,
+                        getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_title));
+                alert.setPackage(getPackageName());
+                sendBroadcast(alert);
+                HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
+                        + "\" — skipped rebuild (unsynced local changes)");
+                return;
+            }
+            String configJson = null;
+            try {
+                configJson = layer.toJSON().toString();
+            } catch (JSONException e) {
+                HyperLog.exception(Constants.TAG, e);
+            }
+            final String layerName = layer.getName();
+            final String accountName = layer.getAccountName();
+            final long remoteId = layer.getRemoteId();
+            final float minZ = layer.getMinZoom();
+            final float maxZ = layer.getMaxZoom();
+            final boolean visible = layer.isVisible();
+
+            ILayer p = layer.getParent();
+            LayerGroup parentGroup = null;
+            while (p != null) {
+                if (p instanceof LayerGroup) {
+                    parentGroup = (LayerGroup) p;
+                    break;
+                }
+                p = p.getParent();
+            }
+            if (parentGroup == null && mMap instanceof LayerGroup) {
+                parentGroup = (LayerGroup) mMap;
+            }
+            if (parentGroup == null) {
+                HyperLog.w(Constants.TAG, "NGW schema rebuild: no parent LayerGroup for " + layerName);
+                return;
+            }
+            final int groupId = parentGroup.getId();
+            parentGroup.removeLayer(layer);
+            layer.delete(true);
+            mMap.save();
+
+            Intent intent = new Intent(this, LayerFillService.class);
+            intent.setAction(LayerFillService.ACTION_ADD_TASK);
+            intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
+            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+            intent.putExtra(LayerFillService.KEY_NAME, layerName);
+            intent.putExtra(LayerFillService.KEY_ACCOUNT, accountName);
+            intent.putExtra(LayerFillService.KEY_REMOTE_ID, remoteId);
+            intent.putExtra(LayerFillService.KEY_MIN_ZOOM, minZ);
+            intent.putExtra(LayerFillService.KEY_MAX_ZOOM, maxZ);
+            intent.putExtra(LayerFillService.KEY_VISIBLE, visible);
+            intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+            if (!TextUtils.isEmpty(configJson)) {
+                intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, configJson);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+            HyperLog.v(Constants.TAG, "NGW schema mismatch: scheduled LayerFillService rebuild for \""
+                    + layerName + "\"");
+        });
     }
 
     @Override

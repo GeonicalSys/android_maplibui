@@ -22,12 +22,14 @@
 package com.nextgis.maplibui.activity;
 
 import android.accounts.AccountManager;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.ContextCompat;
 import android.text.Editable;
 import android.util.Log;
 import android.view.Menu;
@@ -41,6 +43,7 @@ import android.widget.Toast;
 
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
+import com.nextgis.maplib.datasource.ngw.CollectorResource;
 import com.nextgis.maplib.datasource.ngw.Connection;
 import com.nextgis.maplib.datasource.ngw.Connections;
 import com.nextgis.maplib.datasource.ngw.INGWResource;
@@ -53,6 +56,8 @@ import com.nextgis.maplib.map.NGWRasterLayer;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.NGWUtil;
+
+import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.dialog.NGWResourcesListAdapter;
 import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
@@ -121,15 +126,13 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         if (mTask == TYPE_ADD) {
             mTypeMask = Connection.NGWResourceTypePostgisLayer |
                     Connection.NGWResourceTypeVectorLayer | Connection.NGWResourceTypeRasterLayer |
-                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap
-                    //| Connection.NGWResourceTypeCollector
-            ;
+                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap |
+                    Connection.NGWResourceTypeCollector;
         } else {
             mTypeMask = Connection.NGWResourceTypeResourceGroup | Connection.NGWResourceTypePostgisLayer |
                     Connection.NGWResourceTypeVectorLayer | Connection.NGWResourceTypeRasterLayer |
-                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap
-                    //| Connection.NGWResourceTypeCollector
-            ;
+                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap |
+                    Connection.NGWResourceTypeCollector;
         }
 
         int id = mPushId = NOT_FOUND;
@@ -252,6 +255,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         }
 
         final Connections connections = mListAdapter.getConnections();
+        final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
             if (checkState.isCheckState1()) { //create raster
                 final INGWResource resource = connections.getResourceById(checkState.getId());
@@ -294,15 +298,51 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 }
             }
 
-            if (checkState.isCheckState2()) { //create vector
+            if (checkState.isCheckState2()) { //create vector or collector import
                 final INGWResource resource = connections.getResourceById(checkState.getId());
-                if (resource instanceof LayerWithStyles) {
+                if (resource instanceof CollectorResource) {
+                    final CollectorResource collector = (CollectorResource) resource;
+                    final List<LayerWithStyles> layers = collector.getLayers();
+                    if (layers.isEmpty()) {
+                        Toast.makeText(this, R.string.ngw_collector_no_vector_layers, Toast.LENGTH_LONG).show();
+                        HyperLog.w(TAG, "Collector import: 0 vector layers, remoteId="
+                                + collector.getRemoteId());
+                        return false;
+                    }
+                    final Connection connection = collector.getConnection();
+                    for (int li = layers.size() - 1; li >= 0; li--) {
+                        LayerWithStyles layer = layers.get(li);
+                        if (LayerGroup.findLayerByDisplayNameRecursive(mGroupLayer, layer.getName()) != null) {
+                            HyperLog.d(TAG, "Collector import: skip duplicate name \"" + layer.getName() + "\"");
+                            continue;
+                        }
+                        Intent intent = new Intent(this, LayerFillService.class);
+                        intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                        intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+                        intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
+                        intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
+                        intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
+                        intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
+                        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                        String desc = layer.getDescription();
+                        if (desc != null && !desc.isEmpty()) {
+                            intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, desc);
+                        }
+                        if (layer.getFormCount() > 0) {
+                            String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
+                            intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
+                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                        }
+                        vectorFillBatch.add(intent);
+                    }
+                } else if (resource instanceof LayerWithStyles) {
                     final LayerWithStyles layer = (LayerWithStyles) resource;
                     // get connection for url
                     final Connection connection = layer.getConnection();
                     // create or connect to fill layer with features
                     Intent intent = new Intent(this, LayerFillService.class);
                     intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                    intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
                     intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
                     intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
                     intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
@@ -315,12 +355,24 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                         intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
                     }
 
-                    LayerFillProgressDialogFragment.startFill(intent);
+                    vectorFillBatch.add(intent);
                 }
             }
 
 //            if (checkState.isCheckState3()) { //create form
 //            }
+        }
+
+        if (!vectorFillBatch.isEmpty()) {
+            Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
+            if (fillHost == null) {
+                fillHost = this;
+            }
+            ContextCompat.startForegroundService(fillHost, vectorFillBatch.get(0));
+            for (int i = 1; i < vectorFillBatch.size(); i++) {
+                fillHost.startService(vectorFillBatch.get(i));
+            }
+            LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
         }
 
         mGroupLayer.save();

@@ -39,6 +39,8 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.MenuItemCompat;
 import androidx.appcompat.widget.Toolbar;
@@ -144,6 +146,19 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     protected List<EditEventListener> mListeners;
     protected WalkEditReceiver mReceiver;
     protected GpsEventSource mGpsEventSource;
+
+    /**
+     * Walk mode: {@link #replaceGeometryFromHistoryChanges} on every GPS broadcast blocked the UI thread.
+     * Coalesce updates; flush on {@link #stopGeometryByWalk()}.
+     */
+    private final Handler mWalkMapSyncHandler = new Handler(Looper.getMainLooper());
+    private static final long WALK_MAP_SYNC_DELAY_MS = 400L;
+    private final Runnable mWalkMapSyncRunnable = new Runnable() {
+        @Override
+        public void run() {
+            syncWalkGeometryToMaplibreUi();
+        }
+    };
 
     public EditLayerOverlay(
             final Context context,
@@ -407,9 +422,9 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 ControlHelper.setEnabled(item, moreThanMin);
             }
 
-//            item = mBottomToolbar.getMenu().findItem(R.id.menu_edit_by_walk);
-//            if (item != null)
-//                ControlHelper.setEnabled(item, !hasEdits);
+            item = mBottomToolbar.getMenu().findItem(R.id.menu_edit_by_walk);
+            if (item != null)
+                ControlHelper.setEnabled(item, !hasEdits);
         }
     }
 
@@ -565,9 +580,9 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         } else if (id == R.id.menu_edit_delete_point) {
             result = deletePoint();
         }
-//        else if (id == R.id.menu_edit_by_walk) {
-//            result = true;
-//        }
+        else if (id == R.id.menu_edit_by_walk) {
+            result = true;
+        }
         else if (id == R.id.menu_edit_by_touch) {
             result = true;
         }
@@ -796,12 +811,19 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         trackerService.setAction(WalkEditService.ACTION_START);
         trackerService.putExtra(ConstantsUI.KEY_LAYER_ID, mLayer.getId());
         trackerService.putExtra(ConstantsUI.KEY_GEOMETRY, geometry);
-        trackerService.putExtra(ConstantsUI.TARGET_CLASS, mContext.getClass().getName());
+        Context ctx = mContext.get();
+        String targetActivity = "";
+        if (ctx instanceof Activity)
+            targetActivity = ctx.getClass().getName();
+        trackerService.putExtra(ConstantsUI.TARGET_CLASS, targetActivity);
         ContextCompat.startForegroundService(mContext.get(), trackerService);
     }
 
 
     public void stopGeometryByWalk() {
+        mWalkMapSyncHandler.removeCallbacks(mWalkMapSyncRunnable);
+        syncWalkGeometryToMaplibreUi();
+
         // stop service
         Intent trackerService = new Intent(mContext.get(), WalkEditService.class);
         trackerService.setAction(WalkEditService.ACTION_STOP);
@@ -812,6 +834,19 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             mContext.get().unregisterReceiver(mReceiver);
             mReceiver = null;
         }
+    }
+
+    private void syncWalkGeometryToMaplibreUi() {
+        try {
+            if (mMap != null && mMap.editingObject != null && mFeature != null
+                    && mFeature.getGeometry() != null
+                    && isGeometrySafeForMaplibreReplace(mFeature.getGeometry())) {
+                mMap.replaceGeometryFromHistoryChanges(mFeature.getGeometry());
+            }
+        } catch (Exception ex) {
+            Log.e(Constants.TAG, "syncWalkGeometryToMaplibreUi", ex);
+        }
+        mMapViewOverlays.postInvalidate();
     }
 
 
@@ -929,6 +964,13 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
         if (mMode == MODE_CHANGE || mFeature == null)
             return;
+
+        // Walk geometry is shown via MapLibre; rebuilding DrawItems every frame here is O(n) * fps
+        // and freezes the app on long tracks (fillDrawItems clears and rebuilds all vertices each call).
+        if (mMode == MODE_EDIT_BY_WALK) {
+            drawCross(canvas);
+            return;
+        }
 
         fillDrawItems(mFeature.getGeometry());
 
@@ -1487,16 +1529,47 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
     }
 
+    /**
+     * MapLibre LineString / polygon sources expect a minimum number of positions; skip replace until safe.
+     */
+    private static boolean isGeometrySafeForMaplibreReplace(GeoGeometry g) {
+        if (g == null)
+            return false;
+        switch (g.getType()) {
+            case GeoConstants.GTLineString:
+                return ((GeoLineString) g).getPointCount() >= 2;
+            case GeoConstants.GTLinearRing:
+                return ((GeoLinearRing) g).getPointCount() >= 3;
+            case GeoConstants.GTPolygon:
+                GeoLinearRing outer = ((GeoPolygon) g).getOuterRing();
+                return outer != null && outer.getPointCount() >= 3;
+            case GeoConstants.GTMultiLineString:
+                GeoMultiLineString ml = (GeoMultiLineString) g;
+                return ml.size() > 0 && ml.get(0).getPointCount() >= 2;
+            case GeoConstants.GTMultiPolygon:
+                GeoMultiPolygon mp = (GeoMultiPolygon) g;
+                if (mp.size() == 0)
+                    return false;
+                GeoLinearRing or = mp.get(0).getOuterRing();
+                return or != null && or.getPointCount() >= 3;
+            default:
+                return true;
+        }
+    }
+
     public class WalkEditReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            GeoGeometry geometry = (GeoGeometry) intent.getSerializableExtra(ConstantsUI.KEY_GEOMETRY);
+            GeoGeometry geometry = WalkEditService.readWalkGeometryExtra(intent);
+            if (geometry == null)
+                return;
             try {
                 setGeometryFromWalkEdit(geometry);
-            } catch (Exception ex){
-                Log.e("tag", ex.getMessage());
+            } catch (Exception ex) {
+                Log.e(Constants.TAG, "WalkEditReceiver", ex);
             }
-            setGeometryFromWalkEdit(geometry);
+            mWalkMapSyncHandler.removeCallbacks(mWalkMapSyncRunnable);
+            mWalkMapSyncHandler.postDelayed(mWalkMapSyncRunnable, WALK_MAP_SYNC_DELAY_MS);
             mMapViewOverlays.postInvalidate();
         }
     }
@@ -1527,7 +1600,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             case GeoConstants.GTMultiPolygon:
                 GeoMultiPolygon multiPolygon = (GeoMultiPolygon) mFeature.getGeometry();
                 GeoPolygon selectedPolygon = multiPolygon.get(selectedGeometry);
-                selectedPolygon.setOuterRing((GeoLinearRing) geometry);
 
                 if (selectedRing == 0)
                     selectedPolygon.setOuterRing((GeoLinearRing) geometry);

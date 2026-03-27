@@ -484,7 +484,7 @@ public class AttributesActivity extends NGActivity {
 
 
             if (ids == null) {
-                ids = mLayer.query(null);
+                ids = mLayer.queryAllFeatureIdsFromDb();
                 Collections.sort(ids);
             }
             if (featureMap == null)

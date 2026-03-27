@@ -30,9 +30,11 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -41,11 +43,16 @@ import android.widget.Toast;
 
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
+import com.nextgis.maplib.datasource.ngw.CollectorResource;
 import com.nextgis.maplib.datasource.ngw.Connection;
 import com.nextgis.maplib.datasource.ngw.Connections;
 import com.nextgis.maplib.datasource.ngw.INGWResource;
 import com.nextgis.maplib.datasource.ngw.LayerWithStyles;
 import com.nextgis.maplib.datasource.ngw.WebMap;
+import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.NGWUtil;
+
+import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWRasterLayer;
@@ -274,6 +281,7 @@ public class SelectNGWResourceDialog
 
         List<CheckState> checkStates = mListAdapter.getCheckState();
         Connections connections = mListAdapter.getConnections();
+        final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
             if (checkState.isCheckState1()) { //create raster
 
@@ -316,24 +324,85 @@ public class SelectNGWResourceDialog
                 }
             }
 
-            if (checkState.isCheckState2()) { //create vector
+            if (checkState.isCheckState2()) { //create vector or collector import
                 INGWResource resource = connections.getResourceById(checkState.getId());
-                if (resource instanceof LayerWithStyles) {
+                if (resource instanceof CollectorResource) {
+                    CollectorResource collector = (CollectorResource) resource;
+                    List<LayerWithStyles> layers = collector.getLayers();
+                    if (layers.isEmpty()) {
+                        Toast.makeText(context, R.string.ngw_collector_no_vector_layers, Toast.LENGTH_LONG).show();
+                        HyperLog.w(Constants.TAG, "Collector import (dialog): 0 layers remoteId="
+                                + collector.getRemoteId());
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                        return;
+                    }
+                    Connection connection = collector.getConnection();
+                    for (int li = layers.size() - 1; li >= 0; li--) {
+                        LayerWithStyles layer = layers.get(li);
+                        if (LayerGroup.findLayerByDisplayNameRecursive(mGroupLayer, layer.getName()) != null) {
+                            HyperLog.d(TAG, "Collector import (dialog): skip duplicate name \"" + layer.getName() + "\"");
+                            continue;
+                        }
+                        Intent intent = new Intent(context, LayerFillService.class);
+                        intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                        intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+                        intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
+                        intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
+                        intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
+                        intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
+                        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                        String desc = layer.getDescription();
+                        if (desc != null && !desc.isEmpty()) {
+                            intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, desc);
+                        }
+                        if (layer.getFormCount() > 0) {
+                            String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
+                            intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
+                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                        }
+                        vectorFillBatch.add(intent);
+                    }
+                } else if (resource instanceof LayerWithStyles) {
                     LayerWithStyles layer = (LayerWithStyles) resource;
                     //1. get connection for url
                     Connection connection = layer.getConnection();
                     // create or connect to fill layer with features
                     Intent intent = new Intent(context, LayerFillService.class);
                     intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                    intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
                     intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
                     intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
                     intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
                     intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
                     intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
 
-                    LayerFillProgressDialogFragment.startFill(intent);
+                    if (layer.getFormCount() > 0) {
+                        String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
+                        intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
+                        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                    }
+
+                    vectorFillBatch.add(intent);
                 }
             }
+        }
+        if (!vectorFillBatch.isEmpty()) {
+            Activity hostActivity = LayerFillProgressDialogFragment.getProgressHostActivity();
+            if (hostActivity == null) {
+                hostActivity = context instanceof Activity ? (Activity) context : getActivity();
+            }
+            if (hostActivity == null) {
+                Toast.makeText(context, R.string.error, Toast.LENGTH_SHORT).show();
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                return;
+            }
+            ContextCompat.startForegroundService(hostActivity, vectorFillBatch.get(0));
+            for (int i = 1; i < vectorFillBatch.size(); i++) {
+                hostActivity.startService(vectorFillBatch.get(i));
+            }
+            LayerFillProgressDialogFragment.startBatchFillProgress(hostActivity);
         }
         mGroupLayer.save();
     }

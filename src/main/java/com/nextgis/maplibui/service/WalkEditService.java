@@ -80,6 +80,18 @@ public class WalkEditService extends Service implements LocationListener
     public static final String ACTION_START = "com.nextgis.maplibui.WALKEDIT_START";
     public static final String WALKEDIT_CHANGE = "com.nextgis.maplibui.WALKEDIT_CHANGE";
 
+    /**
+     * Type-safe extra read (API 33+) — deprecated getSerializableExtra can fail to return geometry.
+     */
+    public static GeoGeometry readWalkGeometryExtra(Intent intent) {
+        if (intent == null)
+            return null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return intent.getSerializableExtra(ConstantsUI.KEY_GEOMETRY, GeoGeometry.class);
+        }
+        return (GeoGeometry) intent.getSerializableExtra(ConstantsUI.KEY_GEOMETRY);
+    }
+
     private SharedPreferences mSharedPreferencesTemp;
     private LocationManager mLocationManager;
 //    protected GnssStatus.Callback mGnssCallback;
@@ -140,7 +152,7 @@ public class WalkEditService extends Service implements LocationListener
                             sendGeometryBroadcast();
                         } else {
                             mLayerId = layerId;
-                            mGeometry = (GeoGeometry) intent.getSerializableExtra(ConstantsUI.KEY_GEOMETRY);
+                            mGeometry = readWalkGeometryExtra(intent);
                             if (mGeometry instanceof GeoLinearRing) {
                                 GeoLinearRing ring = (GeoLinearRing) mGeometry;
                                 if (ring.isClosed())
@@ -150,6 +162,13 @@ public class WalkEditService extends Service implements LocationListener
                             mTargetActivity = intent.getStringExtra(ConstantsUI.TARGET_CLASS);
                             mTargetExtras = intent.getBundleExtra(ConstantsUI.TARGET_EXTRAS);
                             mShowNotification = intent.getBooleanExtra(ConstantsUI.KEY_MESSAGE, true);
+                            if (mGeometry == null) {
+                                Log.e(Constants.TAG, "WalkEditService: KEY_GEOMETRY missing");
+                                initTargetIntent(mTargetActivity);
+                                foregroundStopMissingLocationPermission();
+                                break;
+                            }
+
                             startWalkEdit();
 
                             SharedPreferences.Editor edit = mSharedPreferencesTemp.edit();
@@ -184,8 +203,12 @@ public class WalkEditService extends Service implements LocationListener
         long minTime = Long.parseLong(minTimeStr) * 1000;
         float minDistance = Float.parseFloat(minDistanceStr);
 
-        if (!PermissionUtil.hasLocationPermissions(this))
+        initTargetIntent(mTargetActivity);
+
+        if (!PermissionUtil.hasLocationPermissions(this)) {
+            foregroundStopMissingLocationPermission();
             return;
+        }
 
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
 //            mLocationManager.registerGnssStatusCallback(mGnssCallback);
@@ -203,12 +226,29 @@ public class WalkEditService extends Service implements LocationListener
         }
 
         NotificationHelper.showLocationInfo(this);
-        initTargetIntent(mTargetActivity);
         addNotification();
+    }
+
+    /**
+     * startForegroundService requires a timely startForeground; stop if we cannot access location.
+     */
+    private void foregroundStopMissingLocationPermission() {
+        NotificationCompat.Builder builder = createBuilder(this, R.string.title_edit_by_walk);
+        builder.setSmallIcon(mSmallIcon)
+                .setContentTitle(getString(R.string.title_edit_by_walk))
+                .setContentText(getString(R.string.error_no_location))
+                .setWhen(System.currentTimeMillis())
+                .setAutoCancel(true)
+                .setOngoing(false);
+        if (mOpenActivity != null)
+            builder.setContentIntent(mOpenActivity);
+        startForeground(WALK_NOTIFICATION_ID, builder.build());
+        stopSelf();
     }
 
     private void sendGeometryBroadcast() {
         Intent broadcastIntent = new Intent(WALKEDIT_CHANGE);
+        broadcastIntent.setPackage(getPackageName());
         broadcastIntent.putExtra(ConstantsUI.KEY_GEOMETRY, mGeometry);
         sendBroadcast(broadcastIntent);
     }
@@ -243,8 +283,13 @@ public class WalkEditService extends Service implements LocationListener
 
     @Override
     public void onLocationChanged(Location location) {
-        boolean update = LocationUtil.isProviderEnabled(this, location.getProvider(), false);
-        if (!update)
+        if (location == null || mGeometry == null)
+            return;
+
+        // Use same source policy as track recording; map-only prefs could block all fixes here.
+        boolean allow = LocationUtil.isProviderEnabled(this, location.getProvider(), true)
+                || LocationUtil.isProviderEnabled(this, location.getProvider(), false);
+        if (!allow)
             return;
 
         GeoPoint point;
@@ -291,8 +336,19 @@ public class WalkEditService extends Service implements LocationListener
 //    }
 
     private void addNotification() {
-        if (!mShowNotification)
+        if (!mShowNotification) {
+            NotificationCompat.Builder minimal = createBuilder(this, R.string.title_edit_by_walk);
+            minimal.setSmallIcon(mSmallIcon)
+                    .setContentTitle(getString(R.string.title_edit_by_walk))
+                    .setContentText(getString(R.string.title_edit_by_walk))
+                    .setWhen(System.currentTimeMillis())
+                    .setAutoCancel(false)
+                    .setOngoing(true);
+            if (mOpenActivity != null)
+                minimal.setContentIntent(mOpenActivity);
+            startForeground(WALK_NOTIFICATION_ID, minimal.build());
             return;
+        }
 
         MapBase map = MapBase.getInstance();
         ILayer layer = map.getLayerById(mLayerId);
@@ -346,7 +402,7 @@ public class WalkEditService extends Service implements LocationListener
             }
         }
 
-        intentActivity.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | FLAG_IMMUTABLE);
+        intentActivity.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (mTargetExtras != null)
             intentActivity.putExtras(mTargetExtras);
         mOpenActivity = PendingIntent.getActivity(this, 0, intentActivity, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);

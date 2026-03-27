@@ -40,6 +40,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
+import android.text.Html;
 import androidx.core.app.NotificationCompat;
 import android.text.TextUtils;
 import android.util.Log;
@@ -61,6 +62,7 @@ import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
+import com.nextgis.maplib.util.HttpResponse;
 import com.nextgis.maplib.util.GeoJSONUtil;
 import com.nextgis.maplib.util.NGException;
 import com.nextgis.maplib.util.NGWUtil;
@@ -72,6 +74,8 @@ import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.NotificationHelper;
+
+import com.hypertrack.hyperlog.HyperLog;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -85,8 +89,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -105,6 +112,9 @@ import static com.nextgis.maplibui.util.NotificationHelper.createBuilder;
  * Service for filling layers with data
  */
 public class LayerFillService extends Service implements IProgressor {
+    /** Substring to search in Logcat together with tag {@code nextgismobile}. */
+    public static final String LOG_LAYER_CONFIG = "NGWLayerConfig";
+
     protected NotificationManager mNotifyManager;
     protected List<LayerFillTask> mQueue;
     protected static final int FILL_NOTIFICATION_ID = 9;
@@ -129,6 +139,8 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_CANCELLED = "cancel";
     public static final String KEY_RESULT = "result";
     public static final String KEY_SYNC = "sync";
+    /** True when mobile/NGW layer JSON (description) was applied via {@link NGWVectorLayer#fromJSON}; do not force {@code SYNC_ALL} in UI. */
+    public static final String KEY_MOBILE_LAYER_CONFIG_APPLIED = "mobile_layer_config_applied";
     public static final String KEY_URI = "uri";
     public static final String KEY_DEFAULT_FORM_IDS = "default_form_ids"; // id of form to donwload
     public static final String KEY_START_LAYER_FILL = "start_layer_fill";
@@ -144,6 +156,13 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_INPUT_TYPE = "input_type";
     public static final String KEY_DELETE_SRC_FILE = "delete_source_file";
     public static final String KEY_LAYER_GROUP_ID = "layer_group_id";
+    /**
+     * When true on an {@link #ACTION_ADD_TASK} intent, heavy MapLibre reload after each layer is
+     * deferred until the fill queue drains (see {@link IGISApplication#requestMapReloadAfterLayerFillBatch()}).
+     */
+    public static final String KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY = "defer_map_reload_until_queue_empty";
+    /** Full layer config.json text (e.g. from NGW resource description) applied after NGW fill. */
+    public static final String KEY_LAYER_CONFIG_JSON = "layer_config_json";
     public static final String KEY_TMS_TYPE   = "tms_type";
     public static final String KEY_TMS_CACHE   = "tms_cache";
 
@@ -165,11 +184,136 @@ public class LayerFillService extends Service implements IProgressor {
     protected boolean isPointz = false;
     protected boolean mIndeterminate;
     protected boolean mIsCanceled;
-    protected boolean mIsRunning;
     protected Handler mHandler;
     protected Intent mProgressIntent;
 
     protected static final String BUNDLE_MSG_KEY = "error_message";
+
+    private final Object mQueueLock = new Object();
+    private ExecutorService mWorkerExecutor;
+    private volatile boolean mDrainRunning;
+
+    private void enqueueToQueue(LayerFillTask task) {
+        synchronized (mQueueLock) {
+            mQueue.add(task);
+        }
+    }
+
+    private void scheduleDrainIfNeeded() {
+        synchronized (mQueueLock) {
+            if (mDrainRunning || mQueue.isEmpty()) {
+                return;
+            }
+            mDrainRunning = true;
+            ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(true);
+        }
+        mWorkerExecutor.execute(this::drainLoop);
+    }
+
+    private void drainLoop() {
+        try {
+            while (true) {
+                final LayerFillTask task;
+                synchronized (mQueueLock) {
+                    if (mIsCanceled) {
+                        mQueue.clear();
+                    }
+                    if (mQueue.isEmpty()) {
+                        break;
+                    }
+                    task = mQueue.remove(0);
+                }
+                runSingleFillTask(task);
+            }
+        } finally {
+            synchronized (mQueueLock) {
+                mDrainRunning = false;
+                if (!mQueue.isEmpty()) {
+                    mDrainRunning = true;
+                    mWorkerExecutor.execute(this::drainLoop);
+                    return;
+                }
+            }
+
+            IGISApplication app = (IGISApplication) getApplicationContext();
+            app.setLayerFillServiceBusy(false);
+            if (mIsCanceled) {
+                app.setLayerFillBatchDeferringHeavyMapReload(false);
+            } else {
+                boolean reload;
+                synchronized (mQueueLock) {
+                    reload = mQueue.isEmpty() && app.isLayerFillBatchDeferringHeavyMapReload();
+                }
+                if (reload) {
+                    app.setLayerFillBatchDeferringHeavyMapReload(false);
+                    app.requestMapReloadAfterLayerFillBatch();
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                stopForeground(true);
+            } else {
+                mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+            }
+            stopSelf();
+        }
+    }
+
+    private void runSingleFillTask(LayerFillTask task) {
+        if (mIsCanceled) {
+            return;
+        }
+
+        mNotifyTitle = task.getDescription();
+
+        mBuilder.setWhen(System.currentTimeMillis())
+                .setContentTitle(mNotifyTitle)
+                .setTicker(mNotifyTitle);
+        mNotifyManager.notify(FILL_NOTIFICATION_ID, mBuilder.build());
+
+        if (mProgressIntent.getExtras() != null) {
+            mProgressIntent.getExtras().clear();
+        }
+
+        mProgressIntent.putExtra(KEY_STATUS, STATUS_START)
+                .putExtra(KEY_TITLE, mNotifyTitle)
+                .setPackage(getPackageName());
+        sendBroadcast(mProgressIntent);
+
+        Process.setThreadPriority(Constants.DEFAULT_DOWNLOAD_THREAD_PRIORITY);
+        final IProgressor progressor = this;
+        progressor.setValue(0);
+        boolean result = task.execute(progressor);
+
+        if ((!(task instanceof UnzipForm)) || !task.subTaskWasRunned) {
+            mProgressIntent.putExtra(KEY_MESSAGE, mProgressMessage);
+        }
+
+        mProgressIntent.putExtra(KEY_STATUS, STATUS_STOP);
+        mProgressIntent.putExtra(KEY_CANCELLED, mIsCanceled);
+        mProgressIntent.putExtra(KEY_RESULT, result && !mIsCanceled);
+        synchronized (mQueueLock) {
+            mProgressIntent.putExtra(KEY_TOTAL, mQueue.size());
+        }
+
+        if (result) {
+            mLayerGroup.addLayer(task.getLayer());
+            mLayerGroup.save();
+        } else {
+            task.cancel();
+        }
+
+        if (task instanceof NGWVectorLayerFillTask) {
+            NGWVectorLayerFillTask ngwTask = (NGWVectorLayerFillTask) task;
+            mProgressIntent.putExtra(KEY_SYNC, ngwTask.showSyncDialog());
+            mProgressIntent.putExtra(KEY_ACCOUNT, ngwTask.getAccountName());
+            mProgressIntent.putExtra(KEY_REMOTE_ID, task.getLayer().getId());
+            mProgressIntent.putExtra(KEY_MOBILE_LAYER_CONFIG_APPLIED, ngwTask.wasMobileLayerConfigApplied());
+        }
+        mProgressIntent.setPackage(getPackageName());
+
+        sendBroadcast(mProgressIntent);
+    }
 
     @Override
     public void onCreate() {
@@ -201,7 +345,7 @@ public class LayerFillService extends Service implements IProgressor {
         mIsCanceled = false;
 
         mQueue = new LinkedList<>();
-        mIsRunning = false;
+        mWorkerExecutor = Executors.newSingleThreadExecutor(r -> new Thread(r, "LayerFillWorker"));
         mHandler = new Handler(Looper.getMainLooper()){
             @Override
             public void handleMessage(Message msg) {
@@ -220,6 +364,15 @@ public class LayerFillService extends Service implements IProgressor {
     }
 
     @Override
+    public void onDestroy() {
+        ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
+        if (mWorkerExecutor != null) {
+            mWorkerExecutor.shutdown();
+        }
+        super.onDestroy();
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (Constants.DEBUG_MODE)
             Log.i("LayerFillService", "Received start id " + startId + ": " + intent);
@@ -231,16 +384,21 @@ public class LayerFillService extends Service implements IProgressor {
                         int layerGroupId = intent.getIntExtra(KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
                         mLayerGroup = (LayerGroup) MapBase.getInstance().getLayerById(layerGroupId);
 
+                        if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                            ((IGISApplication) getApplicationContext())
+                                    .setLayerFillBatchDeferringHeavyMapReload(true);
+                        }
+
                         int layerType = intent.getIntExtra(KEY_INPUT_TYPE, Constants.NOT_FOUND);
                         Bundle extra = intent.getExtras();
 
                         switch (layerType) {
                             case VECTOR_LAYER:
-                                mQueue.add(new VectorLayerFillTask(extra));
+                                enqueueToQueue(new VectorLayerFillTask(extra));
                                 break;
                             case VECTOR_LAYER_WITH_FORM:
                                 try {
-                                    mQueue.add(new UnzipForm(extra));
+                                    enqueueToQueue(new UnzipForm(extra));
 
                                 } catch (Exception ex){
                                     ex.printStackTrace();
@@ -259,22 +417,31 @@ public class LayerFillService extends Service implements IProgressor {
                                 }
                                 break;
                             case TMS_LAYER:
-                                mQueue.add(new LocalTMSFillTask(extra));
+                                enqueueToQueue(new LocalTMSFillTask(extra));
                                 break;
                             case NGW_LAYER:
-                                mQueue.add(new NGWVectorLayerFillTask(extra));
+                                enqueueToQueue(new NGWVectorLayerFillTask(extra));
                                 break;
                         }
 
-                        if(!mIsRunning){
-                            startNextTask();
-                        }
+                        scheduleDrainIfNeeded();
 
                         return START_STICKY;
                     case ACTION_STOP:
-                        mQueue.clear();
-                        mIsCanceled = true;
-                        startNextTask();
+                        synchronized (mQueueLock) {
+                            mQueue.clear();
+                            mIsCanceled = true;
+                            if (!mDrainRunning) {
+                                ((IGISApplication) getApplicationContext())
+                                        .setLayerFillServiceBusy(false);
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    stopForeground(true);
+                                } else {
+                                    mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+                                }
+                                stopSelf();
+                            }
+                        }
                         break;
                     case ACTION_SHOW:
                         mProgressIntent.putExtra(KEY_STATUS, STATUS_SHOW)
@@ -290,78 +457,233 @@ public class LayerFillService extends Service implements IProgressor {
         return START_STICKY;
     }
 
-    protected void startNextTask(){
-        if (mQueue.isEmpty()){
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                stopForeground(true);
-            else
-                mNotifyManager.cancel(FILL_NOTIFICATION_ID);
-
-            stopSelf();
-            return;
+    /**
+     * Config JSON from intent extra, or from NGW resource {@code description} (full GET).
+     */
+    private String resolveImportedLayerConfigJson(
+            NGWVectorLayer layer,
+            String fromIntentExtra)
+    {
+        if (!TextUtils.isEmpty(fromIntentExtra)) {
+            String t = fromIntentExtra.trim();
+            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " using intent extra, chars=" + t.length());
+            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " intent extra length=" + t.length());
+            return t;
         }
-
-        mIsRunning = true;
-        final  IProgressor progressor = this;
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                if (mIsCanceled)
-                    return;
-
-                LayerFillTask task = mQueue.remove(0);
-                mNotifyTitle = task.getDescription();
-//                Log.e("RML", "run LayerFill: " + task.mLayerName);
-
-                mBuilder.setWhen(System.currentTimeMillis())
-                        .setContentTitle(mNotifyTitle)
-                        .setTicker(mNotifyTitle);
-                mNotifyManager.notify(FILL_NOTIFICATION_ID, mBuilder.build());
-
-                if (mProgressIntent.getExtras() != null)
-                    mProgressIntent.getExtras().clear();
-
-                mProgressIntent.putExtra(KEY_STATUS, STATUS_START)
-                        .putExtra(KEY_TITLE, mNotifyTitle)
-                        .setPackage(getPackageName());
-                sendBroadcast(mProgressIntent);
-                //Log.e("FFRRMM", "Thread send broadcast 1" + mProgressIntent.toString());
-
-
-                Process.setThreadPriority(Constants.DEFAULT_DOWNLOAD_THREAD_PRIORITY);
-                progressor.setValue(0);
-                boolean result = task.execute(progressor);
-
-                if ( (!(task instanceof UnzipForm) ) || task.subTaskWasRunned == false)
-                    mProgressIntent.putExtra(KEY_MESSAGE, mProgressMessage);
-
-                mProgressIntent.putExtra(KEY_STATUS, STATUS_STOP);
-                mProgressIntent.putExtra(KEY_CANCELLED, mIsCanceled);
-                mProgressIntent.putExtra(KEY_RESULT, result && !mIsCanceled);
-                mProgressIntent.putExtra(KEY_TOTAL, mQueue.size());
-
-                if (result) {
-                    mLayerGroup.addLayer(task.getLayer());
-                    mLayerGroup.save();
-                } else
-                    task.cancel();
-
-                if (task instanceof NGWVectorLayerFillTask) {
-                    mProgressIntent.putExtra(KEY_SYNC, ((NGWVectorLayerFillTask) task).showSyncDialog());
-                    mProgressIntent.putExtra(KEY_ACCOUNT, ((NGWVectorLayerFillTask) task).getAccountName());
-                    mProgressIntent.putExtra(KEY_REMOTE_ID, task.getLayer().getId());
-                }
-                mProgressIntent.setPackage(getPackageName());
-
-                sendBroadcast(mProgressIntent);
-                //Log.e("FFRRMM", "Thread send broadcast 2" + mProgressIntent.toString());
-                //mProgressIntent.removeExtra(KEY_STATUS);
-                mIsRunning = false;
-                startNextTask();
+        try {
+            AccountUtil.AccountData ad =
+                    AccountUtil.getAccountData(getApplicationContext(), layer.getAccountName());
+            String url = NGWUtil.getResourceUrl(ad.url, layer.getRemoteId());
+            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " fetching description GET resource id="
+                    + layer.getRemoteId() + " account=" + layer.getAccountName());
+            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " GET " + url);
+            HttpResponse response = NetworkUtil.get(url, ad.login, ad.password, false);
+            if (!response.isOk()) {
+                Log.w(Constants.TAG, LOG_LAYER_CONFIG + " HTTP " + response.getResponseCode());
+                HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " HTTP " + response.getResponseCode());
+                return null;
             }
-        }).start();
+            JSONObject root = new JSONObject(response.getResponseBody());
+            String d = extractNgwResourceDescriptionJson(root);
+            if (TextUtils.isEmpty(d)) {
+                Log.w(Constants.TAG, LOG_LAYER_CONFIG + " empty description in API response (check NGW resource → Description)");
+                HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " description empty after GET");
+                return null;
+            }
+            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " from NGW description, chars=" + d.length());
+            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " NGW description length=" + d.length());
+            return d.trim();
+        } catch (Exception e) {
+            Log.e(Constants.TAG, LOG_LAYER_CONFIG + " resolve failed", e);
+            HyperLog.exception(Constants.TAG, e);
+            return null;
+        }
     }
 
+    /**
+     * Reads pasted mobile config from resource.description; tries a few shapes used by NGW versions.
+     */
+    private static String extractNgwResourceDescriptionJson(JSONObject root) {
+        if (root == null) {
+            return null;
+        }
+        JSONObject res = root.optJSONObject("resource");
+        if (res != null) {
+            String d = readDescriptionField(res);
+            if (!TextUtils.isEmpty(d)) {
+                return d;
+            }
+        }
+        String top = readDescriptionField(root);
+        if (!TextUtils.isEmpty(top)) {
+            return top;
+        }
+        JSONObject vl = root.optJSONObject("vector_layer");
+        if (vl != null) {
+            return readDescriptionField(vl);
+        }
+        JSONObject fl = root.optJSONObject("feature_layer");
+        if (fl != null) {
+            return readDescriptionField(fl);
+        }
+        return null;
+    }
+
+    private static String readDescriptionField(JSONObject o) {
+        if (o == null || !o.has("description") || o.isNull("description")) {
+            return null;
+        }
+        Object raw = o.opt("description");
+        if (raw instanceof String) {
+            return (String) raw;
+        }
+        return raw != null ? raw.toString() : null;
+    }
+
+    private static JSONObject parseLayerConfigObject(String raw) throws JSONException {
+        return parseLayerConfigObject(raw, 0);
+    }
+
+    /**
+     * NGW "Description" is often rich text: {@code <p>{"name":...}</p>}. Also unwrap one-level
+     * {@code {"layer": "<p>...</p>"}} where the inner value is a string, not an object.
+     */
+    /**
+     * Collector/mobile exports often put style in {@code "layer"} while {@code sync_type}, {@code account},
+     * {@code id}, etc. stay on the wrapper — merge those onto the inner object for {@link NGWVectorLayer#fromJSON}.
+     */
+    private static void mergeCollectorNgwMetadataOntoLayerJson(JSONObject wrapper, JSONObject layerJson)
+            throws JSONException {
+        if (wrapper == null || layerJson == null) {
+            return;
+        }
+        final String[] keys = {
+                "account",
+                "sync_type",
+                "sync_direction",
+                "ngw_version_major",
+                "ngw_version_minor",
+                "id",
+                "server_where",
+                "tracked",
+                "ngw_layer_type",
+                GeoConstants.GEOJSON_CRS,
+        };
+        for (String k : keys) {
+            if (wrapper.has(k) && !wrapper.isNull(k) && !layerJson.has(k)) {
+                layerJson.put(k, wrapper.opt(k));
+            }
+        }
+    }
+
+    private static JSONObject parseLayerConfigObject(String raw, int depth) throws JSONException {
+        if (depth > 6) {
+            throw new JSONException("layer config: too many unwrap levels");
+        }
+        String s = unwrapLayerConfigJsonText(raw);
+        if (s.isEmpty()) {
+            throw new JSONException("layer config: empty after unwrap");
+        }
+        JSONObject root = new JSONObject(s);
+        if (root.length() == 1) {
+            Iterator<String> it = root.keys();
+            String k = it.next();
+            if ("layer".equals(k) || "config".equals(k) || "vector_layer".equals(k)) {
+                if (root.isNull(k)) {
+                    throw new JSONException("layer config: null wrapper " + k);
+                }
+                Object v = root.opt(k);
+                if (v instanceof JSONObject) {
+                    JSONObject inner = (JSONObject) v;
+                    mergeCollectorNgwMetadataOntoLayerJson(root, inner);
+                    return inner;
+                }
+                if (v instanceof String) {
+                    return parseLayerConfigObject((String) v, depth + 1);
+                }
+                throw new JSONException("layer config: wrapper " + k + " must be object or string");
+            }
+        }
+        return root;
+    }
+
+    private static String unwrapLayerConfigJsonText(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String s = raw.trim();
+        if (s.startsWith("\uFEFF")) {
+            s = s.substring(1).trim();
+        }
+        if (s.startsWith("<")) {
+            s = stripSimpleHtmlToText(s);
+        }
+        if (s.contains("&quot;") || s.contains("&lt;") || s.contains("&#")) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                s = Html.fromHtml(s, Html.FROM_HTML_MODE_LEGACY).toString();
+            } else {
+                s = Html.fromHtml(s).toString();
+            }
+            s = s.trim();
+        }
+        s = extractBalancedJsonObject(s);
+        return s.trim();
+    }
+
+    /** Removes common tags from NGW/WYSIWYG description; keeps text/br newlines. */
+    private static String stripSimpleHtmlToText(String html) {
+        if (html == null) {
+            return "";
+        }
+        String t = html;
+        t = t.replaceAll("(?is)<\\s*head\\s*>.*?</\\s*head\\s*>", "");
+        t = t.replaceAll("(?is)<\\s*br\\s*/?>", "\n");
+        t = t.replaceAll("(?is)</\\s*p\\s*>", "\n");
+        t = t.replaceAll("(?is)<\\s*p[^>]*>", "");
+        t = t.replaceAll("<[^>]+>", "");
+        return t.trim();
+    }
+
+    /**
+     * Takes substring from first {@code {} to matching {@code }} respecting JSON strings.
+     */
+    private static String extractBalancedJsonObject(String s) {
+        int start = s.indexOf('{');
+        if (start < 0) {
+            return s;
+        }
+        int depth = 0;
+        boolean inString = false;
+        boolean escape = false;
+        for (int i = start; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (escape) {
+                escape = false;
+                continue;
+            }
+            if (inString) {
+                if (c == '\\') {
+                    escape = true;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                inString = true;
+                continue;
+            }
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return s.substring(start, i + 1);
+                }
+            }
+        }
+        return s.substring(start);
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -449,6 +771,7 @@ public class LayerFillService extends Service implements IProgressor {
         protected Layer mLayer;
         public boolean subTaskWasRunned = true;
         public long[] defaultFormIDArray = null;
+        protected String mLayerConfigJson;
 
         LayerFillTask(Bundle bundle) {
             mUri = bundle.getParcelable(KEY_URI);
@@ -459,6 +782,7 @@ public class LayerFillService extends Service implements IProgressor {
             mMinZoom = bundle.getFloat(KEY_MIN_ZOOM, GeoConstants.DEFAULT_MIN_ZOOM);
             mMaxZoom = bundle.getFloat(KEY_MAX_ZOOM, GeoConstants.DEFAULT_MAX_ZOOM);
             mVisible = bundle.getBoolean(KEY_VISIBLE, true);
+            mLayerConfigJson = bundle.getString(KEY_LAYER_CONFIG_JSON);
 
             Serializable serializable = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
             if (serializable instanceof ArrayList<?>) {
@@ -702,9 +1026,12 @@ public class LayerFillService extends Service implements IProgressor {
                         extra.putString(KEY_ACCOUNT, accountName);
                         extra.putBoolean(KEY_SYNC, mSync);
                         extra.putLongArray(KEY_DEFAULT_FORM_IDS, defaultFormIDArray);
+                        if (!TextUtils.isEmpty(mLayerConfigJson)) {
+                            extra.putString(KEY_LAYER_CONFIG_JSON, mLayerConfigJson);
+                        }
 
                         if (!isCanceled() && startLayerFill) {
-                            mQueue.add(new NGWVectorLayerFillTask(extra));
+                            enqueueToQueue(new NGWVectorLayerFillTask(extra));
                         }
                         if (!startLayerFill) {
 //                            if (getLayer() instanceof  NGWVectorLayer)
@@ -719,7 +1046,7 @@ public class LayerFillService extends Service implements IProgressor {
                         extra.putLongArray(KEY_DEFAULT_FORM_IDS, defaultFormIDArray);
 
                         if (!isCanceled() && startLayerFill) {
-                            mQueue.add(new VectorLayerFormFillTask(extra));
+                            enqueueToQueue(new VectorLayerFormFillTask(extra));
                         }
                         if (!startLayerFill) {
 //                            if (getLayer() instanceof  NGWVectorLayer)
@@ -838,18 +1165,26 @@ public class LayerFillService extends Service implements IProgressor {
     }
 
     private class NGWVectorLayerFillTask extends LayerFillTask{
+        private static final int NGW_FILL_MAX_ATTEMPTS = 3;
+
         private ArrayList<String> mLookupIds = new ArrayList<>();
         private boolean mShowSyncDialog;
+        private final long mRemoteIdInit;
+        private final String mAccountNameInit;
+        private boolean mMobileLayerConfigApplied;
 
+        boolean wasMobileLayerConfigApplied() {
+            return mMobileLayerConfigApplied;
+        }
 
         NGWVectorLayerFillTask(Bundle bundle) {
             super(bundle);
             isPointz = false;
+            mRemoteIdInit = bundle.getLong(KEY_REMOTE_ID);
+            mAccountNameInit = bundle.getString(KEY_ACCOUNT);
             mLayer = new NGWVectorLayerUI(mLayerGroup.getContext(), mLayerPath);
-            ((NGWVectorLayerUI) mLayer).setRemoteId(bundle.getLong(KEY_REMOTE_ID));
-            //((NGWVectorLayerUI) mLayer).setDefaultFormId(bundle.getLongArray(KEY_DEFAULT_FORM_IDS));
-            ((NGWVectorLayerUI) mLayer).setAccountName(bundle.getString(KEY_ACCOUNT));
-            ((NGWVectorLayerUI) mLayer).setAccountName(bundle.getString(KEY_ACCOUNT));
+            ((NGWVectorLayerUI) mLayer).setRemoteId(mRemoteIdInit);
+            ((NGWVectorLayerUI) mLayer).setAccountName(mAccountNameInit);
             initLayer();
 
             if (bundle.containsKey(KEY_LOOKUP_ID))
@@ -867,47 +1202,99 @@ public class LayerFillService extends Service implements IProgressor {
             }
         }
 
+        private void rebuildNgwLayerAfterTransientFailure() {
+            if (mLayer != null) {
+                mLayer.delete(true);
+            }
+            mLayerPath = mLayerGroup.createLayerStorage();
+            mLayer = new NGWVectorLayerUI(mLayerGroup.getContext(), mLayerPath);
+            ((NGWVectorLayerUI) mLayer).setRemoteId(mRemoteIdInit);
+            ((NGWVectorLayerUI) mLayer).setAccountName(mAccountNameInit);
+            initLayer();
+        }
+
+        private boolean handleNgwExecuteError(Exception e, IProgressor progressor) {
+            String error = e.getLocalizedMessage();
+            if (e instanceof JSONException && e.getMessage().equals("No value for fields")){
+                error = getResources().getString(com.nextgis.maplib.R.string.error_forbidden);
+            }
+            if ("POINTZ".equals(e.getMessage())){
+                error = getBaseContext().getString(R.string.pointz_alert);
+                isPointz = true;
+            }
+
+            setError(error, progressor);
+            if ("POINTZ".equals(e.getMessage())){
+            } else notifyError(mProgressMessage);
+            return false;
+        }
+
         @Override
         public boolean execute(IProgressor progressor) {
-            try {
-                NGWVectorLayer ngwVectorLayer = (NGWVectorLayer) mLayer;
-                if (null == ngwVectorLayer)
-                    return false;
+            boolean lookupsFilled = false;
+            for (int attempt = 1; attempt <= NGW_FILL_MAX_ATTEMPTS; attempt++) {
+                try {
+                    NGWVectorLayer ngwVectorLayer = (NGWVectorLayer) mLayer;
+                    if (null == ngwVectorLayer)
+                        return false;
 
-                for (String id : mLookupIds) {
-                    NGWLookupTable table = new NGWLookupTable(mLayer.getContext(), mLayerGroup.createLayerStorage());
-                    table.setAccountName(((NGWVectorLayer) mLayer).getAccountName());
-                    table.setRemoteId(Long.parseLong(id));
-                    table.setSyncType(Constants.SYNC_ALL);
-                    table.setName(getText(R.string.layer_lookuptable) + " #" + id);
-                    table.fillFromNGW(null);
-                    mLayerGroup.addLayer(table);
+                    if (!lookupsFilled) {
+                        for (String id : mLookupIds) {
+                            NGWLookupTable table = new NGWLookupTable(mLayer.getContext(), mLayerGroup.createLayerStorage());
+                            table.setAccountName(((NGWVectorLayer) mLayer).getAccountName());
+                            table.setRemoteId(Long.parseLong(id));
+                            table.setSyncType(Constants.SYNC_ALL);
+                            table.setName(getText(R.string.layer_lookuptable) + " #" + id);
+                            table.fillFromNGW(null);
+                            mLayerGroup.addLayer(table);
+                        }
+                        lookupsFilled = true;
+                    }
+
+                    ngwVectorLayer.createFromNGW(progressor);
+                    String rawConfig = resolveImportedLayerConfigJson(ngwVectorLayer, mLayerConfigJson);
+                    if (!TextUtils.isEmpty(rawConfig)) {
+                        try {
+                            JSONObject cfg = parseLayerConfigObject(rawConfig);
+                            ngwVectorLayer.fromJSON(cfg);
+                            ngwVectorLayer.save();
+                            mMobileLayerConfigApplied = true;
+                            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " applied+saved OK name="
+                                    + ngwVectorLayer.getName());
+                            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " applied OK " + ngwVectorLayer.getName());
+                        } catch (Exception e) {
+                            Log.e(Constants.TAG, LOG_LAYER_CONFIG + " fromJSON/save failed: " + e.getMessage(), e);
+                            HyperLog.exception(Constants.TAG, e);
+                        }
+                    } else {
+                        Log.w(Constants.TAG, LOG_LAYER_CONFIG + " skipped (no text): name="
+                                + ngwVectorLayer.getName() + " remoteId=" + ngwVectorLayer.getRemoteId());
+                        HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " skipped no config text for "
+                                + ngwVectorLayer.getName());
+                    }
+                    return true;
+                } catch (IOException e) {
+                    if (!NetworkUtil.isTransientNetworkFailure(e) || attempt >= NGW_FILL_MAX_ATTEMPTS) {
+                        return handleNgwExecuteError(e, progressor);
+                    }
+                    HyperLog.d(Constants.TAG, "NGW fill transient error, attempt " + attempt + "/" + NGW_FILL_MAX_ATTEMPTS + ": " + e.getMessage());
+                    if (progressor != null) {
+                        progressor.setMessage(getString(R.string.layer_fill_network_retry, attempt + 1, NGW_FILL_MAX_ATTEMPTS));
+                    }
+                    try {
+                        Thread.sleep(1000L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        setError(ie.getLocalizedMessage(), progressor);
+                        notifyError(mProgressMessage);
+                        return false;
+                    }
+                    rebuildNgwLayerAfterTransientFailure();
+                } catch (JSONException | SQLiteException | NGException | ClassCastException e) {
+                    return handleNgwExecuteError(e, progressor);
                 }
-
-                ngwVectorLayer.createFromNGW(progressor);
-            } catch (JSONException | IOException | SQLiteException | NGException |
-                     ClassCastException e) {
-                String error = e.getLocalizedMessage();
-                if (e instanceof JSONException && e.getMessage().equals("No value for fields")){
-                    error = getResources().getString(com.nextgis.maplib.R.string.error_forbidden);
-                }
-                if ("POINTZ".equals(e.getMessage())){
-                    error = getBaseContext().getString(R.string.pointz_alert);
-                    isPointz = true;
-                }
-
-
-                setError(error, progressor);
-                if ("POINTZ".equals(e.getMessage())){
-//                    Intent msg = new Intent(MESSAGE_ALERT_INTENT);
-//                    msg.putExtra(MESSAGE_EXTRA,getBaseContext().getString(R.string.pointz_alert));
-//                    msg.putExtra(MESSAGE_TITLE_EXTRA,getBaseContext().getString(R.string.pointz_alert_title));
-//                    msg.setPackage(getPackageName());
-//                    getBaseContext().sendBroadcast(msg);
-                } else notifyError(mProgressMessage);
-                return false;
             }
-            return true;
+            return false;
         }
 
         boolean showSyncDialog() {

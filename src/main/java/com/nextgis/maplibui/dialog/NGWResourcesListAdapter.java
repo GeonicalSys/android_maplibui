@@ -261,7 +261,6 @@ public class NGWResourcesListAdapter
             final Connection connection = (Connection) getItem(i);
             return getConnectionView(connection, view);
         case Connection.NGWResourceTypeConnection:
-//            case Connection.NGWResourceTypeCollector:
         case Connection.NGWResourceTypeResourceGroup:
             Resource resource = (Resource) getItem(i);
             return getResourceView(resource, view);
@@ -456,6 +455,21 @@ public class NGWResourcesListAdapter
                     //add check listener
                     checkBox1 = v.findViewById(R.id.checkBox1);
                     setCheckBox(resourceType, checkBox1, id, 1);
+                    break;
+                case Connection.NGWResourceTypeCollector:
+                    if (null == v || v.getId() != R.id.ngw_layer_check_row) {
+                        LayoutInflater inflater = LayoutInflater.from(mActivity.get());
+                        v = inflater.inflate(R.layout.row_ngwlayer_check, null);
+                        v.setId(R.id.ngw_layer_check_row);
+                    }
+                    ivIcon = v.findViewById(R.id.ivIcon);
+                    ivIcon.setImageDrawable(ContextCompat.getDrawable(mActivity.get(), R.drawable.ic_vector));
+                    tvDesc = v.findViewById(R.id.tvDesc);
+                    tvDesc.setText(mActivity.get().getString(R.string.ngw_collector_project));
+                    TextView tvCollectorImport = v.findViewById(R.id.type1);
+                    tvCollectorImport.setText(mActivity.get().getString(R.string.ngw_collector_import));
+                    checkBox1 = v.findViewById(R.id.checkBox1);
+                    setCheckBox(resourceType, checkBox1, id, 2);
                     break;
                 default:
                     return null;
@@ -781,30 +795,6 @@ public class NGWResourcesListAdapter
                 adapterRef.get().notifyDataSetChanged();
             }
         }
-    }//                case Connection.NGWResourceTypeCollector:
-//                    CollectorResource collectorResource = (CollectorResource) resource;
-//
-//                    if (null == v || v.getId() != R.id.ngw_layer_check_row) {
-//                        LayoutInflater inflater = LayoutInflater.from(mActivity);
-//                        v = inflater.inflate(R.layout.row_ngwlayer_check, null);
-//                        v.setId(R.id.ngw_layer_check_row);
-//                    }
-//
-//                    TextView tvType = v.findViewById(R.id.type1);
-//                    tvType.setText(mActivity.getString(R.string.collector));
-//
-//                    //add check listener
-//                    checkBox1 = v.findViewById(R.id.checkBox1);
-//                    setCheckBox(resourceType, checkBox1, id, 2);
-//
-//
-//                    int vIcon = R.mipmap.ic_collector;
-//                    ivIcon = v.findViewById(R.id.ivIcon);
-//                    ivIcon.setImageDrawable(ContextCompat.getDrawable(mActivity, vIcon));
-//
-//                    int desc1 = R.string.collector;
-//                    tvDesc = v.findViewById(R.id.tvDesc);
-//                    tvDesc.setText(mActivity.getString(desc1));
-//                    break;
+    }
 
 }

@@ -68,10 +68,8 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
     protected int mFillColor, mStrokeColor, mTextColor;
     protected Style mStyle;
     protected VectorLayer mLayer;
-    boolean isRule;
 
-    public StyleFragment(boolean isRule) {
-        this.isRule = isRule;
+    public StyleFragment() {
     }
 
     public void setStyle(Style style) {
@@ -91,7 +89,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             inflateMarker(body);
         } else if (mStyle instanceof SimpleLineStyle) {
             body = inflater.inflate(R.layout.style_line, container, false);
-            inflateLine(body, isRule);
+            inflateLine(body);
         } else if (mStyle instanceof SimplePolygonStyle) {
             body = inflater.inflate(R.layout.style_polygon, container, false);
             inflatePolygon(body);
@@ -212,7 +210,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         });
     }
 
-    private void inflateLine(View v, boolean isRule) {
+    private void inflateLine(View v) {
         mStrokeColor = mStyle.getOutColor();
 
         mColorFillName = v.findViewById(R.id.color_fill_name);
@@ -250,21 +248,6 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         });
 
         Spinner type = v.findViewById(R.id.type);
-
-        if (isRule){
-            String[] types = getResources().getStringArray(R.array.line_type);
-
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                    getContext(),
-                    android.R.layout.simple_spinner_item,
-                    new String[]{types[0]}          // only 1st element
-            );
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-            type.setAdapter(adapter);
-        }
-
-
 
         type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override

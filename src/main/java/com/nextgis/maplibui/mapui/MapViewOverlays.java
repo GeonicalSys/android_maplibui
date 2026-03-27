@@ -31,6 +31,7 @@ import android.os.Parcelable;
 import androidx.annotation.NonNull;
 import android.util.Log;
 
+import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplibui.api.Overlay;
@@ -254,6 +255,16 @@ public class MapViewOverlays
     @Override
     public void onLayerChanged(int id) {
         super.onLayerChanged(id);
+
+        Context ctx = getContext();
+        if (ctx != null) {
+            Context appCtx = ctx.getApplicationContext();
+            if (appCtx instanceof IGISApplication
+                    && ((IGISApplication) appCtx).isLayerFillBatchDeferringHeavyMapReload()) {
+                mMap.checkLayerVisibility(id);
+                return;
+            }
+        }
 
         mMap.reloadFillLayerStyleToMaplibre(id); // todo change to update ony item - feature id
         mMap.checkLayerVisibility(id);

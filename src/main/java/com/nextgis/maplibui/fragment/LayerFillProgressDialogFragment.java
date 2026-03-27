@@ -47,6 +47,7 @@ import android.text.TextUtils;
 import android.widget.Toast;
 
 import com.nextgis.maplib.api.IGISApplication;
+import com.nextgis.maplib.api.ILayer;
 import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplibui.R;
@@ -94,79 +95,139 @@ public class LayerFillProgressDialogFragment extends Fragment {
     }
 
     public static void startFill(Intent intent) {
-        LayerFillProgressDialog dialog = new LayerFillProgressDialog();
-        dialog.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, intent);
+        new LayerFillProgressDialog(false).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, intent);
     }
 
-    private static void createProgressDialog() {
+
+    /**
+     * Map / host activity that retains {@link LayerFillProgressDialogFragment} — same as used by
+     * {@link #startFill(Intent)}. Use for collector batch fill so the progress dialog is not tied to
+     * {@link android.app.Activity} that calls {@code finish()} immediately (e.g. resource picker).
+     */
+    public static Activity getProgressHostActivity() {
+        return mActivity != null ? mActivity.get() : null;
+    }
+
+
+    /**
+     * After {@link ContextCompat#startForegroundService(Context, Intent)} for the first queued task
+     * and {@link Context#startService(Intent)} for the rest, show progress for the whole batch
+     * (e.g. collector project). Does not start the service again.
+     */
+    public static void startBatchFillProgress(Activity activity) {
+        if (activity == null) {
+            return;
+        }
+        new LayerFillProgressDialog(true).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, activity);
+    }
+
+    private static void createProgressDialog(Activity host) {
+        if (host == null) {
+            return;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            mProgressDialog = new ProgressDialog(mActivity.get(), android.R.style.Theme_Material_Light_Dialog_Alert);
+            mProgressDialog = new ProgressDialog(host, android.R.style.Theme_Material_Light_Dialog_Alert);
         else
-            mProgressDialog = new ProgressDialog(mActivity.get());
+            mProgressDialog = new ProgressDialog(host);
 
         mProgressDialog.setProgressNumberFormat(null);
         mProgressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         mProgressDialog.setCanceledOnTouchOutside(false);
         mProgressDialog.setButton(DialogInterface.BUTTON_POSITIVE,
-                mActivity.get().getString(R.string.menu_visibility_off), new DialogInterface.OnClickListener() {
+                host.getString(R.string.menu_visibility_off), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         mIsShowing = false;
                     }
                 });
         mProgressDialog.setButton(DialogInterface.BUTTON_NEGATIVE,
-                mActivity.get().getString(android.R.string.cancel), new DialogInterface.OnClickListener() {
+                host.getString(android.R.string.cancel), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        Intent intentStop = new Intent(mActivity.get(), LayerFillService.class);
+                        Intent intentStop = new Intent(host, LayerFillService.class);
                         intentStop.setAction(LayerFillService.ACTION_STOP);
-                        mActivity.get().startService(intentStop);
+                        host.startService(intentStop);
                     }
                 });
     }
 
     private static class LayerFillProgressDialog extends AsyncTask<Object, Intent, Boolean> {
+        private final boolean mSkipForegroundStart;
         private boolean mIsFinished;
+        private WeakReference<Activity> mHostRef;
+
+        LayerFillProgressDialog(boolean skipForegroundStart) {
+            mSkipForegroundStart = skipForegroundStart;
+        }
+
+        private Activity getHost() {
+            if (mHostRef != null) {
+                Activity a = mHostRef.get();
+                if (a != null) {
+                    return a;
+                }
+            }
+            return mActivity.get();
+        }
 
         @Override
         protected Boolean doInBackground(Object[] params) {
-            if (params.length == 1 && params[0] instanceof Intent) {
-                Intent intent = (Intent) params[0];
-                if (mActivity.get() == null)
-                    return false;
-                ContextCompat.startForegroundService(mActivity.get(), intent);
-
-                mLayerFillReceiver = new BroadcastReceiver() {
-                    public void onReceive(Context context, Intent intent) {
-                        publishProgress(intent);
-                    }
-                };
-
-                IntentFilter intentFilter = new IntentFilter(LayerFillService.ACTION_UPDATE);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    mActivity.get().registerReceiver(mLayerFillReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED);
-                } else {
-                    mActivity.get().registerReceiver(mLayerFillReceiver, intentFilter);
-                }
-
-                while (!mIsFinished)
-                    SystemClock.sleep(500);
-
-                return true;
+            if (params.length != 1) {
+                return false;
             }
-            return false;
+            final Activity host;
+            if (mSkipForegroundStart) {
+                if (!(params[0] instanceof Activity)) {
+                    return false;
+                }
+                host = (Activity) params[0];
+            } else {
+                if (!(params[0] instanceof Intent)) {
+                    return false;
+                }
+                host = mActivity.get();
+                if (host == null) {
+                    return false;
+                }
+                ContextCompat.startForegroundService(host, (Intent) params[0]);
+            }
+            mHostRef = new WeakReference<>(host);
+
+            mLayerFillReceiver = new BroadcastReceiver() {
+                public void onReceive(Context context, Intent intent) {
+                    publishProgress(intent);
+                }
+            };
+
+            IntentFilter intentFilter = new IntentFilter(LayerFillService.ACTION_UPDATE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                host.registerReceiver(mLayerFillReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                host.registerReceiver(mLayerFillReceiver, intentFilter);
+            }
+
+            while (!mIsFinished) {
+                SystemClock.sleep(500);
+            }
+
+            return true;
         }
 
         @Override
         protected void onProgressUpdate(Intent... values) {
             super.onProgressUpdate(values);
 
+            final Activity host = getHost();
+            if (host == null) {
+                return;
+            }
+
             final Intent intent = values[0];
             short serviceStatus = intent.getShortExtra(LayerFillService.KEY_STATUS, (short) 0);
             String title = intent.getStringExtra(LayerFillService.KEY_TITLE);
 
             if (mProgressDialog == null) {
-                createProgressDialog();
+                createProgressDialog(host);
                 setDialogInfo(title, title);
 
                 if (mIsShowing)
@@ -193,29 +254,29 @@ public class LayerFillProgressDialogFragment extends Fragment {
                     if (intent.getIntExtra(LayerFillService.KEY_TOTAL, 0) == 0) {
                         mProgressDialog.dismiss();
                         mProgressDialog = null;
-                        if (mLayerFillReceiver != null && mActivity.get() != null)
-                            mActivity.get().unregisterReceiver(mLayerFillReceiver);
+                        if (mLayerFillReceiver != null)
+                            host.unregisterReceiver(mLayerFillReceiver);
                         mLayerFillReceiver = null;
                         mIsFinished = true;
                     }
 
                     boolean canceled = intent.getBooleanExtra(LayerFillService.KEY_CANCELLED, false);
-                    String toast = mActivity.get().getString(com.nextgis.maplibui.R.string.message_layer_created);
+                    String toast = host.getString(com.nextgis.maplibui.R.string.message_layer_created);
                     boolean success = intent.getBooleanExtra(LayerFillService.KEY_RESULT, false);
                     if (!success) {
                         if (canceled)
-                            toast = mActivity.get().getString(com.nextgis.maplibui.R.string.canceled);
+                            toast = host.getString(com.nextgis.maplibui.R.string.canceled);
                         else
                             toast = intent.getStringExtra(LayerFillService.KEY_MESSAGE);
                     }
 
                     if (intent.hasExtra(LayerFillService.KEY_MESSAGE)) {
                         if (!intent.getBooleanExtra(IS_POINTS, false))
-                            Toast.makeText(mActivity.get(), toast, Toast.LENGTH_LONG).show();
+                            Toast.makeText(host, toast, Toast.LENGTH_LONG).show();
                         else {
 
                             final androidx.appcompat.app.AlertDialog builder
-                                    = new androidx.appcompat.app.AlertDialog.Builder(mActivity.get()).setTitle(title)
+                                    = new androidx.appcompat.app.AlertDialog.Builder(host).setTitle(title)
                                     .setMessage(toast)
                                     .setPositiveButton(R.string.ok, null)
                                     .create();
@@ -229,17 +290,34 @@ public class LayerFillProgressDialogFragment extends Fragment {
                     boolean isNgwSync = intent.getBooleanExtra(LayerFillService.KEY_SYNC, false);
                     if (success && !canceled && isNgwSync) {
                         int id = intent.getIntExtra(LayerFillService.KEY_REMOTE_ID, -1);
-                        final IGISApplication app = (IGISApplication) mActivity.get().getApplication();
-                        final NGWVectorLayer ngwLayer = (NGWVectorLayer) app.getMap().getLayerById(id);
-                        final Account account = app.getAccount(ngwLayer.getAccountName());
+                        final IGISApplication app = (IGISApplication) host.getApplication();
+                        final ILayer rawLayer = app.getMap().getLayerById(id);
+                        if (!(rawLayer instanceof NGWVectorLayer))
+                            break;
+                        final NGWVectorLayer ngwLayer = (NGWVectorLayer) rawLayer;
+                        final String accountName = ngwLayer.getAccountName();
+                        if (TextUtils.isEmpty(accountName))
+                            break;
+                        final Account account = app.getAccount(accountName);
+                        if (account == null)
+                            break;
 
+                        boolean mobileConfigApplied = intent.getBooleanExtra(
+                                LayerFillService.KEY_MOBILE_LAYER_CONFIG_APPLIED, false);
+                        if (mobileConfigApplied) {
+                            // sync_type / direction already set by NGWVectorLayer.fromJSON (collector mobile config)
+                            boolean layerSyncOff = (ngwLayer.getSyncType() & Constants.SYNC_NONE) != 0;
+                            if (!layerSyncOff) {
+                                NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), true);
+                            }
+                        } else {
+                            NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), true);
+                            ngwLayer.setSyncType(Constants.SYNC_ALL);
+                            ngwLayer.save();
+                        }
 
-                        NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), true);
-                        ngwLayer.setSyncType(Constants.SYNC_ALL);
-                        ngwLayer.save();
-
-                        if (mActivity.get()!= null )
-                            ((NGActivity)mActivity.get()).refreshLayersFrarment();
+                        if (host instanceof NGActivity)
+                            ((NGActivity) host).refreshLayersFrarment();
 
 
 
@@ -268,7 +346,7 @@ public class LayerFillProgressDialogFragment extends Fragment {
                     break;
                 case LayerFillService.STATUS_SHOW:
                     if (!mProgressDialog.isShowing()) {
-                        createProgressDialog();
+                        createProgressDialog(host);
                         setDialogInfo(title, title);
                         mProgressDialog.show();
                         mIsShowing = true;
@@ -280,8 +358,9 @@ public class LayerFillProgressDialogFragment extends Fragment {
         private void setDialogInfo(final String title, final String message) {
 
             final ProgressDialog progressDialogFinal = mProgressDialog;
-            if (mActivity.get() != null)
-                mActivity.get().runOnUiThread(new Runnable() {
+            final Activity host = getHost();
+            if (host != null)
+                host.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         progressDialogFinal.setTitle(title);
