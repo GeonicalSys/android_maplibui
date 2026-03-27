@@ -657,7 +657,10 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
 
     protected boolean movePointToLocation() {
-        Activity parent = (Activity) mContext.get();
+        Activity parent = mContext != null ? (Activity) mContext.get() : null;
+        if (parent == null)
+            return false;
+
         Location location = mGpsEventSource.getLastKnownLocation();
 
         if (null != location) {
@@ -1097,6 +1100,9 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 break;
         }
 
+        if (mDrawItems == null || mDrawItems.isEmpty())
+            return;
+
         if (mDrawItems.size() == lastItemsCount && lastSelectedItem != null &&
                 lastSelectedItemPosition != Constants.NOT_FOUND) {
             mSelectedItem = mDrawItems.get(lastSelectedItemPosition);
@@ -1503,7 +1509,8 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         point.setLongitude(geoPoint.getX());
         float distance = location.distanceTo(point);
         String formatted = LocationUtil.formatLength(mContext.get(), distance, 2);
-        mBottomToolbar.setTitle(formatted);
+        if (mBottomToolbar != null)
+            mBottomToolbar.setTitle(formatted);
     }
 
     public void onResume() {
@@ -1575,6 +1582,9 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     }
 
     public void setGeometryFromWalkEdit(GeoGeometry geometry) {
+        if (mSelectedItem == null)
+            return;
+
         int selectedGeometry = mDrawItems.indexOf(mSelectedItem);
         int selectedRing = mSelectedItem.getSelectedRingId();
 

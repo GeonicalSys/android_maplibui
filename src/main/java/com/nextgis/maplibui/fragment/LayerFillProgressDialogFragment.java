@@ -76,11 +76,13 @@ public class LayerFillProgressDialogFragment extends Fragment {
 
         if (mActivity.get() == null)
             return;
-        IntentFilter intentFilter = new IntentFilter(LayerFillService.ACTION_UPDATE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            mActivity.get().registerReceiver(mLayerFillReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            mActivity.get().registerReceiver(mLayerFillReceiver, intentFilter);
+        if (mLayerFillReceiver != null) {
+            IntentFilter intentFilter = new IntentFilter(LayerFillService.ACTION_UPDATE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                mActivity.get().registerReceiver(mLayerFillReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                mActivity.get().registerReceiver(mLayerFillReceiver, intentFilter);
+            }
         }
     }
 
@@ -218,7 +220,7 @@ public class LayerFillProgressDialogFragment extends Fragment {
             super.onProgressUpdate(values);
 
             final Activity host = getHost();
-            if (host == null) {
+            if (host == null || host.isFinishing()) {
                 return;
             }
 
@@ -252,12 +254,14 @@ public class LayerFillProgressDialogFragment extends Fragment {
                     break;
                 case LayerFillService.STATUS_STOP:
                     if (intent.getIntExtra(LayerFillService.KEY_TOTAL, 0) == 0) {
-                        mProgressDialog.dismiss();
+                        if (mProgressDialog != null)
+                            mProgressDialog.dismiss();
                         mProgressDialog = null;
                         if (mLayerFillReceiver != null)
                             host.unregisterReceiver(mLayerFillReceiver);
                         mLayerFillReceiver = null;
                         mIsFinished = true;
+                        break;
                     }
 
                     boolean canceled = intent.getBooleanExtra(LayerFillService.KEY_CANCELLED, false);
@@ -345,7 +349,7 @@ public class LayerFillProgressDialogFragment extends Fragment {
                     }
                     break;
                 case LayerFillService.STATUS_SHOW:
-                    if (!mProgressDialog.isShowing()) {
+                    if (mProgressDialog != null && !mProgressDialog.isShowing()) {
                         createProgressDialog(host);
                         setDialogInfo(title, title);
                         mProgressDialog.show();

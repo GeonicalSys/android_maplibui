@@ -367,6 +367,7 @@ public class LayerFillService extends Service implements IProgressor {
 
     @Override
     public void onDestroy() {
+        HyperLog.v(Constants.TAG, "LayerFillService.onDestroy");
         ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
         if (mWorkerExecutor != null) {
             mWorkerExecutor.shutdown();
@@ -376,6 +377,7 @@ public class LayerFillService extends Service implements IProgressor {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        HyperLog.v(Constants.TAG, "LayerFillService.onStartCommand startId=" + startId);
         if (Constants.DEBUG_MODE)
             Log.i("LayerFillService", "Received start id " + startId + ": " + intent);
         if (intent != null) {

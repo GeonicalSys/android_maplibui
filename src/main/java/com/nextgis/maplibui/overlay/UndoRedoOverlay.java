@@ -152,6 +152,9 @@ public class UndoRedoOverlay extends Overlay {
 
 
     public void defineUndoRedo() {
+        if (mTopToolbar == null)
+            return;
+
         MenuItem item = mTopToolbar.getMenu().findItem(R.id.menu_edit_undo);
         if (item != null)
             ControlHelper.setEnabled(item, 0 < mHistoryState);

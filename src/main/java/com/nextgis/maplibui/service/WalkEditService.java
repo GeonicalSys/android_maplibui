@@ -53,6 +53,7 @@ import com.nextgis.maplib.datasource.GeoLineString;
 import com.nextgis.maplib.datasource.GeoLinearRing;
 import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.map.MapBase;
+import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.LocationUtil;
@@ -135,6 +136,7 @@ public class WalkEditService extends Service implements LocationListener
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        HyperLog.v(Constants.TAG, "WalkEditService.onStartCommand startId=" + startId);
         if (intent != null) {
             String action = intent.getAction();
 
@@ -260,14 +262,13 @@ public class WalkEditService extends Service implements LocationListener
 
     @Override
     public void onDestroy() {
+        HyperLog.v(Constants.TAG, "WalkEditService.onDestroy");
         try {
             removeNotification();
         } catch (Exception ex){
-            Log.e("tag", ex.getMessage());
+            HyperLog.w(Constants.TAG, "WalkEditService.onDestroy: " + ex.getMessage(), ex);
         }
         mSharedPreferencesTemp.edit().clear().apply();
-        removeNotification();
-        stopSelf();
 
         if (PermissionUtil.hasLocationPermissions(this)) {
             mLocationManager.removeUpdates(this);
@@ -307,7 +308,9 @@ public class WalkEditService extends Service implements LocationListener
                 ring.add(point);
                 break;
             default:
-                throw new UnsupportedOperationException("Unsupported geometry type");
+                HyperLog.w(Constants.TAG, "WalkEditService: unsupported geometry type "
+                        + mGeometry.getType() + ", ignoring location update");
+                return;
         }
 
         SharedPreferences.Editor edit = mSharedPreferencesTemp.edit();
