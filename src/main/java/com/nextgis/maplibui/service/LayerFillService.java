@@ -63,6 +63,7 @@ import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.LayerConfigUtil;
+import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplib.util.HttpResponse;
 import com.nextgis.maplib.util.GeoJSONUtil;
 import com.nextgis.maplib.util.NGException;
@@ -1083,6 +1084,10 @@ public class LayerFillService extends Service implements IProgressor {
                             ngwVectorLayer.fromJSON(cfg);
                             ngwVectorLayer.save();
                             mMobileLayerConfigApplied = true;
+                            String hash = LayerConfigUtil.md5(rawConfig.trim());
+                            ngwVectorLayer.getPreferences().edit()
+                                    .putString(SettingsConstants.KEY_PREF_LAST_CONFIG_HASH, hash)
+                                    .apply();
                             Log.i(Constants.TAG, LOG_LAYER_CONFIG + " applied+saved OK name="
                                     + ngwVectorLayer.getName());
                             HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " applied OK " + ngwVectorLayer.getName());
