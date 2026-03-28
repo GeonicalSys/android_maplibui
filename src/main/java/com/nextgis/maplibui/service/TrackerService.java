@@ -283,14 +283,14 @@ public class TrackerService extends Service
 
             String time = SettingsConstants.KEY_PREF_TRACKS_MIN_TIME;
             String distance = SettingsConstants.KEY_PREF_TRACKS_MIN_DISTANCE;
-            String minTimeStr = mSharedPreferences.getString(time, "2");
+            String minTimeStr = mSharedPreferences.getString(time, "5");
 
             // remove code after   1 - 2 year - after all old vesions gone
             if (minTimeStr.equals("0") || minTimeStr.equals("1")){
                 mSharedPreferences.edit().putString(time, "2").apply();
                 minTimeStr = "2";
             }
-            String minDistanceStr = mSharedPreferences.getString(distance, "10");
+            String minDistanceStr = mSharedPreferences.getString(distance, "5");
             long minTime = Long.parseLong(minTimeStr) * 1000;
             float minDistance = Float.parseFloat(minDistanceStr);
 

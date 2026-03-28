@@ -25,6 +25,7 @@ package com.nextgis.maplibui.fragment;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -39,6 +40,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Vibrator;
+import android.preference.PreferenceManager;
 import androidx.fragment.app.Fragment;
 import android.view.Display;
 import android.view.LayoutInflater;
@@ -55,6 +57,7 @@ import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.util.BubbleSurfaceView;
 import com.nextgis.maplibui.util.CompassImage;
 import com.nextgis.maplibui.util.ControlHelper;
+import com.nextgis.maplibui.util.SettingsConstantsUI;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -220,6 +223,13 @@ public class CompassFragment extends Fragment implements View.OnTouchListener {
 
     @Override
     public void onResume() {
+        Activity activity = getActivity();
+        if (activity != null) {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(activity);
+            mTrueNorth = prefs.getBoolean(SettingsConstantsUI.KEY_PREF_COMPASS_TRUE_NORTH, true);
+            mShowMagnetic = prefs.getBoolean(SettingsConstantsUI.KEY_PREF_COMPASS_MAGNETIC, true);
+            mIsVibrationOn = prefs.getBoolean(SettingsConstantsUI.KEY_PREF_COMPASS_VIBRATE, true);
+        }
         if (mSensorManager != null) {
             Sensor orientation = mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
             mSensorManager.registerListener(sensorListener, orientation, SensorManager.SENSOR_DELAY_NORMAL);

@@ -305,7 +305,7 @@ public abstract class GISApplication extends Application
 
     public Bitmap getMapBackground() {
         int backgroundResId;
-        switch (mSharedPreferences.getString(SettingsConstantsUI.KEY_PREF_MAP_BG, KEY_PREF_NEUTRAL)) {
+        switch (mSharedPreferences.getString(SettingsConstantsUI.KEY_PREF_MAP_BG, KEY_PREF_LIGHT)) {
             case KEY_PREF_LIGHT:
                 backgroundResId = com.nextgis.maplibui.R.drawable.bk_tile_light;
                 break;

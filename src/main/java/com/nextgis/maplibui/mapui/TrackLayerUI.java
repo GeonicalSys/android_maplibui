@@ -34,7 +34,6 @@ import android.graphics.drawable.Drawable;
 import androidx.core.content.ContextCompat;
 import android.util.Log;
 import android.widget.Toast;
-import com.nextgis.maplib.display.TrackRenderer;
 import com.nextgis.maplib.map.TrackLayer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.SettingsConstants;
@@ -50,7 +49,6 @@ public class TrackLayerUI extends TrackLayer implements ILayerUI {
     public TrackLayerUI(Context context, File path) {
         super(context, path);
         mColor = ContextCompat.getColor(mContext, R.color.accent);
-        ((TrackRenderer) mRenderer).setEndingMarker(R.drawable.ic_track_flag);
     }
 
 
