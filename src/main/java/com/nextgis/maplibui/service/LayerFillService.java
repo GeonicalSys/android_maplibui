@@ -165,6 +165,13 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY = "defer_map_reload_until_queue_empty";
     /** Full layer config.json text (e.g. from NGW resource description) applied after NGW fill. */
     public static final String KEY_LAYER_CONFIG_JSON = "layer_config_json";
+
+    /** Collector layer id for batch verification (stable across UnzipForm → NGW fill when meta overrides resource id). */
+    public static final String KEY_COLLECTOR_TRACKING_REMOTE_ID = "collector_tracking_remote_id";
+    /** Index in full collector project vector list (all layers, not only this download batch). */
+    public static final String KEY_COLLECTOR_ORDER_INDEX = "collector_order_index";
+    /** All collector vector remote ids in project order (same on each task). */
+    public static final String KEY_COLLECTOR_PROJECT_REMOTE_IDS = "collector_project_remote_ids";
     public static final String KEY_TMS_TYPE   = "tms_type";
     public static final String KEY_TMS_CACHE   = "tms_cache";
 
@@ -240,6 +247,7 @@ public class LayerFillService extends Service implements IProgressor {
             IGISApplication app = (IGISApplication) getApplicationContext();
             app.setLayerFillServiceBusy(false);
             if (mIsCanceled) {
+                app.clearCollectorImportBatch();
                 app.setLayerFillBatchDeferringHeavyMapReload(false);
             } else {
                 boolean reload;
@@ -250,6 +258,7 @@ public class LayerFillService extends Service implements IProgressor {
                     app.setLayerFillBatchDeferringHeavyMapReload(false);
                     app.requestMapReloadAfterLayerFillBatch();
                 }
+                new Handler(Looper.getMainLooper()).post(app::finalizeCollectorImportVerifyAndRepairIfNeeded);
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -299,10 +308,36 @@ public class LayerFillService extends Service implements IProgressor {
         }
 
         if (result) {
-            mLayerGroup.addLayer(task.getLayer());
+            ILayer filled = task.getLayer();
+            if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
+                /* Layers drawer uses reversed index: position 0 in LayerGroup is list bottom. */
+                mLayerGroup.insertLayer(0, filled);
+            } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
+                    && filled instanceof NGWVectorLayer) {
+                NGWVectorLayer nv = (NGWVectorLayer) filled;
+                int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
+                        mLayerGroup,
+                        nv.getAccountName(),
+                        task.mCollectorProjectRemoteIds,
+                        task.mCollectorOrderIndex);
+                mLayerGroup.insertLayer(insertAt, filled);
+            } else {
+                mLayerGroup.addLayer(filled);
+            }
             mLayerGroup.save();
         } else {
             task.cancel();
+        }
+
+        IGISApplication appCtx = (IGISApplication) getApplicationContext();
+        if (task instanceof NGWVectorLayerFillTask) {
+            NGWVectorLayerFillTask ngwTask = (NGWVectorLayerFillTask) task;
+            appCtx.notifyCollectorLayerFillResult(ngwTask.getTrackingRemoteId(), result && !mIsCanceled);
+        } else if (task instanceof UnzipForm) {
+            UnzipForm uf = (UnzipForm) task;
+            if (!result || mIsCanceled) {
+                appCtx.notifyCollectorLayerFillResult(uf.mRemoteId, false);
+            }
         }
 
         if (task instanceof NGWVectorLayerFillTask) {
@@ -436,8 +471,9 @@ public class LayerFillService extends Service implements IProgressor {
                             mQueue.clear();
                             mIsCanceled = true;
                             if (!mDrainRunning) {
-                                ((IGISApplication) getApplicationContext())
-                                        .setLayerFillServiceBusy(false);
+                                IGISApplication appStop = (IGISApplication) getApplicationContext();
+                                appStop.clearCollectorImportBatch();
+                                appStop.setLayerFillServiceBusy(false);
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                     stopForeground(true);
                                 } else {
@@ -599,6 +635,8 @@ public class LayerFillService extends Service implements IProgressor {
         public boolean subTaskWasRunned = true;
         public long[] defaultFormIDArray = null;
         protected String mLayerConfigJson;
+        protected int mCollectorOrderIndex = -1;
+        protected long[] mCollectorProjectRemoteIds;
 
         LayerFillTask(Bundle bundle) {
             mUri = bundle.getParcelable(KEY_URI);
@@ -610,6 +648,11 @@ public class LayerFillService extends Service implements IProgressor {
             mMaxZoom = bundle.getFloat(KEY_MAX_ZOOM, GeoConstants.DEFAULT_MAX_ZOOM);
             mVisible = bundle.getBoolean(KEY_VISIBLE, true);
             mLayerConfigJson = bundle.getString(KEY_LAYER_CONFIG_JSON);
+
+            if (bundle.containsKey(KEY_COLLECTOR_ORDER_INDEX)) {
+                mCollectorOrderIndex = bundle.getInt(KEY_COLLECTOR_ORDER_INDEX);
+                mCollectorProjectRemoteIds = bundle.getLongArray(KEY_COLLECTOR_PROJECT_REMOTE_IDS);
+            }
 
             Serializable serializable = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
             if (serializable instanceof ArrayList<?>) {
@@ -637,9 +680,14 @@ public class LayerFillService extends Service implements IProgressor {
         public abstract boolean execute(IProgressor progressor);
 
         public String getDescription(){
-            if(null == mLayer)
-                return "";
-            return getString(R.string.processing) + " " + mLayer.getName();
+            String name = mLayer != null ? mLayer.getName() : null;
+            if (TextUtils.isEmpty(name)) {
+                name = mLayerName;
+            }
+            if (TextUtils.isEmpty(name)) {
+                return getString(R.string.processing);
+            }
+            return getString(R.string.processing) + " " + name;
         }
 
         public ILayer getLayer() {
@@ -850,13 +898,17 @@ public class LayerFillService extends Service implements IProgressor {
 
                         extra.putStringArrayList(KEY_LOOKUP_ID, lookupTableIds);
                         extra.putLong(KEY_REMOTE_ID, resourceId);
+                        extra.putLong(KEY_COLLECTOR_TRACKING_REMOTE_ID, mRemoteId);
                         extra.putString(KEY_ACCOUNT, accountName);
                         extra.putBoolean(KEY_SYNC, mSync);
                         extra.putLongArray(KEY_DEFAULT_FORM_IDS, defaultFormIDArray);
                         if (!TextUtils.isEmpty(mLayerConfigJson)) {
                             extra.putString(KEY_LAYER_CONFIG_JSON, mLayerConfigJson);
                         }
-
+                        if (mCollectorOrderIndex >= 0 && mCollectorProjectRemoteIds != null) {
+                            extra.putInt(KEY_COLLECTOR_ORDER_INDEX, mCollectorOrderIndex);
+                            extra.putLongArray(KEY_COLLECTOR_PROJECT_REMOTE_IDS, mCollectorProjectRemoteIds);
+                        }
                         if (!isCanceled() && startLayerFill) {
                             enqueueToQueue(new NGWVectorLayerFillTask(extra));
                         }
@@ -997,6 +1049,8 @@ public class LayerFillService extends Service implements IProgressor {
         private ArrayList<String> mLookupIds = new ArrayList<>();
         private boolean mShowSyncDialog;
         private final long mRemoteIdInit;
+        /** Collector batch correlation id (original NGW resource id from import UI). */
+        private final long mTrackingRemoteId;
         private final String mAccountNameInit;
         private boolean mMobileLayerConfigApplied;
 
@@ -1004,10 +1058,17 @@ public class LayerFillService extends Service implements IProgressor {
             return mMobileLayerConfigApplied;
         }
 
+        long getTrackingRemoteId() {
+            return mTrackingRemoteId;
+        }
+
         NGWVectorLayerFillTask(Bundle bundle) {
             super(bundle);
             isPointz = false;
             mRemoteIdInit = bundle.getLong(KEY_REMOTE_ID);
+            mTrackingRemoteId = bundle.containsKey(KEY_COLLECTOR_TRACKING_REMOTE_ID)
+                    ? bundle.getLong(KEY_COLLECTOR_TRACKING_REMOTE_ID)
+                    : mRemoteIdInit;
             mAccountNameInit = bundle.getString(KEY_ACCOUNT);
             mLayer = new NGWVectorLayerUI(mLayerGroup.getContext(), mLayerPath);
             ((NGWVectorLayerUI) mLayer).setRemoteId(mRemoteIdInit);

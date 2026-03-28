@@ -338,30 +338,77 @@ public class SelectNGWResourceDialog
                         return;
                     }
                     Connection connection = collector.getConnection();
-                    for (int li = layers.size() - 1; li >= 0; li--) {
+                    ArrayList<LayerWithStyles> toImport = new ArrayList<>();
+                    for (int li = 0; li < layers.size(); li++) {
                         LayerWithStyles layer = layers.get(li);
                         if (LayerGroup.findLayerByDisplayNameRecursive(mGroupLayer, layer.getName()) != null) {
                             HyperLog.d(TAG, "Collector import (dialog): skip duplicate name \"" + layer.getName() + "\"");
                             continue;
                         }
-                        Intent intent = new Intent(context, LayerFillService.class);
-                        intent.setAction(LayerFillService.ACTION_ADD_TASK);
-                        intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
-                        intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
-                        intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
-                        intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
-                        intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
-                        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
-                        String desc = layer.getDescription();
-                        if (desc != null && !desc.isEmpty()) {
-                            intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, desc);
+                        toImport.add(layer);
+                    }
+                    if (!toImport.isEmpty()) {
+                        long[] fullProjectOrder = new long[layers.size()];
+                        for (int pi = 0; pi < layers.size(); pi++) {
+                            fullProjectOrder[pi] = layers.get(pi).getRemoteId();
                         }
-                        if (layer.getFormCount() > 0) {
-                            String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
-                            intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
-                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                        int n = toImport.size();
+                        long[] ids = new long[n];
+                        String[] nms = new String[n];
+                        String[] cfgs = new String[n];
+                        long[] fids = new long[n];
+                        for (int ord = 0; ord < n; ord++) {
+                            LayerWithStyles layer = toImport.get(ord);
+                            ids[ord] = layer.getRemoteId();
+                            nms[ord] = layer.getName();
+                            String desc = layer.getDescription();
+                            cfgs[ord] = (desc != null && !desc.isEmpty()) ? desc : null;
+                            long formId = 0L;
+                            if (layer.getFormCount() > 0) {
+                                Long fid = layer.getFormId(0);
+                                if (fid != null) {
+                                    formId = fid;
+                                }
+                            }
+                            fids[ord] = formId;
                         }
-                        vectorFillBatch.add(intent);
+                        ((IGISApplication) context.getApplicationContext()).registerCollectorImportBatch(
+                                mGroupLayer.getId(), connection.getName(), ids, nms, cfgs, fids,
+                                fullProjectOrder);
+                        for (int ord = 0; ord < n; ord++) {
+                            LayerWithStyles layer = toImport.get(ord);
+                            int projectIndex = -1;
+                            long layerRid = layer.getRemoteId();
+                            for (int pi = 0; pi < layers.size(); pi++) {
+                                if (layers.get(pi).getRemoteId() == layerRid) {
+                                    projectIndex = pi;
+                                    break;
+                                }
+                            }
+                            Intent intent = new Intent(context, LayerFillService.class);
+                            intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                            intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+                            intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
+                            intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
+                            intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
+                            intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
+                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                            String desc = layer.getDescription();
+                            if (desc != null && !desc.isEmpty()) {
+                                intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, desc);
+                            }
+                            if (layer.getFormCount() > 0) {
+                                String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
+                                intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
+                                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                            }
+                            intent.putExtra(LayerFillService.KEY_COLLECTOR_TRACKING_REMOTE_ID, layer.getRemoteId());
+                            if (projectIndex >= 0) {
+                                intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projectIndex);
+                                intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS, fullProjectOrder);
+                            }
+                            vectorFillBatch.add(intent);
+                        }
                     }
                 } else if (resource instanceof LayerWithStyles) {
                     LayerWithStyles layer = (LayerWithStyles) resource;

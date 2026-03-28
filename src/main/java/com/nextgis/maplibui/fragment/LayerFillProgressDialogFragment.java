@@ -239,6 +239,9 @@ public class LayerFillProgressDialogFragment extends Fragment {
             switch (serviceStatus) {
                 case LayerFillService.STATUS_START:
                     mProgressDialog.setIndeterminate(true);
+                    if (!TextUtils.isEmpty(title)) {
+                        setDialogInfo(title, title);
+                    }
                     mProgressDialog.show();
                     mIsShowing = true;
                     break;

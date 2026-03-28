@@ -259,10 +259,14 @@ public class MapViewOverlays
         Context ctx = getContext();
         if (ctx != null) {
             Context appCtx = ctx.getApplicationContext();
-            if (appCtx instanceof IGISApplication
-                    && ((IGISApplication) appCtx).isLayerFillBatchDeferringHeavyMapReload()) {
-                mMap.checkLayerVisibility(id);
-                return;
+            if (appCtx instanceof IGISApplication) {
+                IGISApplication app = (IGISApplication) appCtx;
+                // Defer heavy MapLibre reload while LayerFillService batch runs or full loadLayersToMaplibreMap is in progress.
+                if (app.isLayerFillBatchDeferringHeavyMapReload()
+                        || app.getGetingStyleInProgress()) {
+                    mMap.checkLayerVisibility(id);
+                    return;
+                }
             }
         }
 

@@ -43,6 +43,8 @@ import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.widget.Toast;
+import android.net.Uri;
 
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
@@ -57,6 +59,7 @@ import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.map.MaplibreMapInteraction;
 import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.NGWUtil;
 import com.nextgis.maplib.util.FeatureChanges;
 import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
@@ -72,7 +75,10 @@ import org.json.JSONException;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static com.nextgis.maplib.util.Constants.MAP_EXT;
@@ -128,6 +134,25 @@ public abstract class GISApplication extends Application
 
     private volatile boolean mLayerFillServiceBusy;
 
+    private final Object mCollectorImportLock = new Object();
+    private int mCollectorGroupId;
+    private String mCollectorAccount;
+    private long[] mCollectorRemoteIds;
+    private String[] mCollectorNames;
+    private String[] mCollectorConfigJsons;
+    private long[] mCollectorFormIds;
+    /** All vector layer remote ids in collector project list order (includes layers not in this download batch). */
+    private long[] mCollectorFullProjectRemoteIds;
+    private final Map<Long, Boolean> mCollectorOutcomes = new ConcurrentHashMap<>();
+
+    /** Remaining verify→repair waves after incomplete collector import (each wave may re-queue multiple layers). */
+    private int mCollectorRepairPassesRemaining;
+
+    private static final int COLLECTOR_MAX_REPAIR_PASSES = 3;
+
+    /** Set when {@link #requestMapReloadAfterLayerFillBatch} runs before map fragment is on main/ready. */
+    private volatile boolean mPendingMapReloadAfterLayerFill;
+
     String account = null;
     String errorMessage = null;
     int errorCode = 0;
@@ -150,6 +175,13 @@ public abstract class GISApplication extends Application
 
 
         HyperLog.initialize(this);
+        // MAP_STARTUP_OPTIMIZATIONS: see Constants.MAP_STARTUP_OPTIMIZATIONS_ENABLED
+        if (Constants.MAP_STARTUP_OPTIMIZATIONS_ENABLED) {
+            try {
+                HyperLog.setURL("https://127.0.0.1/nextgis-hyperlog-no-remote/");
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
 
         Thread.setDefaultUncaughtExceptionHandler(
                 new HyperLogCrashHandler()
@@ -532,13 +564,30 @@ public abstract class GISApplication extends Application
     @Override
     public void requestMapReloadAfterLayerFillBatch() {
         if (mMap == null) {
+            mPendingMapReloadAfterLayerFill = true;
             return;
         }
-        MaplibreMapInteraction host = mMap.mapFragment.get();
-        if (host == null) {
+        // Always resolve fragment on main: LayerFillService calls this from a worker thread; reading
+        // the weak ref off-main often yields null so the map never refreshes after collector import.
+        new Handler(Looper.getMainLooper()).post(() -> {
+            MaplibreMapInteraction host = mMap != null ? mMap.mapFragment.get() : null;
+            if (host == null) {
+                mPendingMapReloadAfterLayerFill = true;
+                HyperLog.d(Constants.TAG, "requestMapReloadAfterLayerFillBatch: map fragment null on main, pending");
+                return;
+            }
+            mPendingMapReloadAfterLayerFill = false;
+            host.reloadMapStyleAndLayersAfterLayerFillBatch();
+        });
+    }
+
+    @Override
+    public void flushPendingMapReloadAfterLayerFillIfNeeded(MaplibreMapInteraction mapFragment) {
+        if (mapFragment == null || !mPendingMapReloadAfterLayerFill) {
             return;
         }
-        new Handler(Looper.getMainLooper()).post(() -> host.reloadMapStyleAndLayersAfterLayerFillBatch());
+        mPendingMapReloadAfterLayerFill = false;
+        mapFragment.reloadMapStyleAndLayersAfterLayerFillBatch();
     }
 
     @Override
@@ -549,6 +598,243 @@ public abstract class GISApplication extends Application
     @Override
     public void setLayerFillServiceBusy(boolean busy) {
         mLayerFillServiceBusy = busy;
+    }
+
+    private void clearCollectorImportFieldsLocked() {
+        mCollectorRemoteIds = null;
+        mCollectorNames = null;
+        mCollectorConfigJsons = null;
+        mCollectorFormIds = null;
+        mCollectorFullProjectRemoteIds = null;
+        mCollectorOutcomes.clear();
+        mCollectorRepairPassesRemaining = 0;
+    }
+
+    private static int collectorProjectIndexOf(long remoteId, long[] fullProjectRemoteIds) {
+        if (fullProjectRemoteIds == null) {
+            return -1;
+        }
+        for (int i = 0; i < fullProjectRemoteIds.length; i++) {
+            if (fullProjectRemoteIds[i] == remoteId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public void registerCollectorImportBatch(
+            int groupId,
+            String accountName,
+            long[] remoteIds,
+            String[] names,
+            String[] configJsons,
+            long[] formIds,
+            long[] fullCollectorProjectRemoteIds) {
+        synchronized (mCollectorImportLock) {
+            if (remoteIds == null || names == null || configJsons == null || formIds == null
+                    || remoteIds.length != names.length
+                    || remoteIds.length != configJsons.length
+                    || remoteIds.length != formIds.length
+                    || remoteIds.length == 0) {
+                HyperLog.w(Constants.TAG, "registerCollectorImportBatch: invalid or empty arrays");
+                return;
+            }
+            if (fullCollectorProjectRemoteIds == null || fullCollectorProjectRemoteIds.length == 0) {
+                HyperLog.w(Constants.TAG, "registerCollectorImportBatch: full project order required");
+                return;
+            }
+            for (long rid : remoteIds) {
+                if (collectorProjectIndexOf(rid, fullCollectorProjectRemoteIds) < 0) {
+                    HyperLog.w(Constants.TAG, "registerCollectorImportBatch: remoteId " + rid
+                            + " missing from full collector project list");
+                    return;
+                }
+            }
+            mCollectorGroupId = groupId;
+            mCollectorAccount = accountName;
+            mCollectorRemoteIds = Arrays.copyOf(remoteIds, remoteIds.length);
+            mCollectorNames = Arrays.copyOf(names, names.length);
+            mCollectorConfigJsons = Arrays.copyOf(configJsons, configJsons.length);
+            mCollectorFormIds = Arrays.copyOf(formIds, formIds.length);
+            mCollectorFullProjectRemoteIds = Arrays.copyOf(
+                    fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length);
+            mCollectorOutcomes.clear();
+            mCollectorRepairPassesRemaining = COLLECTOR_MAX_REPAIR_PASSES;
+        }
+    }
+
+    @Override
+    public void notifyCollectorLayerFillResult(long remoteId, boolean success) {
+        synchronized (mCollectorImportLock) {
+            if (mCollectorRemoteIds == null) {
+                return;
+            }
+            mCollectorOutcomes.put(remoteId, success);
+        }
+    }
+
+    @Override
+    public void clearCollectorImportBatch() {
+        synchronized (mCollectorImportLock) {
+            clearCollectorImportFieldsLocked();
+        }
+    }
+
+    @Override
+    public void finalizeCollectorImportVerifyAndRepairIfNeeded() {
+        int groupId;
+        String account;
+        long[] remoteIds;
+        String[] names;
+        String[] configs;
+        long[] formIds;
+        Map<Long, Boolean> outcomes;
+        long[] fullProjectOrderSnapshot;
+        synchronized (mCollectorImportLock) {
+            if (mCollectorRemoteIds == null || mCollectorRemoteIds.length == 0) {
+                return;
+            }
+            groupId = mCollectorGroupId;
+            account = mCollectorAccount;
+            remoteIds = Arrays.copyOf(mCollectorRemoteIds, mCollectorRemoteIds.length);
+            names = Arrays.copyOf(mCollectorNames, mCollectorNames.length);
+            configs = Arrays.copyOf(mCollectorConfigJsons, mCollectorConfigJsons.length);
+            formIds = Arrays.copyOf(mCollectorFormIds, mCollectorFormIds.length);
+            outcomes = new ConcurrentHashMap<>(mCollectorOutcomes);
+            fullProjectOrderSnapshot = mCollectorFullProjectRemoteIds != null
+                    ? Arrays.copyOf(mCollectorFullProjectRemoteIds, mCollectorFullProjectRemoteIds.length)
+                    : null;
+        }
+
+        final int expectedCount = remoteIds.length;
+        MapBase map = getMap();
+        if (map == null) {
+            return;
+        }
+        ILayer groupLayer = map.getLayerById(groupId);
+        if (!(groupLayer instanceof LayerGroup)) {
+            HyperLog.w(Constants.TAG, "Collector verify: layer group id " + groupId + " not found");
+            return;
+        }
+        LayerGroup group = (LayerGroup) groupLayer;
+
+        ArrayList<Integer> brokenIndices = new ArrayList<>();
+        ArrayList<String> repaired = new ArrayList<>();
+        for (int i = 0; i < remoteIds.length; i++) {
+            long rid = remoteIds[i];
+            String layerName = names[i];
+            NGWVectorLayer layer = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(group, rid, account);
+            Boolean reported = outcomes.get(rid);
+            boolean explicitFail = Boolean.FALSE.equals(reported);
+            boolean missing = layer == null;
+            boolean badTable = layer != null && !layer.hasLocalDataTable();
+            if (!explicitFail && !missing && !badTable) {
+                continue;
+            }
+            brokenIndices.add(i);
+            repaired.add(!TextUtils.isEmpty(layerName) ? layerName : ("remoteId=" + rid));
+        }
+
+        if (brokenIndices.isEmpty()) {
+            if (expectedCount > 0) {
+                synchronized (mCollectorImportLock) {
+                    clearCollectorImportFieldsLocked();
+                }
+                HyperLog.d(Constants.TAG, "Collector import verify: all " + expectedCount
+                        + " layer(s) present with local tables");
+            }
+            return;
+        }
+
+        boolean abandon;
+        synchronized (mCollectorImportLock) {
+            if (mCollectorRepairPassesRemaining <= 0) {
+                abandon = true;
+                clearCollectorImportFieldsLocked();
+            } else {
+                abandon = false;
+                mCollectorRepairPassesRemaining--;
+                mCollectorOutcomes.clear();
+            }
+        }
+        if (abandon) {
+            HyperLog.w(Constants.TAG, "Collector import: still incomplete after "
+                    + COLLECTOR_MAX_REPAIR_PASSES + " repair wave(s), giving up: "
+                    + TextUtils.join(", ", repaired));
+            Toast.makeText(this, R.string.collector_import_repair_gave_up, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        int repairCount = 0;
+        /* Ascending project index; insertLayer() places each layer among existing collector siblings. */
+        for (int bi = 0; bi < brokenIndices.size(); bi++) {
+            int i = brokenIndices.get(bi);
+            long rid = remoteIds[i];
+            String layerName = names[i];
+            NGWVectorLayer layer = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(group, rid, account);
+            if (layer != null) {
+                ILayer parent = layer.getParent();
+                LayerGroup parentGroup = null;
+                while (parent != null) {
+                    if (parent instanceof LayerGroup) {
+                        parentGroup = (LayerGroup) parent;
+                        break;
+                    }
+                    parent = parent.getParent();
+                }
+                if (parentGroup == null) {
+                    parentGroup = group;
+                }
+                parentGroup.removeLayer(layer);
+                layer.delete(true);
+            }
+
+            Intent intent = new Intent(this, LayerFillService.class);
+            intent.setAction(LayerFillService.ACTION_ADD_TASK);
+            intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+            intent.putExtra(LayerFillService.KEY_NAME, layerName);
+            intent.putExtra(LayerFillService.KEY_ACCOUNT, account);
+            intent.putExtra(LayerFillService.KEY_REMOTE_ID, rid);
+            intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
+            intent.putExtra(LayerFillService.KEY_COLLECTOR_TRACKING_REMOTE_ID, rid);
+            int projIdx = collectorProjectIndexOf(rid, fullProjectOrderSnapshot);
+            if (projIdx >= 0 && fullProjectOrderSnapshot != null) {
+                intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projIdx);
+                intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS, fullProjectOrderSnapshot);
+            }
+            long fid = formIds[i];
+            if (fid != 0L) {
+                Account acc = getAccount(account);
+                if (acc != null) {
+                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                    intent.putExtra(LayerFillService.KEY_URI,
+                            Uri.parse(NGWUtil.getFormUrl(getAccountUrl(acc), fid)));
+                } else {
+                    HyperLog.w(Constants.TAG, "Collector repair: account missing for \"" + layerName + "\"");
+                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                }
+            } else {
+                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+            }
+            String cfg = configs[i];
+            if (!TextUtils.isEmpty(cfg)) {
+                intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, cfg);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+            repairCount++;
+        }
+
+        map.save();
+        HyperLog.w(Constants.TAG, "Collector import incomplete: re-queued " + repairCount
+                + " layer(s), repair passes left=" + mCollectorRepairPassesRemaining + ": "
+                + TextUtils.join(", ", repaired));
+        Toast.makeText(this, getString(R.string.collector_import_repair_queued, repairCount),
+                Toast.LENGTH_LONG).show();
     }
 
     @Override

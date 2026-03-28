@@ -79,6 +79,8 @@
     <string name="ngw_collector_project">Collector project</string>
     <string name="ngw_collector_import">Import project</string>
     <string name="ngw_collector_no_vector_layers">No vector layers to import from this Collector project. For details open HyperLog or logcat (tag nextgismobile).</string>
+    <string name="collector_import_repair_queued">Retrying %d incomplete collector layer(s)…</string>
+    <string name="collector_import_repair_gave_up">Some collector layers are still incomplete after 3 download attempts. See HyperLog for names.</string>
     <string name="credentials_opt">Credentials (optional)</string>
     <string name="layer_type_optional">Tile layer type (optional)</string>
     <string name="sync">Synchronization</string>
