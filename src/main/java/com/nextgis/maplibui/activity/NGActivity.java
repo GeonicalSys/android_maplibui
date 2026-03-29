@@ -79,8 +79,8 @@ public class NGActivity
     }
 
     public String getAppName() {
-        String appName = "NextGIS Mobile";
-        return appName;
+        CharSequence label = getApplicationInfo().loadLabel(getPackageManager());
+        return label != null ? label.toString() : "NextGIS Mobile";
     }
 
     public int getThemeId()

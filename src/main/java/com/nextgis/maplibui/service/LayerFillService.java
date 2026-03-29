@@ -310,8 +310,15 @@ public class LayerFillService extends Service implements IProgressor {
         if (result) {
             ILayer filled = task.getLayer();
             if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
-                /* Layers drawer uses reversed index: position 0 in LayerGroup is list bottom. */
-                mLayerGroup.insertLayer(0, filled);
+                /* Directly above OSM in stack (drawn on top of OSM); index 0 = bottom. */
+                final String osmPathName = "osm";
+                ILayer osm = mLayerGroup.getLayerByPathName(osmPathName);
+                int insertAt = 0;
+                if (osm != null) {
+                    int osmIdx = mLayerGroup.getChildLayerIndex(osm);
+                    insertAt = osmIdx >= 0 ? osmIdx + 1 : 0;
+                }
+                mLayerGroup.insertLayer(insertAt, filled);
             } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
                     && filled instanceof NGWVectorLayer) {
                 NGWVectorLayer nv = (NGWVectorLayer) filled;
