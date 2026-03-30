@@ -58,6 +58,7 @@ import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.map.MaplibreMapInteraction;
 import com.nextgis.maplib.map.NGWVectorLayer;
+import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.NGWUtil;
 import com.nextgis.maplib.util.FeatureChanges;
@@ -150,6 +151,11 @@ public abstract class GISApplication extends Application
 
     private static final int COLLECTOR_MAX_REPAIR_PASSES = 3;
 
+    private final Object mStandaloneVerifyLock = new Object();
+    private final ArrayList<Bundle> mStandaloneFillVerifyQueue = new ArrayList<>();
+    private int mStandaloneRepairPassesRemaining;
+    private static final int STANDALONE_LAYER_FILL_MAX_REPAIR_PASSES = 3;
+
     /** Set when {@link #requestMapReloadAfterLayerFillBatch} runs before map fragment is on main/ready. */
     private volatile boolean mPendingMapReloadAfterLayerFill;
 
@@ -175,12 +181,10 @@ public abstract class GISApplication extends Application
 
 
         HyperLog.initialize(this);
-        // MAP_STARTUP_OPTIMIZATIONS: see Constants.MAP_STARTUP_OPTIMIZATIONS_ENABLED
-        if (Constants.MAP_STARTUP_OPTIMIZATIONS_ENABLED) {
-            try {
-                HyperLog.setURL("https://127.0.0.1/nextgis-hyperlog-no-remote/");
-            } catch (IllegalArgumentException ignored) {
-            }
+        /* Without setURL, HyperLog logs ERROR on every call and may do extra work; remote upload stays a no-op. */
+        try {
+            HyperLog.setURL("https://127.0.0.1/nextgis-hyperlog-no-remote/");
+        } catch (IllegalArgumentException ignored) {
         }
 
         Thread.setDefaultUncaughtExceptionHandler(
@@ -631,6 +635,7 @@ public abstract class GISApplication extends Application
             String[] configJsons,
             long[] formIds,
             long[] fullCollectorProjectRemoteIds) {
+        clearStandaloneFillVerifyLocked();
         synchronized (mCollectorImportLock) {
             if (remoteIds == null || names == null || configJsons == null || formIds == null
                     || remoteIds.length != names.length
@@ -676,9 +681,190 @@ public abstract class GISApplication extends Application
 
     @Override
     public void clearCollectorImportBatch() {
+        clearStandaloneFillVerifyLocked();
         synchronized (mCollectorImportLock) {
             clearCollectorImportFieldsLocked();
         }
+    }
+
+    private void clearStandaloneFillVerifyLocked() {
+        synchronized (mStandaloneVerifyLock) {
+            mStandaloneFillVerifyQueue.clear();
+            mStandaloneRepairPassesRemaining = 0;
+        }
+    }
+
+    @Override
+    public void registerStandaloneLayerFillVerifyAfterSuccess(Bundle fillTaskIntentExtrasCopy) {
+        if (fillTaskIntentExtrasCopy == null) {
+            return;
+        }
+        synchronized (mStandaloneVerifyLock) {
+            if (mStandaloneFillVerifyQueue.isEmpty()) {
+                mStandaloneRepairPassesRemaining = STANDALONE_LAYER_FILL_MAX_REPAIR_PASSES;
+            }
+            mStandaloneFillVerifyQueue.add(new Bundle(fillTaskIntentExtrasCopy));
+        }
+    }
+
+    @Override
+    public void finalizeStandaloneLayerFillVerifyIfNeeded() {
+        ArrayList<Bundle> pendingCopy;
+        synchronized (mStandaloneVerifyLock) {
+            if (mStandaloneFillVerifyQueue.isEmpty()) {
+                return;
+            }
+            pendingCopy = new ArrayList<>(mStandaloneFillVerifyQueue.size());
+            for (Bundle b : mStandaloneFillVerifyQueue) {
+                pendingCopy.add(new Bundle(b));
+            }
+        }
+
+        MapDrawable map = mMap;
+        if (map == null) {
+            return;
+        }
+
+        ArrayList<Bundle> broken = new ArrayList<>();
+        ArrayList<String> brokenLabels = new ArrayList<>();
+        for (Bundle b : pendingCopy) {
+            int gid = b.getInt(LayerFillService.KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
+            ILayer groupLayer = map.getLayerById(gid);
+            if (!(groupLayer instanceof LayerGroup)) {
+                broken.add(b);
+                brokenLabels.add(standaloneVerifyBundleLabel(b));
+                continue;
+            }
+            LayerGroup group = (LayerGroup) groupLayer;
+            if (isStandaloneFillVerifyBundleOk(map, group, b)) {
+                continue;
+            }
+            broken.add(b);
+            brokenLabels.add(standaloneVerifyBundleLabel(b));
+        }
+
+        if (broken.isEmpty()) {
+            synchronized (mStandaloneVerifyLock) {
+                mStandaloneFillVerifyQueue.clear();
+            }
+            if (!pendingCopy.isEmpty()) {
+                HyperLog.d(Constants.TAG, "Standalone fill verify: all " + pendingCopy.size()
+                        + " layer(s) present with local tables");
+            }
+            return;
+        }
+
+        boolean abandon;
+        int passesLeftSnapshot;
+        synchronized (mStandaloneVerifyLock) {
+            if (mStandaloneRepairPassesRemaining <= 0) {
+                abandon = true;
+                mStandaloneFillVerifyQueue.clear();
+                passesLeftSnapshot = 0;
+            } else {
+                abandon = false;
+                mStandaloneRepairPassesRemaining--;
+                passesLeftSnapshot = mStandaloneRepairPassesRemaining;
+                mStandaloneFillVerifyQueue.clear();
+            }
+        }
+        if (abandon) {
+            HyperLog.w(Constants.TAG, "Standalone layer fill: still incomplete after "
+                    + STANDALONE_LAYER_FILL_MAX_REPAIR_PASSES + " repair wave(s): "
+                    + TextUtils.join(", ", brokenLabels));
+            Toast.makeText(this, R.string.collector_import_repair_gave_up, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        int repairCount = 0;
+        for (Bundle b : broken) {
+            int gid = b.getInt(LayerFillService.KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
+            ILayer groupLayer = map.getLayerById(gid);
+            LayerGroup group = groupLayer instanceof LayerGroup ? (LayerGroup) groupLayer : null;
+
+            int localId = b.getInt(LayerFillService.KEY_STANDALONE_VERIFY_LAYER_ID, Constants.NOT_FOUND);
+            if (localId != Constants.NOT_FOUND) {
+                ILayer layer = map.getLayerById(localId);
+                if (layer != null) {
+                    LayerGroup parentGroup = standaloneResolveParentGroup(layer, group);
+                    parentGroup.removeLayer(layer);
+                    layer.delete(true);
+                }
+            } else if (group != null) {
+                long remoteId = b.getLong(LayerFillService.KEY_REMOTE_ID, -1L);
+                String account = b.getString(LayerFillService.KEY_ACCOUNT);
+                if (remoteId >= 0 && !TextUtils.isEmpty(account)) {
+                    NGWVectorLayer ngw = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(
+                            group, remoteId, account);
+                    if (ngw != null) {
+                        LayerGroup parentGroup = standaloneResolveParentGroup(ngw, group);
+                        parentGroup.removeLayer(ngw);
+                        ngw.delete(true);
+                    }
+                }
+            }
+
+            Bundle extras = new Bundle(b);
+            extras.remove(LayerFillService.KEY_STANDALONE_VERIFY_LAYER_ID);
+            Intent intent = new Intent(this, LayerFillService.class);
+            intent.setAction(LayerFillService.ACTION_ADD_TASK);
+            intent.putExtras(extras);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(this, intent);
+            } else {
+                startService(intent);
+            }
+            repairCount++;
+        }
+
+        map.save();
+        HyperLog.w(Constants.TAG, "Standalone fill incomplete: re-queued " + repairCount
+                + " layer(s), repair passes left=" + passesLeftSnapshot);
+        Toast.makeText(this, getString(R.string.collector_import_repair_queued, repairCount),
+                Toast.LENGTH_LONG).show();
+    }
+
+    private static String standaloneVerifyBundleLabel(Bundle b) {
+        String n = b.getString(LayerFillService.KEY_NAME);
+        if (!TextUtils.isEmpty(n)) {
+            return n;
+        }
+        return "remoteId=" + b.getLong(LayerFillService.KEY_REMOTE_ID, -1L);
+    }
+
+    private static boolean isStandaloneFillVerifyBundleOk(MapDrawable map, LayerGroup group, Bundle b) {
+        int localId = b.getInt(LayerFillService.KEY_STANDALONE_VERIFY_LAYER_ID, Constants.NOT_FOUND);
+        if (localId != Constants.NOT_FOUND) {
+            ILayer layer = map.getLayerById(localId);
+            if (!(layer instanceof VectorLayer)) {
+                return false;
+            }
+            return ((VectorLayer) layer).hasLocalDataTable();
+        }
+        long remoteId = b.getLong(LayerFillService.KEY_REMOTE_ID, -1L);
+        String account = b.getString(LayerFillService.KEY_ACCOUNT);
+        if (remoteId < 0 || TextUtils.isEmpty(account)) {
+            return false;
+        }
+        NGWVectorLayer ngw = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(group, remoteId, account);
+        if (ngw == null) {
+            return false;
+        }
+        return ngw.hasLocalDataTable();
+    }
+
+    private static LayerGroup standaloneResolveParentGroup(ILayer layer, LayerGroup fallback) {
+        if (layer == null) {
+            return fallback;
+        }
+        ILayer parent = layer.getParent();
+        while (parent != null) {
+            if (parent instanceof LayerGroup) {
+                return (LayerGroup) parent;
+            }
+            parent = parent.getParent();
+        }
+        return fallback;
     }
 
     @Override

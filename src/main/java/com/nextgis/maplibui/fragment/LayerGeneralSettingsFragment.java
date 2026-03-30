@@ -77,10 +77,19 @@ public class LayerGeneralSettingsFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        /* onCreateView returns early when mLayer == null — never assigns mEditText / mRangeBar. */
+        if (mActivity != null) {
+            if (mEditText != null) {
+                mActivity.mLayerName = mEditText.getEditableText().toString();
+            }
+            if (mRangeBar != null) {
+                mActivity.mLayerMinZoom = mRangeBar.getLeftIndex();
+                mActivity.mLayerMaxZoom = mRangeBar.getRightIndex();
+            }
+        }
         super.onDestroyView();
-        mActivity.mLayerName = mEditText.getEditableText().toString();
-        mActivity.mLayerMinZoom = mRangeBar.getLeftIndex();
-        mActivity.mLayerMaxZoom = mRangeBar.getRightIndex();
+        mEditText = null;
+        mRangeBar = null;
     }
 
     @Override

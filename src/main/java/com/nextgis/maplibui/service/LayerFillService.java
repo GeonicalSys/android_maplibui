@@ -22,20 +22,19 @@
 
 package com.nextgis.maplibui.service;
 
-import static android.app.PendingIntent.FLAG_IMMUTABLE;
-
 import android.accounts.Account;
 import android.accounts.AccountsException;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.database.sqlite.SQLiteException;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
@@ -75,8 +74,6 @@ import com.nextgis.maplibui.mapui.NGWVectorLayerUI;
 import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.LayerUtil;
-import com.nextgis.maplibui.util.NotificationHelper;
-
 import com.hypertrack.hyperlog.HyperLog;
 
 import org.json.JSONException;
@@ -108,7 +105,6 @@ import static com.nextgis.maplib.util.Constants.MESSAGE_TITLE_EXTRA;
 import static com.nextgis.maplib.util.NetworkUtil.configureSSLdefault;
 import static com.nextgis.maplib.util.NetworkUtil.getUserAgent;
 import static com.nextgis.maplibui.util.ConstantsUI.FILE_FORM;
-import static com.nextgis.maplibui.util.NotificationHelper.createBuilder;
 
 /**
  * Service for filling layers with data
@@ -116,6 +112,12 @@ import static com.nextgis.maplibui.util.NotificationHelper.createBuilder;
 public class LayerFillService extends Service implements IProgressor {
     /** Substring to search in Logcat together with tag {@code nextgismobile}. */
     public static final String LOG_LAYER_CONFIG = "NGWLayerConfig";
+
+    /**
+     * Low-importance channel for mandatory {@link #startForeground(int, android.app.Notification)} only;
+     * progress is shown in-app, not in the status bar.
+     */
+    private static final String LAYER_FILL_FGS_CHANNEL_ID = "layer_fill_fgs_min";
 
     protected NotificationManager mNotifyManager;
     protected List<LayerFillTask> mQueue;
@@ -137,6 +139,8 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_TOTAL = "count";
     public static final String KEY_TITLE = "title";
     public static final String KEY_MESSAGE = "message";
+    /** Snapshot for {@link #ACTION_SHOW} / reopening progress UI while fill is running. */
+    public static final String KEY_INDETERMINATE = "indeterminate";
     public static final String IS_POINTS = "is_points";
     public static final String KEY_CANCELLED = "cancel";
     public static final String KEY_RESULT = "result";
@@ -152,6 +156,10 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_MAX_ZOOM = "max_zoom";
     public static final String KEY_VISIBLE = "visible";
     public static final String KEY_REMOTE_ID = "remote_id";
+    /**
+     * Map {@link com.nextgis.maplib.api.ILayer#getId()} after a successful local vector fill; used for post-drain verify/repair.
+     */
+    public static final String KEY_STANDALONE_VERIFY_LAYER_ID = "standalone_verify_layer_id";
     public static final String KEY_LOOKUP_ID = "lookup_id";
     public static final String KEY_ACCOUNT = "account";
     public static final String KEY_NAME = "name";
@@ -201,6 +209,41 @@ public class LayerFillService extends Service implements IProgressor {
     private final Object mQueueLock = new Object();
     private ExecutorService mWorkerExecutor;
     private volatile boolean mDrainRunning;
+    /** Keeps CPU running while the screen is off so HTTP download + SQLite fill are not stalled by device sleep. */
+    private PowerManager.WakeLock mFillWakeLock;
+
+    private void acquireFillWakeLock() {
+        synchronized (mQueueLock) {
+            if (mFillWakeLock != null && mFillWakeLock.isHeld()) {
+                return;
+            }
+        }
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm == null) {
+            return;
+        }
+        PowerManager.WakeLock lock = pm.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK, "nextgis:LayerFillService");
+        lock.setReferenceCounted(false);
+        lock.acquire();
+        synchronized (mQueueLock) {
+            mFillWakeLock = lock;
+        }
+    }
+
+    private void releaseFillWakeLock() {
+        PowerManager.WakeLock lock;
+        synchronized (mQueueLock) {
+            lock = mFillWakeLock;
+            mFillWakeLock = null;
+        }
+        if (lock != null && lock.isHeld()) {
+            try {
+                lock.release();
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
 
     private void enqueueToQueue(LayerFillTask task) {
         synchronized (mQueueLock) {
@@ -220,6 +263,7 @@ public class LayerFillService extends Service implements IProgressor {
     }
 
     private void drainLoop() {
+        acquireFillWakeLock();
         try {
             while (true) {
                 final LayerFillTask task;
@@ -244,6 +288,8 @@ public class LayerFillService extends Service implements IProgressor {
                 }
             }
 
+            releaseFillWakeLock();
+
             IGISApplication app = (IGISApplication) getApplicationContext();
             app.setLayerFillServiceBusy(false);
             if (mIsCanceled) {
@@ -258,7 +304,10 @@ public class LayerFillService extends Service implements IProgressor {
                     app.setLayerFillBatchDeferringHeavyMapReload(false);
                     app.requestMapReloadAfterLayerFillBatch();
                 }
-                new Handler(Looper.getMainLooper()).post(app::finalizeCollectorImportVerifyAndRepairIfNeeded);
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    app.finalizeCollectorImportVerifyAndRepairIfNeeded();
+                    app.finalizeStandaloneLayerFillVerifyIfNeeded();
+                });
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -277,11 +326,6 @@ public class LayerFillService extends Service implements IProgressor {
 
         mNotifyTitle = task.getDescription();
 
-        mBuilder.setWhen(System.currentTimeMillis())
-                .setContentTitle(mNotifyTitle)
-                .setTicker(mNotifyTitle);
-        mNotifyManager.notify(FILL_NOTIFICATION_ID, mBuilder.build());
-
         if (mProgressIntent.getExtras() != null) {
             mProgressIntent.getExtras().clear();
         }
@@ -293,8 +337,14 @@ public class LayerFillService extends Service implements IProgressor {
 
         Process.setThreadPriority(Constants.DEFAULT_DOWNLOAD_THREAD_PRIORITY);
         final IProgressor progressor = this;
+        /* Next progress update must not be skipped (throttle carries mLastUpdate across tasks). */
+        mLastUpdate = 0L;
         progressor.setValue(0);
         boolean result = task.execute(progressor);
+        if (!result && !mIsCanceled) {
+            HyperLog.w(Constants.TAG, "LayerFillService: fill task failed "
+                    + task.getClass().getSimpleName() + " — " + mProgressMessage);
+        }
 
         if ((!(task instanceof UnzipForm)) || !task.subTaskWasRunned) {
             mProgressIntent.putExtra(KEY_MESSAGE, mProgressMessage);
@@ -332,6 +382,7 @@ public class LayerFillService extends Service implements IProgressor {
                 mLayerGroup.addLayer(filled);
             }
             mLayerGroup.save();
+            registerStandaloneLayerFillVerifyIfNeeded(task, filled);
         } else {
             task.cancel();
         }
@@ -359,33 +410,59 @@ public class LayerFillService extends Service implements IProgressor {
         sendBroadcast(mProgressIntent);
     }
 
+    /**
+     * Standalone fills (not collector batch) register for the same post-drain verify/repair pass as collector projects.
+     */
+    private void registerStandaloneLayerFillVerifyIfNeeded(LayerFillTask task, ILayer filled) {
+        if (mIsCanceled
+                || (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null)) {
+            return;
+        }
+        if (!(filled instanceof VectorLayer)) {
+            return;
+        }
+        IGISApplication app = (IGISApplication) getApplicationContext();
+        Bundle copy = new Bundle(task.mEnqueueBundle);
+        if (filled instanceof NGWVectorLayer) {
+            app.registerStandaloneLayerFillVerifyAfterSuccess(copy);
+            return;
+        }
+        if (task instanceof VectorLayerFillTask) {
+            copy.putInt(KEY_STANDALONE_VERIFY_LAYER_ID, filled.getId());
+            app.registerStandaloneLayerFillVerifyAfterSuccess(copy);
+        }
+    }
+
     @Override
     public void onCreate() {
         mNotifyManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         int icon = R.drawable.ic_notification_download;
-        Bitmap largeIcon = NotificationHelper.getLargeIcon(icon, getResources());
 
         mProgressIntent = new Intent(ACTION_UPDATE);
-        Intent intent = new Intent(this, LayerFillService.class);
-        intent.setAction(ACTION_STOP);
-        int flag = PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE;
-        PendingIntent stop = PendingIntent.getService(this, 0, intent, flag);
-        intent.setAction(ACTION_SHOW);
-        PendingIntent show = PendingIntent.getService(this, 0, intent, flag);
 
-
-        boolean isSamsung =
-                Build.MANUFACTURER != null &&
-                        Build.MANUFACTURER.equalsIgnoreCase("samsung");
-
-        mBuilder = createBuilder(this,com.nextgis.maplib.R.string.start_fill_layer);
-        mBuilder.setSmallIcon(icon).setLargeIcon(largeIcon)
-                .setAutoCancel(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel ch = new NotificationChannel(
+                    LAYER_FILL_FGS_CHANNEL_ID,
+                    getString(com.nextgis.maplib.R.string.start_fill_layer),
+                    NotificationManager.IMPORTANCE_MIN);
+            ch.setShowBadge(false);
+            ch.setSound(null, null);
+            ch.enableLights(false);
+            ch.enableVibration(false);
+            mNotifyManager.createNotificationChannel(ch);
+            mBuilder = new NotificationCompat.Builder(this, LAYER_FILL_FGS_CHANNEL_ID);
+        } else {
+            mBuilder = new NotificationCompat.Builder(this);
+        }
+        mBuilder.setSmallIcon(icon)
+                .setContentTitle(getString(com.nextgis.maplib.R.string.start_fill_layer))
                 .setOngoing(true)
-                .setContentIntent(show)
-                .addAction(R.drawable.ic_action_cancel_dark, getString(R.string.tracks_stop), stop);
-        if (isSamsung)
-            mBuilder.setOnlyAlertOnce(true);
+                .setSilent(true)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mBuilder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE);
+        }
         mIsCanceled = false;
 
         mQueue = new LinkedList<>();
@@ -401,8 +478,6 @@ public class LayerFillService extends Service implements IProgressor {
         };
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            String title = getString(com.nextgis.maplib.R.string.start_fill_layer);
-            mBuilder.setWhen(System.currentTimeMillis()).setContentTitle(title).setTicker(title);
             startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
         }
     }
@@ -410,6 +485,7 @@ public class LayerFillService extends Service implements IProgressor {
     @Override
     public void onDestroy() {
         HyperLog.v(Constants.TAG, "LayerFillService.onDestroy");
+        releaseFillWakeLock();
         ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
         if (mWorkerExecutor != null) {
             mWorkerExecutor.shutdown();
@@ -491,12 +567,22 @@ public class LayerFillService extends Service implements IProgressor {
                         }
                         break;
                     case ACTION_SHOW:
+                        if (mProgressIntent.getExtras() != null) {
+                            mProgressIntent.getExtras().clear();
+                        }
                         mProgressIntent.putExtra(KEY_STATUS, STATUS_SHOW)
-                                .putExtra(KEY_TITLE, mNotifyTitle)
-                                .setPackage(getPackageName());
+                                .putExtra(KEY_TITLE, mNotifyTitle != null ? mNotifyTitle : "")
+                                .putExtra(KEY_INDETERMINATE, mIndeterminate)
+                                .putExtra(KEY_TOTAL, mProgressMax)
+                                .putExtra(KEY_PROGRESS, mProgressValue);
+                        if (mProgressMessage != null) {
+                            mProgressIntent.putExtra(KEY_MESSAGE, mProgressMessage);
+                        }
+                        if (isPointz) {
+                            mProgressIntent.putExtra(IS_POINTS, true);
+                        }
+                        mProgressIntent.setPackage(getPackageName());
                         sendBroadcast(mProgressIntent);
-                        //Log.e("FFRRMM", "startCommand ACTION_SHOW broadcast " + mProgressIntent.toString());
-
                         break;
                 }
             }
@@ -589,14 +675,13 @@ public class LayerFillService extends Service implements IProgressor {
         updateNotify();
     }
 
+    /** Throttles progress broadcast to the UI (same interval as {@link ConstantsUI#NOTIFICATION_DELAY}). */
     protected void updateNotify(){
-        if (mLastUpdate + ConstantsUI.NOTIFICATION_DELAY < System.currentTimeMillis()) {
-            mLastUpdate = System.currentTimeMillis();
-            mBuilder.setProgress(mProgressMax, mProgressValue, mIndeterminate)
-                    .setContentText(mProgressMessage);
-            // Displays the progress bar for the first time.
-            mNotifyManager.notify(FILL_NOTIFICATION_ID, mBuilder.build());
+        final long now = System.currentTimeMillis();
+        if (mLastUpdate + ConstantsUI.NOTIFICATION_DELAY >= now) {
+            return;
         }
+        mLastUpdate = now;
 
         if (mProgressIntent.getExtras() != null)
             mProgressIntent.getExtras().clear();
@@ -613,10 +698,6 @@ public class LayerFillService extends Service implements IProgressor {
 
         mProgressIntent.setPackage(getPackageName());
         sendBroadcast(mProgressIntent);
-//        Log.e("FFRRMM", "updateNotify send broadcast with mProgressMessage " + mProgressMessage);
-//
-//        Log.e("FFRRMM", "updateNotify send broadcast 1 " + mProgressIntent.toString());
-
     }
 
     private void notifyError(String error) {
@@ -639,6 +720,8 @@ public class LayerFillService extends Service implements IProgressor {
         boolean mVisible;
         Uri mUri;
         protected Layer mLayer;
+        /** Copy of {@link #ACTION_ADD_TASK} extras for verify/repair re-queue. */
+        protected final Bundle mEnqueueBundle;
         public boolean subTaskWasRunned = true;
         public long[] defaultFormIDArray = null;
         protected String mLayerConfigJson;
@@ -646,6 +729,7 @@ public class LayerFillService extends Service implements IProgressor {
         protected long[] mCollectorProjectRemoteIds;
 
         LayerFillTask(Bundle bundle) {
+            mEnqueueBundle = new Bundle(bundle);
             mUri = bundle.getParcelable(KEY_URI);
             mLayerName = bundle.getString(KEY_NAME);
             mLayerPath = bundle.containsKey(KEY_LAYER_PATH) ?
