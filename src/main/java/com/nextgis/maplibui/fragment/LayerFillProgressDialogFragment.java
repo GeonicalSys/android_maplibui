@@ -314,8 +314,10 @@ public class LayerFillProgressDialogFragment extends Fragment {
                         mProgressDialog.setProgress(progress);
                     }
                     if (!TextUtils.isEmpty(message)) {
-                        mProgressDialog.setIndeterminate(false);
                         setDialogInfo(title, message);
+                        if (total > 0) {
+                            mProgressDialog.setIndeterminate(false);
+                        }
                     }
                     if (!mProgressDialog.isShowing()) {
                         mProgressDialog.show();
@@ -323,6 +325,10 @@ public class LayerFillProgressDialogFragment extends Fragment {
                     break;
                 }
                 case LayerFillService.STATUS_STOP: {
+                    if (intent.getBooleanExtra(LayerFillService.KEY_COLLECTOR_SESSION_UI_COMPLETE, false)) {
+                        completeFillProgressUi();
+                        break;
+                    }
                     /*
                      * KEY_TOTAL = tasks still queued after this one finishes (0 = last/final stop).
                      * Must not tear down before handling KEY_RESULT / toast / NGW sync — otherwise a
@@ -330,6 +336,10 @@ public class LayerFillProgressDialogFragment extends Fragment {
                      */
                     final int remainingQueue = intent.getIntExtra(LayerFillService.KEY_TOTAL, 0);
                     final boolean finalStop = (remainingQueue == 0);
+                    final boolean suppressToast =
+                            intent.getBooleanExtra(LayerFillService.KEY_SUPPRESS_STOP_TOAST, false);
+                    final boolean keepUiBlocking =
+                            intent.getBooleanExtra(LayerFillService.KEY_KEEP_PROGRESS_UI_BLOCKING, false);
 
                     boolean canceled = intent.getBooleanExtra(LayerFillService.KEY_CANCELLED, false);
                     String toast = host.getString(com.nextgis.maplibui.R.string.message_layer_created);
@@ -345,7 +355,7 @@ public class LayerFillProgressDialogFragment extends Fragment {
                         }
                     }
 
-                    if (finalStop || intent.hasExtra(LayerFillService.KEY_MESSAGE)) {
+                    if (!suppressToast && (finalStop || intent.hasExtra(LayerFillService.KEY_MESSAGE))) {
                         if (!intent.getBooleanExtra(IS_POINTS, false)) {
                             Toast.makeText(host, toast, Toast.LENGTH_LONG).show();
                         } else {
@@ -390,7 +400,7 @@ public class LayerFillProgressDialogFragment extends Fragment {
                         }
                     }
 
-                    if (finalStop) {
+                    if (finalStop && !keepUiBlocking) {
                         completeFillProgressUi();
                     }
                     break;

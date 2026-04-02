@@ -22,6 +22,9 @@
   -->
 
 <resources>
+    <!-- Overridden by app module flavors (resValue app_name in app/build.gradle). -->
+    <string name="app_name" translatable="false">NextGIS Mobile</string>
+    <string name="layer_fill_fgs_minimal" translatable="false">…</string>
     <string name="layers_drawer_open">Open layers list</string>
     <string name="layers_drawer_close">Close layers list</string>
     <string name="ok">OK</string>

@@ -604,6 +604,11 @@ public abstract class GISApplication extends Application
         mLayerFillServiceBusy = busy;
     }
 
+    @Override
+    public boolean tryEnqueueLayerFillRepairBatch(ArrayList<Bundle> repairBundles, boolean deferMapReload) {
+        return LayerFillService.tryEnqueueRepairBatchOnActiveInstance(this, repairBundles, deferMapReload);
+    }
+
     private void clearCollectorImportFieldsLocked() {
         mCollectorRemoteIds = null;
         mCollectorNames = null;
@@ -684,6 +689,13 @@ public abstract class GISApplication extends Application
         clearStandaloneFillVerifyLocked();
         synchronized (mCollectorImportLock) {
             clearCollectorImportFieldsLocked();
+        }
+    }
+
+    @Override
+    public boolean hasCollectorImportBatchRegistered() {
+        synchronized (mCollectorImportLock) {
+            return mCollectorRemoteIds != null && mCollectorRemoteIds.length > 0;
         }
     }
 
@@ -776,7 +788,7 @@ public abstract class GISApplication extends Application
             return;
         }
 
-        int repairCount = 0;
+        ArrayList<Bundle> repairBundles = new ArrayList<>();
         for (Bundle b : broken) {
             int gid = b.getInt(LayerFillService.KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
             ILayer groupLayer = map.getLayerById(gid);
@@ -806,22 +818,33 @@ public abstract class GISApplication extends Application
 
             Bundle extras = new Bundle(b);
             extras.remove(LayerFillService.KEY_STANDALONE_VERIFY_LAYER_ID);
-            Intent intent = new Intent(this, LayerFillService.class);
-            intent.setAction(LayerFillService.ACTION_ADD_TASK);
-            intent.putExtras(extras);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(this, intent);
-            } else {
-                startService(intent);
-            }
-            repairCount++;
+            repairBundles.add(extras);
         }
 
         map.save();
+        int repairCount = repairBundles.size();
+        if (repairCount > 0) {
+            boolean defer = isLayerFillBatchDeferringHeavyMapReload();
+            if (!tryEnqueueLayerFillRepairBatch(repairBundles, defer)) {
+                Intent batchIntent = new Intent(this, LayerFillService.class);
+                batchIntent.setAction(LayerFillService.ACTION_ADD_REPAIR_BATCH);
+                batchIntent.putParcelableArrayListExtra(LayerFillService.KEY_REPAIR_BATCH_EXTRAS, repairBundles);
+                if (defer) {
+                    batchIntent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    ContextCompat.startForegroundService(this, batchIntent);
+                } else {
+                    startService(batchIntent);
+                }
+            }
+        }
         HyperLog.w(Constants.TAG, "Standalone fill incomplete: re-queued " + repairCount
                 + " layer(s), repair passes left=" + passesLeftSnapshot);
-        Toast.makeText(this, getString(R.string.collector_import_repair_queued, repairCount),
-                Toast.LENGTH_LONG).show();
+        if (!isLayerFillBatchDeferringHeavyMapReload()) {
+            Toast.makeText(this, getString(R.string.collector_import_repair_queued, repairCount),
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private static String standaloneVerifyBundleLabel(Bundle b) {
@@ -952,7 +975,11 @@ public abstract class GISApplication extends Application
             return;
         }
 
-        int repairCount = 0;
+        int passesLeftForLog;
+        synchronized (mCollectorImportLock) {
+            passesLeftForLog = mCollectorRepairPassesRemaining;
+        }
+        ArrayList<Bundle> repairBundles = new ArrayList<>();
         /* Ascending project index; insertLayer() places each layer among existing collector siblings. */
         for (int bi = 0; bi < brokenIndices.size(); bi++) {
             int i = brokenIndices.get(bi);
@@ -976,51 +1003,61 @@ public abstract class GISApplication extends Application
                 layer.delete(true);
             }
 
-            Intent intent = new Intent(this, LayerFillService.class);
-            intent.setAction(LayerFillService.ACTION_ADD_TASK);
-            intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
-            intent.putExtra(LayerFillService.KEY_NAME, layerName);
-            intent.putExtra(LayerFillService.KEY_ACCOUNT, account);
-            intent.putExtra(LayerFillService.KEY_REMOTE_ID, rid);
-            intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
-            intent.putExtra(LayerFillService.KEY_COLLECTOR_TRACKING_REMOTE_ID, rid);
+            Bundle taskExtras = new Bundle();
+            taskExtras.putBoolean(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+            taskExtras.putString(LayerFillService.KEY_NAME, layerName);
+            taskExtras.putString(LayerFillService.KEY_ACCOUNT, account);
+            taskExtras.putLong(LayerFillService.KEY_REMOTE_ID, rid);
+            taskExtras.putInt(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
+            taskExtras.putLong(LayerFillService.KEY_COLLECTOR_TRACKING_REMOTE_ID, rid);
             int projIdx = collectorProjectIndexOf(rid, fullProjectOrderSnapshot);
             if (projIdx >= 0 && fullProjectOrderSnapshot != null) {
-                intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projIdx);
-                intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS, fullProjectOrderSnapshot);
+                taskExtras.putInt(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projIdx);
+                taskExtras.putLongArray(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS, fullProjectOrderSnapshot);
             }
             long fid = formIds[i];
             if (fid != 0L) {
                 Account acc = getAccount(account);
                 if (acc != null) {
-                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
-                    intent.putExtra(LayerFillService.KEY_URI,
+                    taskExtras.putInt(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                    taskExtras.putParcelable(LayerFillService.KEY_URI,
                             Uri.parse(NGWUtil.getFormUrl(getAccountUrl(acc), fid)));
                 } else {
                     HyperLog.w(Constants.TAG, "Collector repair: account missing for \"" + layerName + "\"");
-                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                    taskExtras.putInt(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
                 }
             } else {
-                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                taskExtras.putInt(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
             }
             String cfg = configs[i];
             if (!TextUtils.isEmpty(cfg)) {
-                intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, cfg);
+                taskExtras.putString(LayerFillService.KEY_LAYER_CONFIG_JSON, cfg);
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent);
-            } else {
-                startService(intent);
-            }
-            repairCount++;
+            repairBundles.add(taskExtras);
         }
 
         map.save();
+        int repairCount = repairBundles.size();
+        if (repairCount > 0) {
+            if (!tryEnqueueLayerFillRepairBatch(repairBundles, true)) {
+                Intent batchIntent = new Intent(this, LayerFillService.class);
+                batchIntent.setAction(LayerFillService.ACTION_ADD_REPAIR_BATCH);
+                batchIntent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+                batchIntent.putParcelableArrayListExtra(LayerFillService.KEY_REPAIR_BATCH_EXTRAS, repairBundles);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(batchIntent);
+                } else {
+                    startService(batchIntent);
+                }
+            }
+        }
         HyperLog.w(Constants.TAG, "Collector import incomplete: re-queued " + repairCount
-                + " layer(s), repair passes left=" + mCollectorRepairPassesRemaining + ": "
+                + " layer(s), repair passes left=" + passesLeftForLog + ": "
                 + TextUtils.join(", ", repaired));
-        Toast.makeText(this, getString(R.string.collector_import_repair_queued, repairCount),
-                Toast.LENGTH_LONG).show();
+        if (!isLayerFillBatchDeferringHeavyMapReload()) {
+            Toast.makeText(this, getString(R.string.collector_import_repair_queued, repairCount),
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override

@@ -91,8 +91,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -132,6 +134,11 @@ public class LayerFillService extends Service implements IProgressor {
 
     public static final String ACTION_STOP = "com.nextgis.maplibui.FILL_LAYER_STOP";
     public static final String ACTION_ADD_TASK = "com.nextgis.maplibui.ADD_FILL_LAYER_TASK";
+    /**
+     * One {@link #startForegroundService} for many repair tasks (avoids FGS race when finalize posts
+     * multiple starts before the worker observes the queue).
+     */
+    public static final String ACTION_ADD_REPAIR_BATCH = "com.nextgis.maplibui.ADD_FILL_REPAIR_BATCH";
     public static final String ACTION_SHOW = "com.nextgis.maplibui.SHOW_PROGRESS_DIALOG";
     public static final String ACTION_UPDATE = "com.nextgis.maplibui.UPDATE_FILL_LAYER_PROGRESS";
     public static final String KEY_STATUS = "status";
@@ -171,6 +178,15 @@ public class LayerFillService extends Service implements IProgressor {
      * deferred until the fill queue drains (see {@link IGISApplication#requestMapReloadAfterLayerFillBatch()}).
      */
     public static final String KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY = "defer_map_reload_until_queue_empty";
+    /**
+     * On {@link #STATUS_STOP}: do not dismiss blocking progress UI yet; collector verify/repair may enqueue more tasks.
+     */
+    public static final String KEY_KEEP_PROGRESS_UI_BLOCKING = "keep_progress_ui_blocking";
+    /**
+     * On {@link #STATUS_STOP}: session fully finished (queue drained and finalize ran); dismiss blocking UI without per-layer toast.
+     */
+    public static final String KEY_COLLECTOR_SESSION_UI_COMPLETE = "collector_session_ui_complete";
+    public static final String KEY_SUPPRESS_STOP_TOAST = "suppress_stop_toast";
     /** Full layer config.json text (e.g. from NGW resource description) applied after NGW fill. */
     public static final String KEY_LAYER_CONFIG_JSON = "layer_config_json";
 
@@ -182,6 +198,9 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_COLLECTOR_PROJECT_REMOTE_IDS = "collector_project_remote_ids";
     public static final String KEY_TMS_TYPE   = "tms_type";
     public static final String KEY_TMS_CACHE   = "tms_cache";
+
+    /** {@link ArrayList}{@code <}{@link Bundle}{@code >} — each bundle matches {@link #ACTION_ADD_TASK} extras for one task. */
+    public static final String KEY_REPAIR_BATCH_EXTRAS = "repair_batch_extras";
 
     public static final String NGFP_META = "ngfp_meta.json";
     protected final static String NGFP_FILE_META = "meta.json";
@@ -209,6 +228,12 @@ public class LayerFillService extends Service implements IProgressor {
     private final Object mQueueLock = new Object();
     private ExecutorService mWorkerExecutor;
     private volatile boolean mDrainRunning;
+
+    /**
+     * Set in {@link #onCreate}, cleared in {@link #onDestroy} when still this instance — used to enqueue repair
+     * synchronously from {@link IGISApplication#finalizeCollectorImportVerifyAndRepairIfNeeded()} without a second FGS start.
+     */
+    private static volatile LayerFillService sActiveInstance;
     /** Keeps CPU running while the screen is off so HTTP download + SQLite fill are not stalled by device sleep. */
     private PowerManager.WakeLock mFillWakeLock;
 
@@ -251,6 +276,93 @@ public class LayerFillService extends Service implements IProgressor {
         }
     }
 
+    /**
+     * Enqueue a single fill task from the same extras shape as {@link #ACTION_ADD_TASK}.
+     *
+     * @return {@code false} only if {@link UnzipForm} construction failed (legacy: {@code START_NOT_STICKY}, no drain).
+     */
+    /**
+     * Enqueue repair tasks built during finalize while the drain worker awaits the main-thread latch.
+     * Must run on the main thread; see {@link #tryEnqueueRepairBatchOnActiveInstance}.
+     */
+    public static boolean tryEnqueueRepairBatchOnActiveInstance(
+            Context appContext, ArrayList<Bundle> repairBundles, boolean deferMapReload) {
+        if (repairBundles == null || repairBundles.isEmpty()) {
+            return false;
+        }
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            HyperLog.w(Constants.TAG, "tryEnqueueRepairBatchOnActiveInstance: not on main thread");
+            return false;
+        }
+        LayerFillService svc = sActiveInstance;
+        if (svc == null) {
+            return false;
+        }
+        synchronized (svc.mQueueLock) {
+            if (svc.mIsCanceled) {
+                return false;
+            }
+        }
+        if (svc.mWorkerExecutor == null || svc.mWorkerExecutor.isShutdown()) {
+            return false;
+        }
+        IGISApplication app = (IGISApplication) appContext.getApplicationContext();
+        if (deferMapReload) {
+            app.setLayerFillBatchDeferringHeavyMapReload(true);
+        }
+        boolean anyEnqueued = false;
+        for (Bundle b : repairBundles) {
+            if (svc.enqueueOneTaskFromExtras(b)) {
+                anyEnqueued = true;
+            }
+        }
+        if (!anyEnqueued) {
+            return false;
+        }
+        svc.startForegroundWithSessionAwareNotification();
+        /* Do not call scheduleDrainIfNeeded(): the drain worker is blocked in finalize await and will
+         * re-check mQueue and submit exactly one continuation of drainLoop (see finally after await). */
+        return true;
+    }
+
+    private boolean enqueueOneTaskFromExtras(Bundle extra) {
+        if (extra == null) {
+            return true;
+        }
+        Bundle work = new Bundle(extra);
+        int layerGroupId = work.getInt(KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
+        mLayerGroup = (LayerGroup) MapBase.getInstance().getLayerById(layerGroupId);
+        int layerType = work.getInt(KEY_INPUT_TYPE, Constants.NOT_FOUND);
+        switch (layerType) {
+            case VECTOR_LAYER:
+                enqueueToQueue(new VectorLayerFillTask(work));
+                return true;
+            case VECTOR_LAYER_WITH_FORM:
+                try {
+                    enqueueToQueue(new UnzipForm(work));
+                    return true;
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    Intent msg = new Intent(MESSAGE_ALERT_INTENT);
+                    msg.putExtra(MESSAGE_EXTRA, getString(R.string.error_load_parent));
+                    msg.putExtra(MESSAGE_EXTRA_IS_PARENTFILL, true);
+                    msg.putExtra(MESSAGE_TITLE_EXTRA, getResources().getString(R.string.error));
+                    msg.setPackage(getPackageName());
+                    sendBroadcast(msg);
+                    return false;
+                }
+            case TMS_LAYER:
+                enqueueToQueue(new LocalTMSFillTask(work));
+                return true;
+            case NGW_LAYER:
+                enqueueToQueue(new NGWVectorLayerFillTask(work));
+                return true;
+            default:
+                HyperLog.w(Constants.TAG, "LayerFillService: unknown KEY_INPUT_TYPE=" + layerType);
+                return true;
+        }
+    }
+
     private void scheduleDrainIfNeeded() {
         synchronized (mQueueLock) {
             if (mDrainRunning || mQueue.isEmpty()) {
@@ -288,26 +400,77 @@ public class LayerFillService extends Service implements IProgressor {
                 }
             }
 
-            releaseFillWakeLock();
-
             IGISApplication app = (IGISApplication) getApplicationContext();
-            app.setLayerFillServiceBusy(false);
+
             if (mIsCanceled) {
+                releaseFillWakeLock();
+                app.setLayerFillServiceBusy(false);
                 app.clearCollectorImportBatch();
                 app.setLayerFillBatchDeferringHeavyMapReload(false);
-            } else {
-                boolean reload;
-                synchronized (mQueueLock) {
-                    reload = mQueue.isEmpty() && app.isLayerFillBatchDeferringHeavyMapReload();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    stopForeground(true);
+                } else {
+                    mNotifyManager.cancel(FILL_NOTIFICATION_ID);
                 }
-                if (reload) {
-                    app.setLayerFillBatchDeferringHeavyMapReload(false);
-                    app.requestMapReloadAfterLayerFillBatch();
-                }
-                new Handler(Looper.getMainLooper()).post(() -> {
+                stopSelf();
+                return;
+            }
+
+            final boolean deferReloadPending = app.isLayerFillBatchDeferringHeavyMapReload();
+            final boolean hadCollectorBatchBeforeFinalize = app.hasCollectorImportBatchRegistered();
+
+            final CountDownLatch finalizeLatch = new CountDownLatch(1);
+            new Handler(Looper.getMainLooper()).post(() -> {
+                try {
                     app.finalizeCollectorImportVerifyAndRepairIfNeeded();
                     app.finalizeStandaloneLayerFillVerifyIfNeeded();
-                });
+                } finally {
+                    finalizeLatch.countDown();
+                }
+            });
+
+            boolean finalizedInTime = false;
+            try {
+                finalizedInTime = finalizeLatch.await(120, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (!finalizedInTime) {
+                HyperLog.w(Constants.TAG, "LayerFillService: finalizeCollector/standalone await timeout");
+            }
+
+            synchronized (mQueueLock) {
+                if (!mQueue.isEmpty()) {
+                    mDrainRunning = true;
+                    mWorkerExecutor.execute(this::drainLoop);
+                    return;
+                }
+            }
+
+            boolean reload;
+            synchronized (mQueueLock) {
+                reload = mQueue.isEmpty() && app.isLayerFillBatchDeferringHeavyMapReload();
+            }
+            if (reload) {
+                app.setLayerFillBatchDeferringHeavyMapReload(false);
+                app.requestMapReloadAfterLayerFillBatch();
+            }
+
+            releaseFillWakeLock();
+            app.setLayerFillServiceBusy(false);
+
+            boolean collectorBatchEnded = hadCollectorBatchBeforeFinalize
+                    && !app.hasCollectorImportBatchRegistered();
+            if (deferReloadPending || collectorBatchEnded) {
+                Intent sessionDone = new Intent(ACTION_UPDATE);
+                sessionDone.putExtra(KEY_STATUS, STATUS_STOP);
+                sessionDone.putExtra(KEY_TOTAL, 0);
+                sessionDone.putExtra(KEY_COLLECTOR_SESSION_UI_COMPLETE, true);
+                sessionDone.putExtra(KEY_SUPPRESS_STOP_TOAST, true);
+                final Context appContext = getApplicationContext();
+                final String pkg = getPackageName();
+                sessionDone.setPackage(pkg);
+                new Handler(Looper.getMainLooper()).post(() -> appContext.sendBroadcast(sessionDone));
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -353,9 +516,22 @@ public class LayerFillService extends Service implements IProgressor {
         mProgressIntent.putExtra(KEY_STATUS, STATUS_STOP);
         mProgressIntent.putExtra(KEY_CANCELLED, mIsCanceled);
         mProgressIntent.putExtra(KEY_RESULT, result && !mIsCanceled);
+        IGISApplication appCtx = (IGISApplication) getApplicationContext();
+        int remainingQueue;
         synchronized (mQueueLock) {
-            mProgressIntent.putExtra(KEY_TOTAL, mQueue.size());
+            remainingQueue = mQueue.size();
+            mProgressIntent.putExtra(KEY_TOTAL, remainingQueue);
         }
+        mProgressIntent.putExtra(KEY_KEEP_PROGRESS_UI_BLOCKING,
+                remainingQueue == 0
+                        && !mIsCanceled
+                        && appCtx.isLayerFillBatchDeferringHeavyMapReload()
+                        && appCtx.hasCollectorImportBatchRegistered());
+        boolean suppressPerLayerToast = remainingQueue > 0
+                || (!mIsCanceled
+                        && appCtx.isLayerFillBatchDeferringHeavyMapReload()
+                        && appCtx.hasCollectorImportBatchRegistered());
+        mProgressIntent.putExtra(KEY_SUPPRESS_STOP_TOAST, suppressPerLayerToast);
 
         if (result) {
             ILayer filled = task.getLayer();
@@ -387,7 +563,6 @@ public class LayerFillService extends Service implements IProgressor {
             task.cancel();
         }
 
-        IGISApplication appCtx = (IGISApplication) getApplicationContext();
         if (task instanceof NGWVectorLayerFillTask) {
             NGWVectorLayerFillTask ngwTask = (NGWVectorLayerFillTask) task;
             appCtx.notifyCollectorLayerFillResult(ngwTask.getTrackingRemoteId(), result && !mIsCanceled);
@@ -477,7 +652,43 @@ public class LayerFillService extends Service implements IProgressor {
             }
         };
 
+        startForegroundWithSessionAwareNotification();
+
+        sActiveInstance = this;
+    }
+
+    /**
+     * During collector batch import (modal progress in app), use a minimal FGS title so the system
+     * notification does not repeat long “start fill” strings; progress stays in the dialog.
+     */
+    private void applyForegroundNotificationTitleForSession() {
+        if (mBuilder == null) {
+            return;
+        }
+        IGISApplication app = (IGISApplication) getApplicationContext();
+        if (app.isLayerFillBatchDeferringHeavyMapReload() && app.hasCollectorImportBatchRegistered()) {
+            mBuilder.setContentTitle(getString(R.string.layer_fill_fgs_minimal)).setContentText(null);
+        } else {
+            mBuilder.setContentTitle(getString(com.nextgis.maplib.R.string.start_fill_layer))
+                    .setContentText(null);
+        }
+    }
+
+    private void startForegroundWithSessionAwareNotification() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            applyForegroundNotificationTitleForSession();
+            startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
+        }
+    }
+
+    /** After progress updates, refresh FGS text when collector batch uses quiet title. */
+    private void refreshForegroundNotificationIfCollectorBatch() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || mBuilder == null) {
+            return;
+        }
+        IGISApplication app = (IGISApplication) getApplicationContext();
+        if (app.isLayerFillBatchDeferringHeavyMapReload() && app.hasCollectorImportBatchRegistered()) {
+            applyForegroundNotificationTitleForSession();
             startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
         }
     }
@@ -485,6 +696,9 @@ public class LayerFillService extends Service implements IProgressor {
     @Override
     public void onDestroy() {
         HyperLog.v(Constants.TAG, "LayerFillService.onDestroy");
+        if (sActiveInstance == this) {
+            sActiveInstance = null;
+        }
         releaseFillWakeLock();
         ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
         if (mWorkerExecutor != null) {
@@ -498,56 +712,44 @@ public class LayerFillService extends Service implements IProgressor {
         HyperLog.v(Constants.TAG, "LayerFillService.onStartCommand startId=" + startId);
         if (Constants.DEBUG_MODE)
             Log.i("LayerFillService", "Received start id " + startId + ": " + intent);
+
+        /*
+         * Android 8+: every startForegroundService() delivery must call startForeground() quickly,
+         * including ACTION_SHOW, null intent redelivery, or a race right after stopForeground/stopSelf.
+         * Apply intent-specific notification text after we process defer flags in each branch.
+         */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mBuilder != null) {
+            startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
+        }
+
         if (intent != null) {
             String action = intent.getAction();
             if (action != null && !TextUtils.isEmpty(action)) {
                 switch (action) {
                     case ACTION_ADD_TASK:
-                        int layerGroupId = intent.getIntExtra(KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
-                        mLayerGroup = (LayerGroup) MapBase.getInstance().getLayerById(layerGroupId);
-
                         if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
                             ((IGISApplication) getApplicationContext())
                                     .setLayerFillBatchDeferringHeavyMapReload(true);
                         }
-
-                        int layerType = intent.getIntExtra(KEY_INPUT_TYPE, Constants.NOT_FOUND);
-                        Bundle extra = intent.getExtras();
-
-                        switch (layerType) {
-                            case VECTOR_LAYER:
-                                enqueueToQueue(new VectorLayerFillTask(extra));
-                                break;
-                            case VECTOR_LAYER_WITH_FORM:
-                                try {
-                                    enqueueToQueue(new UnzipForm(extra));
-
-                                } catch (Exception ex){
-                                    ex.printStackTrace();
-                                    //notifyError("Error on start fill form");
-
-                                    Intent msg = new Intent(MESSAGE_ALERT_INTENT);
-                                    msg.putExtra(MESSAGE_EXTRA, getString(R.string.error_load_parent));
-                                    msg.putExtra(MESSAGE_EXTRA_IS_PARENTFILL, true);
-
-                                    //msg.putExtra(MESSAGE_TITLE_EXTRA, getResources().getString(R.string.map_load_exception_title));
-                                    msg.putExtra(MESSAGE_TITLE_EXTRA, getResources().getString(R.string.error));
-                                    msg.setPackage(getPackageName());
-                                    sendBroadcast(msg);
-
-                                    return START_NOT_STICKY;
-                                }
-                                break;
-                            case TMS_LAYER:
-                                enqueueToQueue(new LocalTMSFillTask(extra));
-                                break;
-                            case NGW_LAYER:
-                                enqueueToQueue(new NGWVectorLayerFillTask(extra));
-                                break;
+                        startForegroundWithSessionAwareNotification();
+                        if (!enqueueOneTaskFromExtras(intent.getExtras())) {
+                            return START_NOT_STICKY;
                         }
-
                         scheduleDrainIfNeeded();
-
+                        return START_STICKY;
+                    case ACTION_ADD_REPAIR_BATCH:
+                        if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                            ((IGISApplication) getApplicationContext())
+                                    .setLayerFillBatchDeferringHeavyMapReload(true);
+                        }
+                        startForegroundWithSessionAwareNotification();
+                        ArrayList<Bundle> repairBatch = intent.getParcelableArrayListExtra(KEY_REPAIR_BATCH_EXTRAS);
+                        if (repairBatch != null) {
+                            for (Bundle b : repairBatch) {
+                                enqueueOneTaskFromExtras(b);
+                            }
+                        }
+                        scheduleDrainIfNeeded();
                         return START_STICKY;
                     case ACTION_STOP:
                         synchronized (mQueueLock) {
@@ -698,6 +900,7 @@ public class LayerFillService extends Service implements IProgressor {
 
         mProgressIntent.setPackage(getPackageName());
         sendBroadcast(mProgressIntent);
+        refreshForegroundNotificationIfCollectorBatch();
     }
 
     private void notifyError(String error) {

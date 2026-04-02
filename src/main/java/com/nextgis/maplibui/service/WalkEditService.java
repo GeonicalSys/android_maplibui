@@ -46,6 +46,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.nextgis.maplib.api.GpsEventListener;
+import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
 import com.nextgis.maplib.datasource.GeoGeometry;
 import com.nextgis.maplib.datasource.GeoGeometryFactory;
@@ -56,6 +57,7 @@ import com.nextgis.maplib.map.MapBase;
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.GeoConstants;
+import com.nextgis.maplib.util.LocationTrackFilter;
 import com.nextgis.maplib.util.LocationUtil;
 import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
@@ -63,6 +65,7 @@ import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.NotificationHelper;
 
+import java.util.List;
 import java.util.Map;
 
 import static com.nextgis.maplibui.util.NotificationHelper.createBuilder;
@@ -107,9 +110,22 @@ public class WalkEditService extends Service implements LocationListener
     protected int mLayerId;
     protected boolean mShowNotification;
 
+    private LocationTrackFilter mWalkLocationFilter;
+    /** Last raw fix after provider gate; used for closing snap when {@code min_dt} dropped it. */
+    private Location mLastWalkLocationRaw;
+    /** Wall time when the last vertex was appended (flush or live); for closing motion bound. */
+    private long mLastVertexWallTimeMs;
+
+    private static final float CLOSING_SNAP_MIN_DIST_M = 0.12f;
+    private static final float CLOSING_REF_ACCURACY_M = 25f;
+    /** Closing gap: motion bound never below this (covers minDistance 5m × several pending fixes). */
+    private static final double CLOSING_SNAP_MIN_MAX_DIST_M = 45.0;
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        mWalkLocationFilter = new LocationTrackFilter();
 
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
@@ -143,8 +159,10 @@ public class WalkEditService extends Service implements LocationListener
             if (action != null && !TextUtils.isEmpty(action)) {
                 switch (action) {
                     case ACTION_STOP:
+                        flushWalkLocationFilterToGeometry();
                         mGeometry = null;
                         mLayerId = Constants.NOT_FOUND;
+                        mWalkLocationFilter.reset();
                         removeNotification();
                         stopSelf();
                         break;
@@ -171,6 +189,9 @@ public class WalkEditService extends Service implements LocationListener
                                 break;
                             }
 
+                            mWalkLocationFilter.reset();
+                            mLastWalkLocationRaw = null;
+                            mLastVertexWallTimeMs = 0L;
                             startWalkEdit();
 
                             SharedPreferences.Editor edit = mSharedPreferencesTemp.edit();
@@ -190,6 +211,9 @@ public class WalkEditService extends Service implements LocationListener
             mTargetActivity = mSharedPreferencesTemp.getString(ConstantsUI.TARGET_CLASS, "");
             mTargetExtras = loadBundle(mSharedPreferencesTemp);
             mShowNotification = mSharedPreferencesTemp.getBoolean(ConstantsUI.KEY_MESSAGE, true);
+            mWalkLocationFilter.reset();
+            mLastWalkLocationRaw = null;
+            mLastVertexWallTimeMs = 0L;
             startWalkEdit();
         }
 
@@ -264,6 +288,11 @@ public class WalkEditService extends Service implements LocationListener
     public void onDestroy() {
         HyperLog.v(Constants.TAG, "WalkEditService.onDestroy");
         try {
+            flushWalkLocationFilterToGeometry();
+        } catch (Exception ex) {
+            HyperLog.w(Constants.TAG, "WalkEditService.onDestroy flush: " + ex.getMessage(), ex);
+        }
+        try {
             removeNotification();
         } catch (Exception ex){
             HyperLog.w(Constants.TAG, "WalkEditService.onDestroy: " + ex.getMessage(), ex);
@@ -293,8 +322,22 @@ public class WalkEditService extends Service implements LocationListener
         if (!allow)
             return;
 
-        GeoPoint point;
-        point = new GeoPoint(location.getLongitude(), location.getLatitude());
+        mLastWalkLocationRaw = new Location(location);
+
+        List<Location> accepted = mWalkLocationFilter.onLocation(location);
+        boolean changed = false;
+        for (Location loc : accepted) {
+            appendWalkGeometryPoint(loc);
+            changed = true;
+        }
+        if (changed) {
+            persistWalkGeometryToTempPrefs();
+            sendGeometryBroadcast();
+        }
+    }
+
+    private void appendWalkGeometryPoint(Location location) {
+        GeoPoint point = new GeoPoint(location.getLongitude(), location.getLatitude());
         point.setCRS(GeoConstants.CRS_WGS84);
         point.project(GeoConstants.CRS_WEB_MERCATOR);
 
@@ -312,11 +355,157 @@ public class WalkEditService extends Service implements LocationListener
                         + mGeometry.getType() + ", ignoring location update");
                 return;
         }
+        mLastVertexWallTimeMs = System.currentTimeMillis();
+    }
 
-        SharedPreferences.Editor edit = mSharedPreferencesTemp.edit();
-        edit.putString(ConstantsUI.KEY_GEOMETRY, mGeometry.toWKT(true)).apply();
+    private void persistWalkGeometryToTempPrefs() {
+        if (mGeometry == null)
+            return;
+        mSharedPreferencesTemp.edit()
+                .putString(ConstantsUI.KEY_GEOMETRY, mGeometry.toWKT(true))
+                .apply();
+    }
 
-        sendGeometryBroadcast();
+    private void flushWalkLocationFilterToGeometry() {
+        if (mWalkLocationFilter == null || mGeometry == null)
+            return;
+        boolean changed = false;
+        for (Location loc : mWalkLocationFilter.flushRemaining()) {
+            appendWalkGeometryPoint(loc);
+            changed = true;
+        }
+        if (appendClosingWalkSnapIfNeeded(pickBestClosingLocation())) {
+            changed = true;
+        }
+        if (changed) {
+            persistWalkGeometryToTempPrefs();
+            sendGeometryBroadcast();
+        }
+    }
+
+    /**
+     * Freshest fix between this service's last callback and app {@link com.nextgis.maplib.location.GpsEventSource}
+     * (updates more often than {@code requestLocationUpdates} minDistance).
+     */
+    private Location pickBestClosingLocation() {
+        Location a = mLastWalkLocationRaw;
+        Location b = null;
+        try {
+            Context appCtx = getApplicationContext();
+            if (appCtx instanceof IGISApplication) {
+                b = ((IGISApplication) appCtx).getGpsEventSource().getLastKnownLocation();
+            }
+        } catch (Exception ignored) {
+        }
+        return fresherLocation(a, b);
+    }
+
+    private static Location fresherLocation(Location a, Location b) {
+        if (a == null) {
+            return b != null ? new Location(b) : null;
+        }
+        if (b == null) {
+            return new Location(a);
+        }
+        long fa = locationFixMonotonicNanos(a);
+        long fb = locationFixMonotonicNanos(b);
+        return fb >= fa ? new Location(b) : new Location(a);
+    }
+
+    private static long locationFixMonotonicNanos(Location loc) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            long n = loc.getElapsedRealtimeNanos();
+            if (n > 0L) {
+                return n;
+            }
+        }
+        return loc.getTime() * 1_000_000L;
+    }
+
+    /**
+     * Append the last raw fix if it never entered the filter (e.g. {@code min_dt}) but is still plausible.
+     */
+    private boolean appendClosingWalkSnapIfNeeded(Location lastRaw) {
+        if (lastRaw == null || mGeometry == null) {
+            return false;
+        }
+        if (!LocationTrackFilter.passesBasicIntegrity(lastRaw)) {
+            return false;
+        }
+        int n = getWalkGeometryVertexCount();
+        if (n <= 0) {
+            appendWalkGeometryPoint(lastRaw);
+            return true;
+        }
+        Location refLoc = buildLocationFromLastVertex();
+        if (refLoc == null) {
+            return false;
+        }
+        float dist = refLoc.distanceTo(lastRaw);
+        if (dist < CLOSING_SNAP_MIN_DIST_M) {
+            return false;
+        }
+        long dtMs = System.currentTimeMillis() - mLastVertexWallTimeMs;
+        if (dtMs < 1L) {
+            dtMs = 1L;
+        }
+        double dtSec = dtMs / 1000d;
+        double maxDist = LocationTrackFilter.DEFAULT_MAX_SPEED_MPS * dtSec
+                + LocationTrackFilter.DEFAULT_ACCURACY_MARGIN_K
+                * (CLOSING_REF_ACCURACY_M + lastRaw.getAccuracy());
+        maxDist = Math.max(maxDist, CLOSING_SNAP_MIN_MAX_DIST_M);
+        if (dist > maxDist) {
+            return false;
+        }
+        appendWalkGeometryPoint(lastRaw);
+        return true;
+    }
+
+    private int getWalkGeometryVertexCount() {
+        if (mGeometry == null) {
+            return 0;
+        }
+        switch (mGeometry.getType()) {
+            case GeoConstants.GTLineString:
+                return ((GeoLineString) mGeometry).getPointCount();
+            case GeoConstants.GTLinearRing:
+                return ((GeoLinearRing) mGeometry).getPointCount();
+            default:
+                return 0;
+        }
+    }
+
+    private Location buildLocationFromLastVertex() {
+        GeoPoint p = null;
+        switch (mGeometry.getType()) {
+            case GeoConstants.GTLineString: {
+                GeoLineString line = (GeoLineString) mGeometry;
+                int c = line.getPointCount();
+                if (c < 1) {
+                    return null;
+                }
+                p = line.getPoint(c - 1);
+                break;
+            }
+            case GeoConstants.GTLinearRing: {
+                GeoLinearRing ring = (GeoLinearRing) mGeometry;
+                int c = ring.getPointCount();
+                if (c < 1) {
+                    return null;
+                }
+                p = ring.getPoint(c - 1);
+                break;
+            }
+            default:
+                return null;
+        }
+        GeoPoint wgs = (GeoPoint) p.copy();
+        wgs.project(GeoConstants.CRS_WGS84);
+        Location l = new Location("walk_vertex");
+        l.setLatitude(wgs.getY());
+        l.setLongitude(wgs.getX());
+        l.setAccuracy(CLOSING_REF_ACCURACY_M);
+        return l;
     }
 
     @Override
