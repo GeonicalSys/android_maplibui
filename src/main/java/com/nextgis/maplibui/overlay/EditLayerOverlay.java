@@ -444,8 +444,13 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                         moreThanMin = size > minPoints;
                         break;
                     case GeoConstants.GTPolygon:
+                        moreThanMin = size > minPoints;
+                        break;
                     case GeoConstants.GTMultiPolygon:
                         moreThanMin = size > minPoints;
+                        if (moreThanMin && mMap != null) {
+                            moreThanMin = mMap.canDeleteCurrentPointSafe();
+                        }
                         break;
                 }
 
