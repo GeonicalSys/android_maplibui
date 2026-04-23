@@ -580,8 +580,11 @@ public abstract class GISApplication extends Application
                 HyperLog.d(Constants.TAG, "requestMapReloadAfterLayerFillBatch: map fragment null on main, pending");
                 return;
             }
-            mPendingMapReloadAfterLayerFill = false;
-            host.reloadMapStyleAndLayersAfterLayerFillBatch();
+            if (host.reloadMapStyleAndLayersAfterLayerFillBatch()) {
+                mPendingMapReloadAfterLayerFill = false;
+            } else {
+                mPendingMapReloadAfterLayerFill = true;
+            }
         });
     }
 
@@ -590,8 +593,14 @@ public abstract class GISApplication extends Application
         if (mapFragment == null || !mPendingMapReloadAfterLayerFill) {
             return;
         }
+        if (mapFragment.reloadMapStyleAndLayersAfterLayerFillBatch()) {
+            mPendingMapReloadAfterLayerFill = false;
+        }
+    }
+
+    @Override
+    public void clearMapReloadAfterLayerFillPending() {
         mPendingMapReloadAfterLayerFill = false;
-        mapFragment.reloadMapStyleAndLayersAfterLayerFillBatch();
     }
 
     @Override
