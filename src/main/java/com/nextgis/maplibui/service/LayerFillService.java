@@ -536,7 +536,7 @@ public class LayerFillService extends Service implements IProgressor {
         if (result) {
             ILayer filled = task.getLayer();
             if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
-                /* Directly above OSM in stack (drawn on top of OSM); index 0 = bottom. */
+                /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
                 final String osmPathName = "osm";
                 ILayer osm = mLayerGroup.getLayerByPathName(osmPathName);
                 int insertAt = 0;
