@@ -386,7 +386,7 @@ public class TrackerService extends Service
 
         }
 
-        boolean batteryOK = checkIsBatteryPermOK();
+        boolean batteryOK = checkIsBatteryPermOK(this);
 
         Intent msg = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK);
         msg.setPackage(this.getPackageName());
@@ -399,9 +399,9 @@ public class TrackerService extends Service
         ((GISApplication)getApplication()).setIsTrackInProgress(true);
     }
 
-    public boolean checkIsBatteryPermOK(){
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        return  pm.isIgnoringBatteryOptimizations(getPackageName());
+    public static boolean checkIsBatteryPermOK(Context context){
+        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        return  pm.isIgnoringBatteryOptimizations(context.getPackageName());
     }
 
     private void stopTrack() {
