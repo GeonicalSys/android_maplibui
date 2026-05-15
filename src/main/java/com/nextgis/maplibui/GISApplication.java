@@ -28,11 +28,13 @@ import android.accounts.AccountManager;
 import android.accounts.AccountManagerFuture;
 import android.accounts.AuthenticatorException;
 import android.accounts.OperationCanceledException;
+import android.app.Activity;
 import android.app.Application;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.PeriodicSync;
 import android.content.SharedPreferences;
+import android.content.SyncResult;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
@@ -65,14 +67,13 @@ import com.nextgis.maplib.util.NGWUtil;
 import com.nextgis.maplib.util.FeatureChanges;
 import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
+import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
 import com.nextgis.maplibui.mapui.LayerFactoryUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
 import com.nextgis.maplibui.util.SettingsConstantsUI;
-
-import org.json.JSONException;
 
 import java.io.File;
 import java.io.IOException;
@@ -196,9 +197,11 @@ public abstract class GISApplication extends Application
         } catch (IllegalArgumentException ignored) {
         }
 
-        Thread.setDefaultUncaughtExceptionHandler(
-                new HyperLogCrashHandler()
-        );
+        if (!(Thread.getDefaultUncaughtExceptionHandler() instanceof HyperLogCrashHandler)) {
+            Thread.setDefaultUncaughtExceptionHandler(
+                    new HyperLogCrashHandler()
+            );
+        }
 
         mGpsEventSource = new GpsEventSource(this);
         mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -1100,11 +1103,20 @@ public abstract class GISApplication extends Application
 
     @Override
     public void scheduleNgwLayerRebuildAfterSchemaMismatch(final NGWVectorLayer layer) {
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (layer == null || mMap == null) {
-                return;
+        if (layer == null || mMap == null) {
+            return;
+        }
+        final String changeTable = layer.getChangeTableName();
+        if (FeatureChanges.isChanges(changeTable)) {
+            SyncResult flushSr = new SyncResult();
+            boolean flushOk = layer.sendLocalChanges(flushSr);
+            if (!flushOk) {
+                HyperLog.w(Constants.TAG, "NGW schema rebuild: sendLocalChanges reported failure for \""
+                        + layer.getName() + "\"");
             }
-            if (FeatureChanges.isChanges(layer.getChangeTableName())) {
+        }
+        if (FeatureChanges.isChanges(changeTable)) {
+            new Handler(Looper.getMainLooper()).post(() -> {
                 Intent alert = new Intent(MESSAGE_ALERT_INTENT);
                 alert.putExtra(MESSAGE_EXTRA,
                         getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_has_local_changes));
@@ -1113,14 +1125,14 @@ public abstract class GISApplication extends Application
                 alert.setPackage(getPackageName());
                 sendBroadcast(alert);
                 HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                        + "\" — skipped rebuild (unsynced local changes)");
+                        + "\" — skipped rebuild (pending local changes after send attempt)");
+            });
+            return;
+        }
+
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (layer == null || mMap == null) {
                 return;
-            }
-            String configJson = null;
-            try {
-                configJson = layer.toJSON().toString();
-            } catch (JSONException e) {
-                HyperLog.exception(Constants.TAG, e);
             }
             final String layerName = layer.getName();
             final String accountName = layer.getAccountName();
@@ -1146,6 +1158,18 @@ public abstract class GISApplication extends Application
                 return;
             }
             final int groupId = parentGroup.getId();
+            int restoreIndex = parentGroup.getChildLayerIndex(layer);
+            if (restoreIndex < 0) {
+                restoreIndex = parentGroup.getLayerCount();
+            }
+            /*
+             * Do not pass KEY_LAYER_CONFIG_JSON from layer.toJSON() here: that snapshot is the *old*
+             * local layer (often already out of sync with Web GIS). LayerFillService.resolveImportedLayerConfigJson
+             * prefers the intent extra over an HTTP fetch of the resource description — applying stale JSON
+             * after createFromNGW() reverts fields/renderer and causes an endless schema-mismatch loop on
+             * every sync. Zoom/visibility/name/account/remoteId are still carried by other extras; fresh
+             * description is loaded inside NGWVectorLayerFillTask when the extra is absent.
+             */
             parentGroup.removeLayer(layer);
             layer.delete(true);
             mMap.save();
@@ -1161,14 +1185,14 @@ public abstract class GISApplication extends Application
             intent.putExtra(LayerFillService.KEY_MAX_ZOOM, maxZ);
             intent.putExtra(LayerFillService.KEY_VISIBLE, visible);
             intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
-            if (!TextUtils.isEmpty(configJson)) {
-                intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, configJson);
-            }
+            intent.putExtra(LayerFillService.KEY_LAYER_RESTORE_INSERT_INDEX, restoreIndex);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent);
             } else {
                 startService(intent);
             }
+            Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
+            LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
             HyperLog.v(Constants.TAG, "NGW schema mismatch: scheduled LayerFillService rebuild for \""
                     + layerName + "\"");
         });

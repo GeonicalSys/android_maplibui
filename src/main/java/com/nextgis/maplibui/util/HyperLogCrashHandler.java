@@ -1,13 +1,15 @@
 package com.nextgis.maplibui.util;
 
+import android.util.Log;
+
 import com.hypertrack.hyperlog.HyperLog;
+import com.nextgis.maplib.util.ProdLogUtil;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.lang.Thread.UncaughtExceptionHandler;
 
-public class HyperLogCrashHandler implements Thread.UncaughtExceptionHandler {
+public class HyperLogCrashHandler implements UncaughtExceptionHandler {
 
-    private final Thread.UncaughtExceptionHandler defaultHandler;
+    private final UncaughtExceptionHandler defaultHandler;
 
     public HyperLogCrashHandler() {
         this.defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
@@ -15,30 +17,19 @@ public class HyperLogCrashHandler implements Thread.UncaughtExceptionHandler {
 
     @Override
     public void uncaughtException(Thread thread, Throwable throwable) {
+        String headline = ProdLogUtil.crashHeadline(thread, throwable);
+        try {
+            HyperLog.e("CRASH", headline, throwable);
+        } catch (Throwable loggingFailure) {
+            Log.e("CRASH", headline, throwable);
+            Log.e("CRASH", "HyperLog failed while logging crash", loggingFailure);
+        }
 
-        // Логируем падение
-        HyperLog.e("CRASH",
-                "Uncaught exception in thread: " + fullStackTrace(throwable),
-                throwable);
-
-
-        // Передаём управление стандартному хендлеру
-        // (иначе система не покажет crash dialog)
         if (defaultHandler != null) {
             defaultHandler.uncaughtException(thread, throwable);
         } else {
-            // fallback
             android.os.Process.killProcess(android.os.Process.myPid());
             System.exit(10);
         }
     }
-
-
-    private static String fullStackTrace(Throwable t) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        t.printStackTrace(pw);
-        return sw.toString();
-    }
 }
-

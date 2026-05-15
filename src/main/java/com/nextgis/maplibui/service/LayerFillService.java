@@ -62,6 +62,7 @@ import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.LayerConfigUtil;
+import com.nextgis.maplib.util.ProdLogUtil;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplib.util.HttpResponse;
 import com.nextgis.maplib.util.GeoJSONUtil;
@@ -178,6 +179,11 @@ public class LayerFillService extends Service implements IProgressor {
      * deferred until the fill queue drains (see {@link IGISApplication#requestMapReloadAfterLayerFillBatch()}).
      */
     public static final String KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY = "defer_map_reload_until_queue_empty";
+    /**
+     * After a destructive rebuild (e.g. NGW schema mismatch), insert the filled layer at this index in the
+     * target {@link #KEY_LAYER_GROUP_ID} group instead of appending. Captured before the old layer is removed.
+     */
+    public static final String KEY_LAYER_RESTORE_INSERT_INDEX = "layer_restore_insert_index";
     /**
      * On {@link #STATUS_STOP}: do not dismiss blocking progress UI yet; collector verify/repair may enqueue more tasks.
      */
@@ -554,6 +560,9 @@ public class LayerFillService extends Service implements IProgressor {
                         task.mCollectorProjectRemoteIds,
                         task.mCollectorOrderIndex);
                 mLayerGroup.insertLayer(insertAt, filled);
+            } else if (task.mLayerRestoreInsertIndex >= 0) {
+                int insertAt = Math.min(task.mLayerRestoreInsertIndex, mLayerGroup.getLayerCount());
+                mLayerGroup.insertLayer(insertAt, filled);
             } else {
                 mLayerGroup.addLayer(filled);
             }
@@ -647,8 +656,10 @@ public class LayerFillService extends Service implements IProgressor {
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
                 Bundle resultData = msg.getData();
-
-                Toast.makeText(LayerFillService.this, resultData.getString(BUNDLE_MSG_KEY), Toast.LENGTH_LONG).show();
+                String err = resultData.getString(BUNDLE_MSG_KEY);
+                HyperLog.w(Constants.TAG, "LayerFillService user error toast: "
+                        + ProdLogUtil.truncateForLog(err, 800));
+                Toast.makeText(LayerFillService.this, err, Toast.LENGTH_LONG).show();
             }
         };
 
@@ -930,6 +941,8 @@ public class LayerFillService extends Service implements IProgressor {
         protected String mLayerConfigJson;
         protected int mCollectorOrderIndex = -1;
         protected long[] mCollectorProjectRemoteIds;
+        /** {@code >= 0}: insert filled layer at this index in {@link #mLayerGroup}; {@code -1}: append via {@link LayerGroup#addLayer}. */
+        protected int mLayerRestoreInsertIndex = -1;
 
         LayerFillTask(Bundle bundle) {
             mEnqueueBundle = new Bundle(bundle);
@@ -946,6 +959,9 @@ public class LayerFillService extends Service implements IProgressor {
             if (bundle.containsKey(KEY_COLLECTOR_ORDER_INDEX)) {
                 mCollectorOrderIndex = bundle.getInt(KEY_COLLECTOR_ORDER_INDEX);
                 mCollectorProjectRemoteIds = bundle.getLongArray(KEY_COLLECTOR_PROJECT_REMOTE_IDS);
+            }
+            if (bundle.containsKey(KEY_LAYER_RESTORE_INSERT_INDEX)) {
+                mLayerRestoreInsertIndex = bundle.getInt(KEY_LAYER_RESTORE_INSERT_INDEX, -1);
             }
 
             Serializable serializable = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
