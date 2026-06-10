@@ -57,12 +57,14 @@ import android.provider.Settings;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AlertDialog;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
 import android.widget.Toast;
 
+import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.map.TrackLayer;
@@ -91,6 +93,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static com.nextgis.maplibui.util.ConstantsUI.VALUE_TRACK_START;
+import static com.nextgis.maplibui.util.ConstantsUI.VALUE_TRACK_POINT;
 import static com.nextgis.maplibui.util.ConstantsUI.VALUE_TRACK_STOP;
 import static com.nextgis.maplibui.util.NotificationHelper.createBuilder;
 
@@ -110,6 +113,9 @@ public class TrackerService extends Service
 //    public static final String HOST = "http://dev.nextgis.com/tracker-dev1-hub";
     public static final String HOST = "https://track.nextgis.com";
     public static final String URL = "/ng-mobile";
+    private static final float CLOSING_SNAP_MIN_DIST_M = 0.12f;
+    private static final float CLOSING_REF_ACCURACY_M = 25f;
+    private static final double CLOSING_SNAP_MIN_MAX_DIST_M = 45.0;
 
     private boolean         mIsRunning;
     private LocationManager mLocationManager;
@@ -135,10 +141,19 @@ public class TrackerService extends Service
     int counter = 0;
 
     private LocationTrackFilter mTrackLocationFilter;
+    private Location mLastTrackLocationRaw;
+    private Location mLastInsertedTrackLocation;
+    private boolean mStopBroadcastSent;
+    private long mRawFixCount;
+    private long mAcceptedFixCount;
+    private long mBufferedOrDroppedFixCount;
+    private long mInsertedPointCount;
+    private long mInsertFailCount;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        HyperLog.v(Constants.TAG, "TrackerService.onCreate");
 
         mHasGPSFix = false;
 
@@ -215,9 +230,9 @@ public class TrackerService extends Service
             trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
             context.startService(trackerServiceIntent);
             trackerServiceIntent.setAction(null);
-            context.startService(trackerServiceIntent);
+            ContextCompat.startForegroundService(context, trackerServiceIntent);
         } else {
-            context.startService(trackerServiceIntent);
+            ContextCompat.startForegroundService(context, trackerServiceIntent);
             title = R.string.track_stop;
             icon = R.drawable.ic_action_maps_directions_walk_rec;
         }
@@ -228,6 +243,9 @@ public class TrackerService extends Service
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String targetActivity = "";
+        String actionForLog = intent != null ? intent.getAction() : "null";
+        HyperLog.v(Constants.TAG, "TrackerService.onStartCommand startId=" + startId
+                + " action=" + actionForLog + " running=" + mIsRunning);
 
         if (intent != null) {
             targetActivity = intent.getStringExtra(ConstantsUI.TARGET_CLASS);
@@ -259,13 +277,20 @@ public class TrackerService extends Service
                         mLocationSenderThread.start();
                         return START_NOT_STICKY;
                     case ACTION_STOP:
+                        stopTrack("ACTION_STOP");
                         removeNotification();
-                        stopTrack();
                         stopSelf();
                         return START_NOT_STICKY;
                     case ACTION_SPLIT:
-                        stopTrack();
-                        startTrack();
+                        HyperLog.v(Constants.TAG, "TrackerService.ACTION_SPLIT trackId=" + mTrackId);
+                        stopTrack("ACTION_SPLIT");
+                        initTargetIntent(targetActivity);
+                        addStartingNotification();
+                        if (!startTrack()) {
+                            removeNotification();
+                            stopSelf();
+                            return START_NOT_STICKY;
+                        }
                         addNotification();
                         return START_STICKY;
                 }
@@ -274,16 +299,16 @@ public class TrackerService extends Service
 
         if (!mIsRunning) {
             if (!PermissionUtil.hasLocationPermissions(this)) {
-                stopForeground(true);
+                HyperLog.w(Constants.TAG, "TrackerService: missing location permission, stop startId=" + startId);
+                foregroundStopMissingLocationPermission();
                 stopSelf();
                 return START_NOT_STICKY;
             }
 
+            initTargetIntent(targetActivity);
+            addStartingNotification();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                mLocationManager.registerGnssStatusCallback(mGnssCallback);
-            }else
-                mLocationManager.addGpsStatusListener(this);
+            registerGpsStatusListenerSafely();
 
             String time = SettingsConstants.KEY_PREF_TRACKS_MIN_TIME;
             String distance = SettingsConstants.KEY_PREF_TRACKS_MIN_DISTANCE;
@@ -299,26 +324,20 @@ public class TrackerService extends Service
             float minDistance = Float.parseFloat(minDistanceStr);
 
             String provider = LocationManager.GPS_PROVIDER;
-            if (mLocationManager.getAllProviders().contains(provider)) {
-                mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
-
-                if (Constants.DEBUG_MODE)
-                    Log.d(Constants.TAG, "Tracker service request location updates for " + provider);
-            }
+            requestTrackLocationUpdates(provider, minTime, minDistance);
 
             provider = LocationManager.NETWORK_PROVIDER;
-            if (mLocationManager.getAllProviders().contains(provider)) {
-                mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
-
-                if (Constants.DEBUG_MODE)
-                    Log.d(Constants.TAG, "Tracker service request location updates for " + provider);
-            }
+            requestTrackLocationUpdates(provider, minTime, minDistance);
 
             NotificationHelper.showLocationInfo(this);
 
             // there are no tracks or last track correctly ended
             if (mSharedPreferencesTemp.getString(TRACK_URI, null) == null) {
-                startTrack();
+                if (!startTrack()) {
+                    removeNotification();
+                    stopSelf();
+                    return START_NOT_STICKY;
+                }
                 mSharedPreferencesTemp.edit().putString(ConstantsUI.TARGET_CLASS, targetActivity).apply();
             } else {
                 // looks like service was killed, restore data
@@ -329,7 +348,6 @@ public class TrackerService extends Service
             mLocationSenderThread = createLocationSenderThread(minTime);
             mLocationSenderThread.start();
 
-            initTargetIntent(targetActivity);
             addNotification();
         }
 
@@ -341,12 +359,22 @@ public class TrackerService extends Service
         Uri mNewTrack = Uri.parse(mSharedPreferencesTemp.getString(TRACK_URI, ""));
         mTrackId = mNewTrack.getLastPathSegment();
         mIsRunning = true;
+        mStopBroadcastSent = false;
+        HyperLog.v(Constants.TAG, "TrackerService.restoreData trackId=" + mTrackId);
         addSplitter();
     }
 
 
-    private void startTrack() {
+    private boolean startTrack() {
         mTrackLocationFilter.reset();
+        mLastTrackLocationRaw = null;
+        mLastInsertedTrackLocation = null;
+        mStopBroadcastSent = false;
+        mRawFixCount = 0L;
+        mAcceptedFixCount = 0L;
+        mBufferedOrDroppedFixCount = 0L;
+        mInsertedPointCount = 0L;
+        mInsertFailCount = 0L;
 
         // get track name date unique appendix
         String pattern = "yyyy-MM-dd--HH-mm-ss";
@@ -360,30 +388,25 @@ public class TrackerService extends Service
         mValues.put(TrackLayer.FIELD_START, started);
         mValues.put(TrackLayer.FIELD_VISIBLE, true);
 
-        Intent msgTr = new Intent("com.example.ACTION_TRACKER_MESSAGE");
-        msgTr.putExtra(ConstantsUI.KEY_MESSAGE, "track not started - try again");
-        getApplicationContext().sendBroadcast(msgTr);
-
-
         try {
             Uri newTrack = getContentResolver().insert(mContentUriTracks, mValues);
             if (null != newTrack) {
                 // save vars
                 mTrackId = newTrack.getLastPathSegment();
                 mSharedPreferencesTemp.edit().putString(TRACK_URI, newTrack.toString()).apply();
+                HyperLog.v(Constants.TAG, "TrackerService.startTrack trackId=" + mTrackId
+                        + " name=" + mTrackName);
             } else {
-                // no track created - need alert
-
-                Intent msgT = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK);
-                msgT.putExtra(ConstantsUI.KEY_TRACK_ACTION, VALUE_TRACK_START);
-                msgT.setPackage(this.getPackageName());
-                sendBroadcast(msgT);
+                HyperLog.w(Constants.TAG, "TrackerService.startTrack failed: insert returned null");
+                return false;
             }
 
             mIsRunning = true;
             addSplitter();
-        } catch (SQLiteException ignored) {
-
+        } catch (SQLiteException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.startTrack SQLiteException: " + ex.getMessage(), ex);
+            mIsRunning = false;
+            return false;
         }
 
         boolean batteryOK = checkIsBatteryPermOK(this);
@@ -397,6 +420,7 @@ public class TrackerService extends Service
         msg.setPackage(getPackageName());
         sendBroadcast(msg);
         ((GISApplication)getApplication()).setIsTrackInProgress(true);
+        return true;
     }
 
     public static boolean checkIsBatteryPermOK(Context context){
@@ -404,11 +428,21 @@ public class TrackerService extends Service
         return  pm.isIgnoringBatteryOptimizations(context.getPackageName());
     }
 
-    private void stopTrack() {
-        flushTrackFilterPointsToDb();
+    private void stopTrack(String reason) {
+        if (!mIsRunning && mTrackId == null && !ACTION_STOP.equals(reason)) {
+            HyperLog.v(Constants.TAG, "TrackerService.stopTrack ignored empty state reason=" + reason);
+            return;
+        }
+        if (!mIsRunning && mTrackId == null && mStopBroadcastSent) {
+            HyperLog.v(Constants.TAG, "TrackerService.stopTrack ignored reason=" + reason);
+            return;
+        }
+
+        int flushed = flushTrackFilterPointsToDb();
+        boolean closingSnap = appendClosingTrackSnapIfNeeded(pickBestClosingLocation());
 
         // update unclosed tracks in DB
-        closeTracks(this, (IGISApplication) getApplication());
+        int closed = closeTracks(this, (IGISApplication) getApplication());
 
         mIsRunning = false;
 
@@ -417,27 +451,43 @@ public class TrackerService extends Service
         mSharedPreferencesTemp.edit().remove(ConstantsUI.TARGET_CLASS).apply();
         mSharedPreferencesTemp.edit().remove(TRACK_URI).apply();
 
+        HyperLog.v(Constants.TAG, "TrackerService.stopTrack reason=" + reason
+                + " trackId=" + mTrackId
+                + " raw=" + mRawFixCount
+                + " accepted=" + mAcceptedFixCount
+                + " bufferedOrDropped=" + mBufferedOrDroppedFixCount
+                + " inserted=" + mInsertedPointCount
+                + " insertFail=" + mInsertFailCount
+                + " flushed=" + flushed
+                + " closingSnap=" + closingSnap
+                + " closedTracks=" + closed);
 
-        Intent msgT = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK);
-        msgT.putExtra(ConstantsUI.KEY_MESSAGE_TRACK, false);
-        msgT.putExtra(ConstantsUI.KEY_TRACK_ACTION, VALUE_TRACK_STOP);
-        msgT.setPackage(this.getPackageName());
-        sendBroadcast(msgT);
+        if (!mStopBroadcastSent) {
+            Intent msgT = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK);
+            msgT.putExtra(ConstantsUI.KEY_MESSAGE_TRACK, false);
+            msgT.putExtra(ConstantsUI.KEY_TRACK_ACTION, VALUE_TRACK_STOP);
+            msgT.setPackage(this.getPackageName());
+            sendBroadcast(msgT);
+            mStopBroadcastSent = true;
+        }
 
         ((GISApplication)getApplication()).setIsTrackInProgress(false);
+        mTrackId = null;
     }
 
 
 
-    public static void closeTracks(Context context, IGISApplication app) {
+    public static int closeTracks(Context context, IGISApplication app) {
         ContentValues cv = new ContentValues();
         cv.put(TrackLayer.FIELD_END, System.currentTimeMillis());
         String selection = TrackLayer.FIELD_END + " IS NULL OR " + TrackLayer.FIELD_END + " = ''";
         Uri tracksUri = Uri.parse("content://" + app.getAuthority() + "/" + TrackLayer.TABLE_TRACKS);
         try {
-            context.getContentResolver().update(tracksUri, cv, selection, null);
-        } catch (IllegalArgumentException | SQLiteException ignore) {
+            return context.getContentResolver().update(tracksUri, cv, selection, null);
+        } catch (IllegalArgumentException | SQLiteException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.closeTracks: " + ex.getMessage(), ex);
         }
+        return 0;
     }
 
     private void addSplitter() {
@@ -501,6 +551,33 @@ public class TrackerService extends Service
             mNotificationManager.cancel(TRACK_NOTIFICATION_ID);
     }
 
+    private void addStartingNotification() {
+        NotificationCompat.Builder builder = createBuilder(this, R.string.tracks_running);
+        builder.setSmallIcon(mSmallIcon)
+                .setLargeIcon(mLargeIcon)
+                .setTicker(mTicker)
+                .setWhen(System.currentTimeMillis())
+                .setAutoCancel(false)
+                .setContentTitle(getString(R.string.tracks_running))
+                .setContentText(getString(R.string.tracks_running))
+                .setOngoing(true);
+        if (mOpenActivity != null)
+            builder.setContentIntent(mOpenActivity);
+        startForeground(TRACK_NOTIFICATION_ID, builder.build());
+    }
+
+    private void foregroundStopMissingLocationPermission() {
+        NotificationCompat.Builder builder = createBuilder(this, R.string.tracks_running);
+        builder.setSmallIcon(mSmallIcon)
+                .setContentTitle(getString(R.string.tracks_running))
+                .setContentText(getString(R.string.error_no_location))
+                .setWhen(System.currentTimeMillis())
+                .setAutoCancel(true)
+                .setOngoing(false);
+        startForeground(TRACK_NOTIFICATION_ID, builder.build());
+        stopForeground(true);
+    }
+
 
     // intent to open on notification click
     private void initTargetIntent(String targetActivity) {
@@ -526,16 +603,17 @@ public class TrackerService extends Service
     }
 
     public void onDestroy() {
-        stopTrack();
-        stopSelf();
+        HyperLog.v(Constants.TAG, "TrackerService.onDestroy running=" + mIsRunning + " trackId=" + mTrackId);
+        stopTrack("onDestroy");
 
         if (PermissionUtil.hasLocationPermissions(this)) {
-            mLocationManager.removeUpdates(this);
+            try {
+                mLocationManager.removeUpdates(this);
+            } catch (Exception ex) {
+                HyperLog.w(Constants.TAG, "TrackerService.removeUpdates: " + ex.getMessage(), ex);
+            }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                mLocationManager.unregisterGnssStatusCallback(mGnssCallback);
-            }else
-                mLocationManager.removeGpsStatusListener(this);
+            unregisterGpsStatusListenerSafely();
         }
 
         if (mLocationSenderThread != null)
@@ -552,22 +630,39 @@ public class TrackerService extends Service
     @Override
     public void onLocationChanged(Location location) {
         Log.d(Constants.TAG, "tracker - onLocationChanged");
+        mRawFixCount++;
 
-        boolean update = LocationUtil.isProviderEnabled(this, location.getProvider(), true);
-        if (!mIsRunning || !update)
+        if (!mIsRunning) {
+            HyperLog.d(Constants.TAG, "TrackerService.onLocationChanged ignored: not running");
             return;
-        if (mHasGPSFix && !location.getProvider().equals(LocationManager.GPS_PROVIDER))
+        }
+        boolean update = isProviderAllowedForTrack(location.getProvider());
+        if (!update) {
+            mBufferedOrDroppedFixCount++;
+            HyperLog.d(Constants.TAG, "TrackerService.onLocationChanged ignored provider="
+                    + location.getProvider());
             return;
+        }
+
+        mLastTrackLocationRaw = new Location(location);
 
         List<Location> toSave = mTrackLocationFilter.onLocation(location);
+        if (toSave.isEmpty()) {
+            mBufferedOrDroppedFixCount++;
+            return;
+        }
+        mAcceptedFixCount += toSave.size();
         for (Location loc : toSave) {
             insertTrackPoint(loc);
         }
     }
 
-    private void insertTrackPoint(Location location) {
-        if (location == null || mTrackId == null)
-            return;
+    private boolean insertTrackPoint(Location location) {
+        if (location == null || mTrackId == null) {
+            HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint skipped: location="
+                    + (location != null) + " trackId=" + mTrackId);
+            return false;
+        }
 
         String fixType = location.hasAltitude() ? "3d" : "2d";
 
@@ -588,18 +683,146 @@ public class TrackerService extends Service
         mValues.put(TrackLayer.FIELD_SENT, 0);
         mValues.put(TrackLayer.FIELD_TIMESTAMP, location.getTime());
         try {
-            getContentResolver().insert(mContentUriTrackPoints, mValues);
-        } catch (Exception ignored) {
-            Log.e(TrackerService.class.getName(), "onLocation EXCEPTION!!" + ignored.getMessage());
+            Uri inserted = getContentResolver().insert(mContentUriTrackPoints, mValues);
+            if (inserted != null) {
+                mInsertedPointCount++;
+                mLastInsertedTrackLocation = new Location(location);
+                sendTrackPointBroadcast();
+                return true;
+            }
+            mInsertFailCount++;
+            HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint returned null trackId=" + mTrackId);
+        } catch (Exception ex) {
+            mInsertFailCount++;
+            Log.e(TrackerService.class.getName(), "onLocation EXCEPTION!!" + ex.getMessage());
+            HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint: " + ex.getMessage(), ex);
+        }
+        return false;
+    }
+
+    private int flushTrackFilterPointsToDb() {
+        if (mTrackLocationFilter == null || mTrackId == null)
+            return 0;
+        int flushed = 0;
+        for (Location loc : mTrackLocationFilter.flushRemaining()) {
+            if (insertTrackPoint(loc))
+                flushed++;
+        }
+        return flushed;
+    }
+
+    private void sendTrackPointBroadcast() {
+        Intent msg = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK);
+        msg.putExtra(ConstantsUI.KEY_MESSAGE_TRACK, true);
+        msg.putExtra(ConstantsUI.KEY_TRACK_ACTION, VALUE_TRACK_POINT);
+        msg.setPackage(getPackageName());
+        sendBroadcast(msg);
+    }
+
+    private boolean isProviderAllowedForTrack(String provider) {
+        return LocationUtil.isProviderEnabled(this, provider, true)
+                || LocationUtil.isProviderEnabled(this, provider, false);
+    }
+
+    private void requestTrackLocationUpdates(String provider, long minTime, float minDistance) {
+        try {
+            if (!mLocationManager.getAllProviders().contains(provider)) {
+                HyperLog.d(Constants.TAG, "TrackerService provider unavailable: " + provider);
+                return;
+            }
+            if (!isProviderAllowedForTrack(provider)) {
+                HyperLog.d(Constants.TAG, "TrackerService provider disabled by prefs: " + provider);
+                return;
+            }
+            mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
+            HyperLog.v(Constants.TAG, "TrackerService request location updates provider=" + provider
+                    + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
+            if (Constants.DEBUG_MODE)
+                Log.d(Constants.TAG, "Tracker service request location updates for " + provider);
+        } catch (Exception ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.requestLocationUpdates " + provider + ": "
+                    + ex.getMessage(), ex);
         }
     }
 
-    private void flushTrackFilterPointsToDb() {
-        if (mTrackLocationFilter == null || mTrackId == null)
-            return;
-        for (Location loc : mTrackLocationFilter.flushRemaining()) {
-            insertTrackPoint(loc);
+    private void registerGpsStatusListenerSafely() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                mLocationManager.registerGnssStatusCallback(mGnssCallback);
+            } else {
+                mLocationManager.addGpsStatusListener(this);
+            }
+        } catch (Exception ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.registerGpsStatus: " + ex.getMessage(), ex);
         }
+    }
+
+    private void unregisterGpsStatusListenerSafely() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                mLocationManager.unregisterGnssStatusCallback(mGnssCallback);
+            } else {
+                mLocationManager.removeGpsStatusListener(this);
+            }
+        } catch (Exception ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.unregisterGpsStatus: " + ex.getMessage(), ex);
+        }
+    }
+
+    private Location pickBestClosingLocation() {
+        Location appLast = null;
+        try {
+            Context appCtx = getApplicationContext();
+            if (appCtx instanceof IGISApplication) {
+                appLast = ((IGISApplication) appCtx).getGpsEventSource().getLastKnownLocation();
+            }
+        } catch (Exception ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.pickBestClosingLocation: " + ex.getMessage(), ex);
+        }
+        return fresherLocation(mLastTrackLocationRaw, appLast);
+    }
+
+    private static Location fresherLocation(Location a, Location b) {
+        if (a == null)
+            return b != null ? new Location(b) : null;
+        if (b == null)
+            return new Location(a);
+        return locationFixMonotonicNanos(b) >= locationFixMonotonicNanos(a)
+                ? new Location(b) : new Location(a);
+    }
+
+    private static long locationFixMonotonicNanos(Location loc) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            long n = loc.getElapsedRealtimeNanos();
+            if (n > 0L)
+                return n;
+        }
+        return loc.getTime() * 1_000_000L;
+    }
+
+    private boolean appendClosingTrackSnapIfNeeded(Location lastRaw) {
+        if (lastRaw == null || mTrackId == null)
+            return false;
+        if (!LocationTrackFilter.passesBasicIntegrity(lastRaw))
+            return false;
+        if (mLastInsertedTrackLocation == null)
+            return insertTrackPoint(lastRaw);
+        float dist = mLastInsertedTrackLocation.distanceTo(lastRaw);
+        if (dist < CLOSING_SNAP_MIN_DIST_M)
+            return false;
+        double dtSec = Math.max(0.001d,
+                (locationFixMonotonicNanos(lastRaw) - locationFixMonotonicNanos(mLastInsertedTrackLocation))
+                        / 1_000_000_000d);
+        double maxDist = LocationTrackFilter.DEFAULT_MAX_SPEED_MPS * dtSec
+                + LocationTrackFilter.DEFAULT_ACCURACY_MARGIN_K
+                * (CLOSING_REF_ACCURACY_M + lastRaw.getAccuracy());
+        maxDist = Math.max(maxDist, CLOSING_SNAP_MIN_MAX_DIST_M);
+        if (dist > maxDist) {
+            HyperLog.d(Constants.TAG, "TrackerService closing snap skipped dist=" + dist
+                    + " maxDist=" + (float) maxDist);
+            return false;
+        }
+        return insertTrackPoint(lastRaw);
     }
 
     @Override

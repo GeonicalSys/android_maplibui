@@ -56,6 +56,7 @@ public interface ConstantsUI
     String KEY_TRACK_ACTION          = "trackaction";
     String VALUE_TRACK_START          = "trackstart";
     String VALUE_TRACK_STOP          = "trackstop";
+    String VALUE_TRACK_POINT          = "trackpoint";
 
     String FILE_FORM = "form.json";
 
