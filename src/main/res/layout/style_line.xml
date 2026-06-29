@@ -95,6 +95,8 @@
         android:layout_height="wrap_content"
         android:inputType="number"/>
 
+    <include layout="@layout/style_geometry_scale" />
+
     <TextView
         android:layout_width='match_parent'
         android:layout_height='wrap_content'
@@ -109,6 +111,88 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:entries="@array/line_type"/>
+
+    <TextView
+        android:id="@+id/dash_preset_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/line_dash_preset"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <Spinner
+        android:id="@+id/dash_preset"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/line_dash_presets"
+        android:padding="5dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/line_cap"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <Spinner
+        android:id="@+id/line_cap"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/line_caps"
+        android:padding="5dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/line_join"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <Spinner
+        android:id="@+id/line_join"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/line_joins"
+        android:padding="5dp"/>
+
+    <TextView
+        android:id="@+id/line_miter_limit_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/line_miter_limit"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <EditText
+            android:id="@+id/line_miter_limit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/line_miter_limit_hint"
+            android:inputType="numberDecimal"
+            android:text="2"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/line_blur"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <Spinner
+            android:id="@+id/line_blur"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/blur_presets"
+            android:padding="5dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/line_blur_help"
+        android:textAppearance="?android:attr/textAppearanceSmall"/>
+
+    <include layout="@layout/style_opacity" />
 
     <include layout="@layout/style_text" />
 </LinearLayout>

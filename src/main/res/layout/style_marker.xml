@@ -37,20 +37,36 @@
         android:layout_height="wrap_content"
         android:inputType="number" />
 
-<!--    <TextView-->
-<!--        android:layout_width='match_parent'-->
-<!--        android:layout_height='wrap_content'-->
-<!--        android:layout_marginTop="8dp"-->
-<!--        android:gravity="center_vertical"-->
-<!--        android:text="@string/type"-->
-<!--        android:textAppearance='?android:attr/textAppearanceMedium' />-->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/circle_blur"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
 
-<!--    <Spinner-->
-<!--        android:id="@+id/type"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:entries="@array/marker_type"-->
-<!--        android:padding="5dp" />-->
+    <Spinner
+        android:id="@+id/circle_blur"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/blur_presets"
+        android:padding="5dp" />
+
+    <include layout="@layout/style_geometry_scale" />
+
+    <TextView
+        android:layout_width='match_parent'
+        android:layout_height='wrap_content'
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:text="@string/type"
+        android:textAppearance='?android:attr/textAppearanceMedium' />
+
+    <Spinner
+        android:id="@+id/type"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/marker_type"
+        android:padding="5dp" />
 
     <TextView
         android:layout_width="match_parent"
@@ -120,6 +136,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:inputType="number" />
+
+    <include layout="@layout/style_opacity" />
 
     <include layout="@layout/style_text" />
 </LinearLayout>

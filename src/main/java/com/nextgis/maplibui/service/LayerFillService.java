@@ -29,6 +29,7 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.os.Build;
@@ -41,6 +42,7 @@ import android.os.Message;
 import android.os.Process;
 import android.text.Html;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
@@ -136,6 +138,13 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String ACTION_STOP = "com.nextgis.maplibui.FILL_LAYER_STOP";
     public static final String ACTION_ADD_TASK = "com.nextgis.maplibui.ADD_FILL_LAYER_TASK";
     /**
+     * One {@link #startForegroundService} for the whole import/fill batch (collector or standalone),
+     * so a single FGS start is paired with the single stopSelf() at drain end. Previously each task
+     * was a separate startService delivery, which raced with stopSelf and could trip the
+     * foreground-service lifecycle (ForegroundServiceDidNotStopInTimeException).
+     */
+    public static final String ACTION_ADD_BATCH = "com.nextgis.maplibui.ADD_FILL_BATCH";
+    /**
      * One {@link #startForegroundService} for many repair tasks (avoids FGS race when finalize posts
      * multiple starts before the worker observes the queue).
      */
@@ -202,11 +211,15 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_COLLECTOR_ORDER_INDEX = "collector_order_index";
     /** All collector vector remote ids in project order (same on each task). */
     public static final String KEY_COLLECTOR_PROJECT_REMOTE_IDS = "collector_project_remote_ids";
+    /** Collector project item «Редактируемый» (not layer description {@code is_editable}). */
+    public static final String KEY_COLLECTOR_LAYER_EDITABLE = "collector_layer_editable";
     public static final String KEY_TMS_TYPE   = "tms_type";
     public static final String KEY_TMS_CACHE   = "tms_cache";
 
     /** {@link ArrayList}{@code <}{@link Bundle}{@code >} — each bundle matches {@link #ACTION_ADD_TASK} extras for one task. */
     public static final String KEY_REPAIR_BATCH_EXTRAS = "repair_batch_extras";
+    /** {@link ArrayList}{@code <}{@link Bundle}{@code >} for {@link #ACTION_ADD_BATCH} — one bundle per task. */
+    public static final String KEY_BATCH_EXTRAS = "fill_batch_extras";
 
     public static final String NGFP_META = "ngfp_meta.json";
     protected final static String NGFP_FILE_META = "meta.json";
@@ -331,13 +344,59 @@ public class LayerFillService extends Service implements IProgressor {
         return true;
     }
 
+    /**
+     * Start the whole import/fill batch with a SINGLE {@link #startForegroundService}, instead of one
+     * startForegroundService + N-1 startService deliveries. One FGS start paired with the single
+     * stopSelf() at drain end avoids the foreground-service lifecycle race.
+     *
+     * @param taskIntents per-task intents (only their extras are used; action/component ignored).
+     */
+    public static void startFillBatch(Context context, ArrayList<Intent> taskIntents) {
+        if (context == null || taskIntents == null || taskIntents.isEmpty()) {
+            return;
+        }
+        ArrayList<Bundle> batch = new ArrayList<>(taskIntents.size());
+        boolean deferMapReload = false;
+        for (Intent it : taskIntents) {
+            if (it == null) {
+                continue;
+            }
+            Bundle extras = it.getExtras();
+            if (extras != null) {
+                batch.add(extras);
+                if (extras.getBoolean(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                    deferMapReload = true;
+                }
+            }
+        }
+        if (batch.isEmpty()) {
+            return;
+        }
+        Intent batchIntent = new Intent(context, LayerFillService.class);
+        batchIntent.setAction(ACTION_ADD_BATCH);
+        if (deferMapReload) {
+            batchIntent.putExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+        }
+        batchIntent.putParcelableArrayListExtra(KEY_BATCH_EXTRAS, batch);
+        ContextCompat.startForegroundService(context, batchIntent);
+    }
+
     private boolean enqueueOneTaskFromExtras(Bundle extra) {
         if (extra == null) {
             return true;
         }
         Bundle work = new Bundle(extra);
         int layerGroupId = work.getInt(KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
-        mLayerGroup = (LayerGroup) MapBase.getInstance().getLayerById(layerGroupId);
+        MapBase mapBase = MapBase.getInstance();
+        ILayer groupLayer = mapBase != null ? mapBase.getLayerById(layerGroupId) : null;
+        if (!(groupLayer instanceof LayerGroup)) {
+            // Layer group gone (map reset / corrupt config). Skip this task instead of letting the
+            // worker NPE on a null mLayerGroup and stall the whole drain.
+            HyperLog.w(Constants.TAG, "LayerFillService: layer group not found id=" + layerGroupId
+                    + ", skipping fill task");
+            return true;
+        }
+        mLayerGroup = (LayerGroup) groupLayer;
         int layerType = work.getInt(KEY_INPUT_TYPE, Constants.NOT_FOUND);
         switch (layerType) {
             case VECTOR_LAYER:
@@ -688,6 +747,22 @@ public class LayerFillService extends Service implements IProgressor {
     private void startForegroundWithSessionAwareNotification() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             applyForegroundNotificationTitleForSession();
+            startForegroundDataSync();
+        }
+    }
+
+    /**
+     * Calls {@code startForeground} with the explicit {@code dataSync} type on Q+ (matches the
+     * manifest declaration and {@link TileDownloadService}); falls back to the untyped form on O.
+     */
+    private void startForegroundDataSync() {
+        if (mBuilder == null) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(FILL_NOTIFICATION_ID, mBuilder.build(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
         }
     }
@@ -700,7 +775,7 @@ public class LayerFillService extends Service implements IProgressor {
         IGISApplication app = (IGISApplication) getApplicationContext();
         if (app.isLayerFillBatchDeferringHeavyMapReload() && app.hasCollectorImportBatchRegistered()) {
             applyForegroundNotificationTitleForSession();
-            startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
+            startForegroundDataSync();
         }
     }
 
@@ -730,7 +805,7 @@ public class LayerFillService extends Service implements IProgressor {
          * Apply intent-specific notification text after we process defer flags in each branch.
          */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mBuilder != null) {
-            startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
+            startForegroundDataSync();
         }
 
         if (intent != null) {
@@ -745,6 +820,20 @@ public class LayerFillService extends Service implements IProgressor {
                         startForegroundWithSessionAwareNotification();
                         if (!enqueueOneTaskFromExtras(intent.getExtras())) {
                             return START_NOT_STICKY;
+                        }
+                        scheduleDrainIfNeeded();
+                        return START_STICKY;
+                    case ACTION_ADD_BATCH:
+                        if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                            ((IGISApplication) getApplicationContext())
+                                    .setLayerFillBatchDeferringHeavyMapReload(true);
+                        }
+                        startForegroundWithSessionAwareNotification();
+                        ArrayList<Bundle> fillBatch = intent.getParcelableArrayListExtra(KEY_BATCH_EXTRAS);
+                        if (fillBatch != null) {
+                            for (Bundle b : fillBatch) {
+                                enqueueOneTaskFromExtras(b);
+                            }
                         }
                         scheduleDrainIfNeeded();
                         return START_STICKY;
@@ -812,6 +901,11 @@ public class LayerFillService extends Service implements IProgressor {
     {
         if (!TextUtils.isEmpty(fromIntentExtra)) {
             String t = fromIntentExtra.trim();
+            if ("null".equalsIgnoreCase(t)) {
+                Log.w(Constants.TAG, LOG_LAYER_CONFIG + " intent extra is literal \"null\" — skipped");
+                HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " intent extra literal null — skipped");
+                return null;
+            }
             Log.i(Constants.TAG, LOG_LAYER_CONFIG + " using intent extra, chars=" + t.length());
             HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " intent extra length=" + t.length());
             return t;
@@ -1449,6 +1543,13 @@ public class LayerFillService extends Service implements IProgressor {
                         lookupsFilled = true;
                     }
 
+                    ngwVectorLayer.setCollectorDistrictOverride(mLayerGroup.getCollectorDistrict());
+                    HyperLog.d(Constants.TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " fill group=\""
+                            + mLayerGroup.getName() + "\" collector_district="
+                            + (TextUtils.isEmpty(mLayerGroup.getCollectorDistrict())
+                            ? "<empty>" : mLayerGroup.getCollectorDistrict())
+                            + " layer remoteId=" + ngwVectorLayer.getRemoteId());
+
                     ngwVectorLayer.createFromNGW(progressor);
                     String rawConfig = resolveImportedLayerConfigJson(ngwVectorLayer, mLayerConfigJson);
                     if (!TextUtils.isEmpty(rawConfig)) {
@@ -1474,6 +1575,7 @@ public class LayerFillService extends Service implements IProgressor {
                         HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " skipped no config text for "
                                 + ngwVectorLayer.getName());
                     }
+                    applyCollectorEditableFromIntent(ngwVectorLayer);
                     return true;
                 } catch (IOException e) {
                     if (!NetworkUtil.isTransientNetworkFailure(e) || attempt >= NGW_FILL_MAX_ATTEMPTS) {
@@ -1501,6 +1603,18 @@ public class LayerFillService extends Service implements IProgressor {
 
         boolean showSyncDialog() {
             return mShowSyncDialog;
+        }
+
+        private void applyCollectorEditableFromIntent(NGWVectorLayer ngwVectorLayer) {
+            if (mEnqueueBundle.containsKey(KEY_COLLECTOR_LAYER_EDITABLE)) {
+                ngwVectorLayer.setCollectorEditable(
+                        mEnqueueBundle.getBoolean(KEY_COLLECTOR_LAYER_EDITABLE, true));
+                try {
+                    ngwVectorLayer.save();
+                } catch (Exception e) {
+                    Log.w(Constants.TAG, "applyCollectorEditableFromIntent save failed: " + e.getMessage());
+                }
+            }
         }
 
         String getAccountName() {

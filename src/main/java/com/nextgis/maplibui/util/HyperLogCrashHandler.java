@@ -15,13 +15,22 @@ public class HyperLogCrashHandler implements UncaughtExceptionHandler {
         this.defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
     }
 
+    /**
+     * HyperLog persists log rows on a single-thread executor and stores only the message text
+     * (not the throwable), so we embed the full stack into the message and then give the executor
+     * a brief, bounded window to flush to its SQLite DB before the default handler kills the process.
+     */
+    private static final long LOG_FLUSH_WAIT_MS = 700L;
+
     @Override
     public void uncaughtException(Thread thread, Throwable throwable) {
-        String headline = ProdLogUtil.crashHeadline(thread, throwable);
+        // Full stack (incl. cause chain) is embedded in the message because HyperLog drops the throwable.
+        String report = ProdLogUtil.crashReport(thread, throwable);
+        Log.e("CRASH", report, throwable);
         try {
-            HyperLog.e("CRASH", headline, throwable);
+            HyperLog.e("CRASH", report);
+            waitForLogFlush();
         } catch (Throwable loggingFailure) {
-            Log.e("CRASH", headline, throwable);
             Log.e("CRASH", "HyperLog failed while logging crash", loggingFailure);
         }
 
@@ -30,6 +39,15 @@ public class HyperLogCrashHandler implements UncaughtExceptionHandler {
         } else {
             android.os.Process.killProcess(android.os.Process.myPid());
             System.exit(10);
+        }
+    }
+
+    /** Bounded wait so HyperLog's async DB write has a chance to complete before process death. */
+    private static void waitForLogFlush() {
+        try {
+            Thread.sleep(LOG_FLUSH_WAIT_MS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 }

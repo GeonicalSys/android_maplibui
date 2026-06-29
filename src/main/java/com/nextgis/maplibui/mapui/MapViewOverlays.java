@@ -270,7 +270,7 @@ public class MapViewOverlays
             }
         }
 
-        mMap.reloadFillLayerStyleToMaplibre(id); // todo change to update ony item - feature id
+        mMap.reloadVectorLayerStyleToMaplibre(id);
         mMap.checkLayerVisibility(id);
     }
 

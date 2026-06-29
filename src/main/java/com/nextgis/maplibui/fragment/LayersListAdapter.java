@@ -244,7 +244,8 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
                             popup.getMenu().findItem(R.id.menu_share).setVisible(false);
                             popup.getMenu().findItem(R.id.menu_save).setVisible(false);
                         } else if (layerui instanceof VectorLayer) {
-                            popup.getMenu().findItem(R.id.menu_edit).setVisible(true);
+                            popup.getMenu().findItem(R.id.menu_edit).setVisible(
+                                    ((VectorLayer) layerui).isEditingAllowed());
                             popup.getMenu().findItem(R.id.menu_share).setVisible(true);
                             popup.getMenu().findItem(R.id.menu_save).setVisible(true);
                             popup.getMenu().findItem(R.id.menu_zoom_extent).setVisible(true);

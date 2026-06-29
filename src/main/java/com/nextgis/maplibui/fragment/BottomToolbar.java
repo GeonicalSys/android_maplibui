@@ -75,18 +75,34 @@ public class BottomToolbar
     public void inflateMenu(@MenuRes int resId) {
         super.inflateMenu(resId);
         final Menu menu = getMenu();
+        if (menu.size() == 0) {
+            return;
+        }
         MenuItem item = menu.getItem(0);
+        if (item.getIcon() == null) {
+            return;
+        }
         int size = item.getIcon().getIntrinsicWidth() + ControlHelper.dpToPx(30, getResources());
         int width = getWidth();
-        if (width == 0)
+        if (width == 0) {
             width = getContext().getResources().getDisplayMetrics().widthPixels;
+        }
+
+        // View-only selection bar: info + layer edit — always show both action icons.
+        if (menu.size() <= 2) {
+            for (int i = 0; i < menu.size(); i++) {
+                MenuItemCompat.setShowAsAction(menu.getItem(i), MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
+            }
+            return;
+        }
 
         for (int i = 0; i < menu.size(); i++) {
             item = menu.getItem(i);
-            if (size * (i + 2) < width)
+            if (size * (i + 2) < width) {
                 MenuItemCompat.setShowAsAction(item, MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
-            else
+            } else {
                 break;
+            }
         }
     }
 }

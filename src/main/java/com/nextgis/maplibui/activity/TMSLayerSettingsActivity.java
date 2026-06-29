@@ -82,9 +82,13 @@ public class TMSLayerSettingsActivity
 
         //boolean changes = mStyleFragment.saveSettings();
         mRasterLayer.setName(mLayerName);
-        boolean changes = mLayerMaxZoom != mRasterLayer.getMaxZoom() || mLayerMinZoom != mRasterLayer.getMinZoom();
+        int prevOpacity = mRasterLayer.getLayerOpacity();
+        boolean changes = mLayerMaxZoom != mRasterLayer.getMaxZoom()
+                || mLayerMinZoom != mRasterLayer.getMinZoom()
+                || mLayerOpacity != prevOpacity;
         mRasterLayer.setMinZoom(mLayerMinZoom);
         mRasterLayer.setMaxZoom(mLayerMaxZoom);
+        mRasterLayer.setLayerOpacity(mLayerOpacity);
         mRasterLayer.save();
         if (changes || mClearCache)
             mMap.setDirty(true);

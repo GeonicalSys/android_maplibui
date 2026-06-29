@@ -69,6 +69,7 @@ import com.nextgis.maplib.display.SimpleFeatureRenderer;
 import com.nextgis.maplib.display.Style;
 import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.map.VectorLayer;
+import com.nextgis.maplib.map.VectorLayerRenderCache;
 import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.GeoConstants;
@@ -117,6 +118,7 @@ public class VectorLayerSettingsActivity
             mVectorLayer = (VectorLayer) mLayer;
             mLayerMinZoom = mVectorLayer.getMinZoom();
             mLayerMaxZoom = mVectorLayer.getMaxZoom();
+            mLayerOpacity = mVectorLayer.getLayerOpacity();
             mRenderer = mVectorLayer.getRenderer();
             mToolbar = findViewById(R.id.main_toolbar);
             setSubtitle();
@@ -178,12 +180,20 @@ public class VectorLayerSettingsActivity
             return;
 
         mVectorLayer.setName(mLayerName);
+        int prevOpacity = mVectorLayer.getLayerOpacity();
+        boolean changes = mRenderer != mVectorLayer.getRenderer()
+                || mLayerMaxZoom != mVectorLayer.getMaxZoom()
+                || mLayerMinZoom != mVectorLayer.getMinZoom()
+                || mLayerOpacity != prevOpacity;
         mVectorLayer.setMinZoom(mLayerMinZoom);
         mVectorLayer.setMaxZoom(mLayerMaxZoom);
-        boolean changes = mRenderer != mVectorLayer.getRenderer() || mLayerMaxZoom != mVectorLayer.getMaxZoom() || mLayerMinZoom != mVectorLayer.getMinZoom();
+        mVectorLayer.setLayerOpacity(mLayerOpacity);
+        VectorLayerRenderCache.invalidateOnStyleChange(mVectorLayer);
         mVectorLayer.save();
-        if (changes)
+        mVectorLayer.notifyLayerChanged();
+        if (changes) {
             mMap.setDirty(true);
+        }
     }
 
     public static class StyleFragment extends Fragment {

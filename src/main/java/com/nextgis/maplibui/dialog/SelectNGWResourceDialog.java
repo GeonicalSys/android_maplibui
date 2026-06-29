@@ -35,6 +35,7 @@ import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -56,6 +57,7 @@ import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWRasterLayer;
+import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.activity.NGWLoginActivity;
@@ -344,6 +346,18 @@ public class SelectNGWResourceDialog
                         return;
                     }
                     Connection connection = collector.getConnection();
+                    String projectDistrict = collector.getProjectDistrict();
+                    if (!TextUtils.isEmpty(projectDistrict)) {
+                        mGroupLayer.setCollectorDistrict(projectDistrict);
+                        mGroupLayer.save();
+                        HyperLog.d(Constants.TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " import (dialog) collector=\""
+                                + collector.getName() + "\" remoteId=" + collector.getRemoteId()
+                                + " district=" + projectDistrict);
+                    } else {
+                        HyperLog.d(Constants.TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " import (dialog) collector=\""
+                                + collector.getName() + "\" remoteId=" + collector.getRemoteId()
+                                + " no resmeta district — filter disabled");
+                    }
                     ArrayList<LayerWithStyles> toImport = new ArrayList<>();
                     for (int li = 0; li < layers.size(); li++) {
                         LayerWithStyles layer = layers.get(li);
@@ -363,12 +377,14 @@ public class SelectNGWResourceDialog
                         String[] nms = new String[n];
                         String[] cfgs = new String[n];
                         long[] fids = new long[n];
+                        boolean[] collectorEditables = new boolean[n];
                         for (int ord = 0; ord < n; ord++) {
                             LayerWithStyles layer = toImport.get(ord);
                             ids[ord] = layer.getRemoteId();
                             nms[ord] = layer.getName();
                             String desc = layer.getDescription();
                             cfgs[ord] = (desc != null && !desc.isEmpty()) ? desc : null;
+                            collectorEditables[ord] = layer.isCollectorEditable();
                             long formId = 0L;
                             if (layer.getFormCount() > 0) {
                                 Long fid = layer.getFormId(0);
@@ -378,9 +394,15 @@ public class SelectNGWResourceDialog
                             }
                             fids[ord] = formId;
                         }
-                        ((IGISApplication) context.getApplicationContext()).registerCollectorImportBatch(
+                        boolean batchRegistered = ((IGISApplication) context.getApplicationContext()).registerCollectorImportBatch(
                                 mGroupLayer.getId(), connection.getName(), ids, nms, cfgs, fids,
-                                fullProjectOrder);
+                                collectorEditables, fullProjectOrder);
+                        if (!batchRegistered) {
+                            // No registered batch => no verify/repair; do not run a partial collector import.
+                            HyperLog.e(Constants.TAG, "Collector import (dialog) aborted: batch registration failed group="
+                                    + mGroupLayer.getId() + " account=" + connection.getName());
+                            Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+                        } else {
                         for (int ord = 0; ord < n; ord++) {
                             LayerWithStyles layer = toImport.get(ord);
                             int projectIndex = -1;
@@ -413,7 +435,9 @@ public class SelectNGWResourceDialog
                                 intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projectIndex);
                                 intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS, fullProjectOrder);
                             }
+                            intent.putExtra(LayerFillService.KEY_COLLECTOR_LAYER_EDITABLE, layer.isCollectorEditable());
                             vectorFillBatch.add(intent);
+                        }
                         }
                     }
                 } else if (resource instanceof LayerWithStyles) {
@@ -451,10 +475,9 @@ public class SelectNGWResourceDialog
                 setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
                 return;
             }
-            ContextCompat.startForegroundService(hostActivity, vectorFillBatch.get(0));
-            for (int i = 1; i < vectorFillBatch.size(); i++) {
-                hostActivity.startService(vectorFillBatch.get(i));
-            }
+            // Single FGS start for the whole batch (one stopSelf() at drain end) avoids the
+            // foreground-service lifecycle race of N separate startService deliveries.
+            LayerFillService.startFillBatch(hostActivity, vectorFillBatch);
             LayerFillProgressDialogFragment.startBatchFillProgress(hostActivity);
         }
         mGroupLayer.save();

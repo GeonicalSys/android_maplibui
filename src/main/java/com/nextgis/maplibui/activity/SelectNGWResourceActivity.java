@@ -31,6 +31,7 @@ import android.os.Bundle;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -53,6 +54,7 @@ import com.nextgis.maplib.datasource.ngw.WebMap;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWRasterLayer;
+import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.NGWUtil;
@@ -335,6 +337,18 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                         return false;
                     }
                     final Connection connection = collector.getConnection();
+                    String projectDistrict = collector.getProjectDistrict();
+                    if (!TextUtils.isEmpty(projectDistrict)) {
+                        mGroupLayer.setCollectorDistrict(projectDistrict);
+                        mGroupLayer.save();
+                        HyperLog.d(TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " import collector=\""
+                                + collector.getName() + "\" remoteId=" + collector.getRemoteId()
+                                + " district=" + projectDistrict);
+                    } else {
+                        HyperLog.d(TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " import collector=\""
+                                + collector.getName() + "\" remoteId=" + collector.getRemoteId()
+                                + " no resmeta district — filter disabled");
+                    }
                     ArrayList<LayerWithStyles> toImport = new ArrayList<>();
                     for (int li = 0; li < layers.size(); li++) {
                         LayerWithStyles layer = layers.get(li);
@@ -354,12 +368,14 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                     String[] nms = new String[n];
                     String[] cfgs = new String[n];
                     long[] fids = new long[n];
+                    boolean[] collectorEditables = new boolean[n];
                     for (int ord = 0; ord < n; ord++) {
                         LayerWithStyles layer = toImport.get(ord);
                         ids[ord] = layer.getRemoteId();
                         nms[ord] = layer.getName();
                         String desc = layer.getDescription();
                         cfgs[ord] = (desc != null && !desc.isEmpty()) ? desc : null;
+                        collectorEditables[ord] = layer.isCollectorEditable();
                         long formId = 0L;
                         if (layer.getFormCount() > 0) {
                             Long fid = layer.getFormId(0);
@@ -369,9 +385,16 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                         }
                         fids[ord] = formId;
                     }
-                    ((IGISApplication) getApplication()).registerCollectorImportBatch(
+                    boolean batchRegistered = ((IGISApplication) getApplication()).registerCollectorImportBatch(
                             mGroupLayer.getId(), connection.getName(), ids, nms, cfgs, fids,
-                            fullProjectOrder);
+                            collectorEditables, fullProjectOrder);
+                    if (!batchRegistered) {
+                        // Without a registered batch there is no verify/repair pass, so we must not
+                        // run a partial collector import silently. Abort this collector group.
+                        HyperLog.e(TAG, "Collector import aborted: batch registration failed group="
+                                + mGroupLayer.getId() + " account=" + connection.getName());
+                        Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+                    } else {
                     for (int ord = 0; ord < n; ord++) {
                         LayerWithStyles layer = toImport.get(ord);
                         int projectIndex = -1;
@@ -404,7 +427,9 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                             intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projectIndex);
                             intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS, fullProjectOrder);
                         }
+                        intent.putExtra(LayerFillService.KEY_COLLECTOR_LAYER_EDITABLE, layer.isCollectorEditable());
                         vectorFillBatch.add(intent);
+                    }
                     }
                     }
                 } else if (resource instanceof LayerWithStyles) {
@@ -438,10 +463,9 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
             if (fillHost == null) {
                 fillHost = this;
             }
-            ContextCompat.startForegroundService(fillHost, vectorFillBatch.get(0));
-            for (int i = 1; i < vectorFillBatch.size(); i++) {
-                fillHost.startService(vectorFillBatch.get(i));
-            }
+            // Single FGS start for the whole batch (one stopSelf() at drain end) avoids the
+            // foreground-service lifecycle race of N separate startService deliveries.
+            LayerFillService.startFillBatch(fillHost, vectorFillBatch);
             LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
         }
 

@@ -49,6 +49,7 @@ public abstract class LayerSettingsActivity extends NGActivity {
     public String mLayerName;
     public float mLayerMinZoom;
     public float mLayerMaxZoom;
+    public int mLayerOpacity = 255;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +72,9 @@ public abstract class LayerSettingsActivity extends NGActivity {
             if (null != layer) {
                 mLayer = layer;
                 mLayerName = mLayer.getName();
+                if (mLayer instanceof com.nextgis.maplib.map.Layer) {
+                    mLayerOpacity = ((com.nextgis.maplib.map.Layer) mLayer).getLayerOpacity();
+                }
                 setTitle(mLayerName);
             }
         }

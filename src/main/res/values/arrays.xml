@@ -182,10 +182,32 @@
         <item>11</item>
         <item>12</item>
     </integer-array>
+    <string-array name="blur_presets" translatable="false">
+        <item>@string/blur_off</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </string-array>
+    <string-array name="polygon_fill_patterns" translatable="false">
+        <item>@string/polygon_fill_none</item>
+        <item>@string/polygon_fill_hatch</item>
+        <item>@string/polygon_fill_cross</item>
+        <item>@string/polygon_fill_dots</item>
+        <item>@string/polygon_fill_brick</item>
+        <item>@string/polygon_fill_forest</item>
+        <item>@string/polygon_fill_marsh</item>
+    </string-array>
     <string-array name="line_type" translatable="false">
         <item>@string/type_solid</item>
         <item>@string/type_dash</item>
         <item>@string/type_edge</item>
+        <item>@string/type_dash_edge</item>
+    </string-array>
+    <string-array name="line_dash_presets" translatable="false">
+        <item>@string/line_dash_short</item>
+        <item>@string/line_dash_long</item>
+        <item>@string/line_dash_dot_dash</item>
+        <item>@string/line_dash_dots</item>
     </string-array>
     <string-array name="marker_type" translatable="false">
         <item>@string/type_point</item>
@@ -210,6 +232,27 @@
         <item>@string/small</item>
         <item>@string/medium</item>
         <item>@string/big</item>
+    </string-array>
+    <string-array name="line_caps" translatable="false">
+        <item>@string/line_cap_round</item>
+        <item>@string/line_cap_butt</item>
+        <item>@string/line_cap_square</item>
+    </string-array>
+    <string-array name="line_joins" translatable="false">
+        <item>@string/line_join_round</item>
+        <item>@string/line_join_miter</item>
+        <item>@string/line_join_bevel</item>
+    </string-array>
+    <string-array name="line_label_rotations" translatable="false">
+        <item>@string/line_label_rotation_along</item>
+        <item>@string/line_label_rotation_horizontal</item>
+    </string-array>
+    <string-array name="label_text_sizes" translatable="false">
+        <item>@string/very_small</item>
+        <item>@string/small</item>
+        <item>@string/medium</item>
+        <item>@string/big</item>
+        <item>@string/extra_large</item>
     </string-array>
     <string-array name="alignment" translatable="false">
         <item>@string/top</item>

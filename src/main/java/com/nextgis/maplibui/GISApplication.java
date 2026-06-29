@@ -150,6 +150,8 @@ public abstract class GISApplication extends Application
     private String[] mCollectorNames;
     private String[] mCollectorConfigJsons;
     private long[] mCollectorFormIds;
+    /** Per-layer collector «Редактируемый» flags aligned with {@link #mCollectorRemoteIds}. */
+    private boolean[] mCollectorEditables;
     /** All vector layer remote ids in collector project list order (includes layers not in this download batch). */
     private long[] mCollectorFullProjectRemoteIds;
     private final Map<Long, Boolean> mCollectorOutcomes = new ConcurrentHashMap<>();
@@ -332,7 +334,13 @@ public abstract class GISApplication extends Application
         mMap = new MapDrawable(bkBitmap, this, mapFullPath, getLayerFactory());
         Log.d("WWALK", "getMap mMap created");
         mMap.setName(mapName);
-        mMap.load();
+        boolean loaded = mMap.load();
+        // A missing file is the normal first-run case (onFirstRun creates base layers). But an existing
+        // .ngm that fails to parse (corrupt JSON / SQLite) must not silently degrade to an empty map.
+        if (!loaded && mapFullPath.exists()) {
+            HyperLog.e(Constants.TAG, "getMap: existing map config failed to load (corrupt?) path="
+                    + mapFullPath.getPath());
+        }
 
         checkTracksLayerExist();
 
@@ -655,6 +663,7 @@ public abstract class GISApplication extends Application
         mCollectorNames = null;
         mCollectorConfigJsons = null;
         mCollectorFormIds = null;
+        mCollectorEditables = null;
         mCollectorFullProjectRemoteIds = null;
         mCollectorOutcomes.clear();
         mCollectorRepairPassesRemaining = 0;
@@ -673,13 +682,14 @@ public abstract class GISApplication extends Application
     }
 
     @Override
-    public void registerCollectorImportBatch(
+    public boolean registerCollectorImportBatch(
             int groupId,
             String accountName,
             long[] remoteIds,
             String[] names,
             String[] configJsons,
             long[] formIds,
+            boolean[] collectorEditables,
             long[] fullCollectorProjectRemoteIds) {
         clearStandaloneFillVerifyLocked();
         synchronized (mCollectorImportLock) {
@@ -689,17 +699,21 @@ public abstract class GISApplication extends Application
                     || remoteIds.length != formIds.length
                     || remoteIds.length == 0) {
                 HyperLog.w(Constants.TAG, "registerCollectorImportBatch: invalid or empty arrays");
-                return;
+                return false;
+            }
+            if (collectorEditables != null && collectorEditables.length != remoteIds.length) {
+                HyperLog.w(Constants.TAG, "registerCollectorImportBatch: collectorEditables length mismatch");
+                return false;
             }
             if (fullCollectorProjectRemoteIds == null || fullCollectorProjectRemoteIds.length == 0) {
                 HyperLog.w(Constants.TAG, "registerCollectorImportBatch: full project order required");
-                return;
+                return false;
             }
             for (long rid : remoteIds) {
                 if (collectorProjectIndexOf(rid, fullCollectorProjectRemoteIds) < 0) {
                     HyperLog.w(Constants.TAG, "registerCollectorImportBatch: remoteId " + rid
                             + " missing from full collector project list");
-                    return;
+                    return false;
                 }
             }
             mCollectorGroupId = groupId;
@@ -708,10 +722,13 @@ public abstract class GISApplication extends Application
             mCollectorNames = Arrays.copyOf(names, names.length);
             mCollectorConfigJsons = Arrays.copyOf(configJsons, configJsons.length);
             mCollectorFormIds = Arrays.copyOf(formIds, formIds.length);
+            mCollectorEditables = collectorEditables != null
+                    ? Arrays.copyOf(collectorEditables, collectorEditables.length) : null;
             mCollectorFullProjectRemoteIds = Arrays.copyOf(
                     fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length);
             mCollectorOutcomes.clear();
             mCollectorRepairPassesRemaining = COLLECTOR_MAX_REPAIR_PASSES;
+            return true;
         }
     }
 
@@ -939,6 +956,7 @@ public abstract class GISApplication extends Application
         String[] names;
         String[] configs;
         long[] formIds;
+        boolean[] collectorEditables;
         Map<Long, Boolean> outcomes;
         long[] fullProjectOrderSnapshot;
         synchronized (mCollectorImportLock) {
@@ -951,6 +969,8 @@ public abstract class GISApplication extends Application
             names = Arrays.copyOf(mCollectorNames, mCollectorNames.length);
             configs = Arrays.copyOf(mCollectorConfigJsons, mCollectorConfigJsons.length);
             formIds = Arrays.copyOf(mCollectorFormIds, mCollectorFormIds.length);
+            collectorEditables = mCollectorEditables != null
+                    ? Arrays.copyOf(mCollectorEditables, mCollectorEditables.length) : null;
             outcomes = new ConcurrentHashMap<>(mCollectorOutcomes);
             fullProjectOrderSnapshot = mCollectorFullProjectRemoteIds != null
                     ? Arrays.copyOf(mCollectorFullProjectRemoteIds, mCollectorFullProjectRemoteIds.length)
@@ -960,11 +980,20 @@ public abstract class GISApplication extends Application
         final int expectedCount = remoteIds.length;
         MapBase map = getMap();
         if (map == null) {
+            // Cannot verify/repair without a map; clear so the batch is not left orphaned forever.
+            HyperLog.w(Constants.TAG, "Collector verify: map is null; clearing orphaned import batch");
+            synchronized (mCollectorImportLock) {
+                clearCollectorImportFieldsLocked();
+            }
             return;
         }
         ILayer groupLayer = map.getLayerById(groupId);
         if (!(groupLayer instanceof LayerGroup)) {
-            HyperLog.w(Constants.TAG, "Collector verify: layer group id " + groupId + " not found");
+            HyperLog.w(Constants.TAG, "Collector verify: layer group id " + groupId
+                    + " not found; clearing orphaned import batch");
+            synchronized (mCollectorImportLock) {
+                clearCollectorImportFieldsLocked();
+            }
             return;
         }
         LayerGroup group = (LayerGroup) groupLayer;
@@ -1073,6 +1102,9 @@ public abstract class GISApplication extends Application
             String cfg = configs[i];
             if (!TextUtils.isEmpty(cfg)) {
                 taskExtras.putString(LayerFillService.KEY_LAYER_CONFIG_JSON, cfg);
+            }
+            if (collectorEditables != null && i < collectorEditables.length) {
+                taskExtras.putBoolean(LayerFillService.KEY_COLLECTOR_LAYER_EDITABLE, collectorEditables[i]);
             }
             repairBundles.add(taskExtras);
         }
