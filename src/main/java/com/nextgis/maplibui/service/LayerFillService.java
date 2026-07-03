@@ -54,6 +54,7 @@ import com.nextgis.maplib.datasource.Field;
 import com.nextgis.maplib.datasource.GeoGeometryFactory;
 import com.nextgis.maplib.map.Layer;
 import com.nextgis.maplib.map.LayerGroup;
+import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWLookupTable;
 import com.nextgis.maplib.map.NGWVectorLayer;
@@ -207,6 +208,14 @@ public class LayerFillService extends Service implements IProgressor {
 
     /** Collector layer id for batch verification (stable across UnzipForm → NGW fill when meta overrides resource id). */
     public static final String KEY_COLLECTOR_TRACKING_REMOTE_ID = "collector_tracking_remote_id";
+    /*
+     * Collector architecture foundation extras.
+     * They may look unused until composition/form/tile sync is implemented, but they are persisted
+     * into NGWVectorLayer.layer_origin so future updates can avoid re-importing heavy local data.
+     */
+    public static final String KEY_COLLECTOR_PROJECT_UID = "collector_project_uid";
+    public static final String KEY_MARK_MANUAL_NGW_ORIGIN = "mark_manual_ngw_origin";
+    public static final String KEY_LAYER_ORIGIN_FORM_ID = "layer_origin_form_id";
     /** Index in full collector project vector list (all layers, not only this download batch). */
     public static final String KEY_COLLECTOR_ORDER_INDEX = "collector_order_index";
     /** All collector vector remote ids in project order (same on each task). */
@@ -425,6 +434,26 @@ public class LayerFillService extends Service implements IProgressor {
             default:
                 HyperLog.w(Constants.TAG, "LayerFillService: unknown KEY_INPUT_TYPE=" + layerType);
                 return true;
+        }
+    }
+
+    private static void copyLayerOriginExtras(Bundle from, Bundle to) {
+        if (from == null || to == null) {
+            return;
+        }
+        if (from.containsKey(KEY_COLLECTOR_PROJECT_UID)) {
+            to.putString(KEY_COLLECTOR_PROJECT_UID, from.getString(KEY_COLLECTOR_PROJECT_UID));
+        }
+        if (from.containsKey(KEY_MARK_MANUAL_NGW_ORIGIN)) {
+            to.putBoolean(KEY_MARK_MANUAL_NGW_ORIGIN,
+                    from.getBoolean(KEY_MARK_MANUAL_NGW_ORIGIN, false));
+        }
+        if (from.containsKey(KEY_LAYER_ORIGIN_FORM_ID)) {
+            to.putLong(KEY_LAYER_ORIGIN_FORM_ID, from.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L));
+        }
+        if (from.containsKey(KEY_COLLECTOR_LAYER_EDITABLE)) {
+            to.putBoolean(KEY_COLLECTOR_LAYER_EDITABLE,
+                    from.getBoolean(KEY_COLLECTOR_LAYER_EDITABLE, true));
         }
     }
 
@@ -1333,6 +1362,7 @@ public class LayerFillService extends Service implements IProgressor {
                         if (!TextUtils.isEmpty(mLayerConfigJson)) {
                             extra.putString(KEY_LAYER_CONFIG_JSON, mLayerConfigJson);
                         }
+                        copyLayerOriginExtras(mEnqueueBundle, extra);
                         if (mCollectorOrderIndex >= 0 && mCollectorProjectRemoteIds != null) {
                             extra.putInt(KEY_COLLECTOR_ORDER_INDEX, mCollectorOrderIndex);
                             extra.putLongArray(KEY_COLLECTOR_PROJECT_REMOTE_IDS, mCollectorProjectRemoteIds);
@@ -1621,6 +1651,7 @@ public class LayerFillService extends Service implements IProgressor {
                         HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " skipped no config text for "
                                 + ngwVectorLayer.getName());
                     }
+                    applyLayerOriginFromIntent(ngwVectorLayer);
                     applyCollectorEditableFromIntent(ngwVectorLayer);
                     return true;
                 } catch (IOException e) {
@@ -1666,6 +1697,32 @@ public class LayerFillService extends Service implements IProgressor {
                 } catch (Exception e) {
                     Log.w(Constants.TAG, "applyCollectorEditableFromIntent save failed: " + e.getMessage());
                 }
+            }
+        }
+
+        private void applyLayerOriginFromIntent(NGWVectorLayer ngwVectorLayer) {
+            if (ngwVectorLayer == null) {
+                return;
+            }
+            long formId = mEnqueueBundle.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L);
+            if (formId <= 0L && defaultFormIDArray != null && defaultFormIDArray.length > 0) {
+                formId = defaultFormIDArray[0];
+            }
+
+            String collectorProjectUid = mEnqueueBundle.getString(KEY_COLLECTOR_PROJECT_UID);
+            if (!TextUtils.isEmpty(collectorProjectUid)) {
+                ngwVectorLayer.setLayerOriginMetadata(LayerOriginMetadata.collectorLayer(
+                        collectorProjectUid, mCollectorOrderIndex, formId));
+            } else if (mEnqueueBundle.getBoolean(KEY_MARK_MANUAL_NGW_ORIGIN, false)) {
+                ngwVectorLayer.setLayerOriginMetadata(LayerOriginMetadata.manualNgwLayer(formId));
+            } else {
+                return;
+            }
+
+            try {
+                ngwVectorLayer.save();
+            } catch (Exception e) {
+                Log.w(Constants.TAG, "applyLayerOriginFromIntent save failed: " + e.getMessage());
             }
         }
 

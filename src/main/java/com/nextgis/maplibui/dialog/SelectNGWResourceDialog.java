@@ -54,6 +54,7 @@ import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.NGWUtil;
 
 import com.hypertrack.hyperlog.HyperLog;
+import com.nextgis.maplib.map.CollectorProjectMetadata;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWRasterLayer;
@@ -347,6 +348,14 @@ public class SelectNGWResourceDialog
                     }
                     Connection connection = collector.getConnection();
                     String projectDistrict = collector.getProjectDistrict();
+                    String collectorProjectUid = CollectorProjectMetadata.buildProjectUid(
+                            connection.getName(), collector.getRemoteId());
+                    // Collector architecture foundation: persist project identity now so future
+                    // composition/form/tile sync can work without re-importing local layer data.
+                    mGroupLayer.setCollectorProjectMetadata(CollectorProjectMetadata.create(
+                            connection.getName(), collector.getRemoteId(),
+                            collector.getName(), projectDistrict));
+                    mGroupLayer.save();
                     if (!TextUtils.isEmpty(projectDistrict)) {
                         mGroupLayer.setCollectorDistrict(projectDistrict);
                         mGroupLayer.save();
@@ -397,7 +406,7 @@ public class SelectNGWResourceDialog
                             fids[ord] = formId;
                         }
                         boolean batchRegistered = ((IGISApplication) context.getApplicationContext()).registerCollectorImportBatch(
-                                mGroupLayer.getId(), connection.getName(), ids, nms, cfgs, fids,
+                                mGroupLayer.getId(), connection.getName(), collectorProjectUid, ids, nms, cfgs, fids,
                                 collectorEditables, fullProjectOrder);
                         if (!batchRegistered) {
                             // No registered batch => no verify/repair; do not run a partial collector import.
@@ -423,12 +432,18 @@ public class SelectNGWResourceDialog
                             intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
                             intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
                             intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                            if (!TextUtils.isEmpty(collectorProjectUid)) {
+                                intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_UID, collectorProjectUid);
+                            }
                             String desc = layer.getDescription();
                             if (desc != null && !desc.isEmpty()) {
                                 intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, desc);
                             }
-                            if (layer.getFormCount() > 0) {
-                                String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
+                            long formId = 0L;
+                            if (layer.getFormCount() > 0 && layer.getFormId(0) != null) {
+                                formId = layer.getFormId(0);
+                                intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
+                                String path = NGWUtil.getFormUrl(connection.getURL(), formId);
                                 intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
                                 intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
                             }
@@ -455,11 +470,16 @@ public class SelectNGWResourceDialog
                     intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
                     intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
                     intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                    intent.putExtra(LayerFillService.KEY_MARK_MANUAL_NGW_ORIGIN, true);
 
                     if (layer.getFormCount() > 0) {
-                        String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
-                        intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
-                        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                        Long formId = layer.getFormId(0);
+                        if (formId != null && formId > 0L) {
+                            intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
+                            String path = NGWUtil.getFormUrl(connection.getURL(), formId);
+                            intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
+                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                        }
                     }
 
                     vectorFillBatch.add(intent);

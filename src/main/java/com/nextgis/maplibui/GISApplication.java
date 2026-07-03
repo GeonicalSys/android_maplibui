@@ -62,6 +62,7 @@ import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.map.MaplibreMapInteraction;
 import com.nextgis.maplib.map.NGWVectorLayer;
+import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.NGWUtil;
@@ -148,6 +149,8 @@ public abstract class GISApplication extends Application
     private final Object mCollectorImportLock = new Object();
     private int mCollectorGroupId;
     private String mCollectorAccount;
+    /** Collector architecture foundation: preserve project ownership through verify/repair waves. */
+    private String mCollectorProjectUid;
     private long[] mCollectorRemoteIds;
     private String[] mCollectorNames;
     private String[] mCollectorConfigJsons;
@@ -667,6 +670,7 @@ public abstract class GISApplication extends Application
         mCollectorFormIds = null;
         mCollectorEditables = null;
         mCollectorFullProjectRemoteIds = null;
+        mCollectorProjectUid = null;
         mCollectorOutcomes.clear();
         mCollectorRepairPassesRemaining = 0;
     }
@@ -687,6 +691,7 @@ public abstract class GISApplication extends Application
     public boolean registerCollectorImportBatch(
             int groupId,
             String accountName,
+            String collectorProjectUid,
             long[] remoteIds,
             String[] names,
             String[] configJsons,
@@ -720,6 +725,7 @@ public abstract class GISApplication extends Application
             }
             mCollectorGroupId = groupId;
             mCollectorAccount = accountName;
+            mCollectorProjectUid = collectorProjectUid;
             mCollectorRemoteIds = Arrays.copyOf(remoteIds, remoteIds.length);
             mCollectorNames = Arrays.copyOf(names, names.length);
             mCollectorConfigJsons = Arrays.copyOf(configJsons, configJsons.length);
@@ -959,6 +965,7 @@ public abstract class GISApplication extends Application
         String[] configs;
         long[] formIds;
         boolean[] collectorEditables;
+        String collectorProjectUid;
         Map<Long, Boolean> outcomes;
         long[] fullProjectOrderSnapshot;
         synchronized (mCollectorImportLock) {
@@ -967,6 +974,7 @@ public abstract class GISApplication extends Application
             }
             groupId = mCollectorGroupId;
             account = mCollectorAccount;
+            collectorProjectUid = mCollectorProjectUid;
             remoteIds = Arrays.copyOf(mCollectorRemoteIds, mCollectorRemoteIds.length);
             names = Arrays.copyOf(mCollectorNames, mCollectorNames.length);
             configs = Arrays.copyOf(mCollectorConfigJsons, mCollectorConfigJsons.length);
@@ -1082,6 +1090,9 @@ public abstract class GISApplication extends Application
             taskExtras.putLong(LayerFillService.KEY_REMOTE_ID, rid);
             taskExtras.putInt(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
             taskExtras.putLong(LayerFillService.KEY_COLLECTOR_TRACKING_REMOTE_ID, rid);
+            if (!TextUtils.isEmpty(collectorProjectUid)) {
+                taskExtras.putString(LayerFillService.KEY_COLLECTOR_PROJECT_UID, collectorProjectUid);
+            }
             int projIdx = collectorProjectIndexOf(rid, fullProjectOrderSnapshot);
             if (projIdx >= 0 && fullProjectOrderSnapshot != null) {
                 taskExtras.putInt(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projIdx);
@@ -1089,6 +1100,7 @@ public abstract class GISApplication extends Application
             }
             long fid = formIds[i];
             if (fid != 0L) {
+                taskExtras.putLong(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, fid);
                 Account acc = getAccount(account);
                 if (acc != null) {
                     taskExtras.putInt(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
@@ -1168,6 +1180,7 @@ public abstract class GISApplication extends Application
         final long rebuildRemoteId = layer.getRemoteId();
         final long rebuildFormId = resolveNgwLayerRebuildFormId(
                 layer, rebuildAccountName, rebuildRemoteId);
+        final LayerOriginMetadata rebuildOrigin = layer.getLayerOriginMetadata();
 
         new Handler(Looper.getMainLooper()).post(() -> {
             if (layer == null || mMap == null) {
@@ -1241,6 +1254,26 @@ public abstract class GISApplication extends Application
             intent.putExtra(LayerFillService.KEY_VISIBLE, visible);
             intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
             intent.putExtra(LayerFillService.KEY_LAYER_RESTORE_INSERT_INDEX, restoreIndex);
+            // Collector architecture foundation: keep layer origin through automatic rebuilds.
+            // Future composition/form/tile sync relies on this metadata and should not require
+            // re-importing heavy local data after a schema refresh.
+            if (rebuildOrigin != null) {
+                long originFormId = rebuildFormId > 0L ? rebuildFormId : rebuildOrigin.getFormId();
+                if (originFormId > 0L) {
+                    intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, originFormId);
+                }
+                if (rebuildOrigin.isManagedByProject()
+                        && !TextUtils.isEmpty(rebuildOrigin.getProjectUid())) {
+                    intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_UID,
+                            rebuildOrigin.getProjectUid());
+                    if (rebuildOrigin.getCollectorOrder() >= 0) {
+                        intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX,
+                                rebuildOrigin.getCollectorOrder());
+                    }
+                } else if (LayerOriginMetadata.TYPE_MANUAL_NGW.equals(rebuildOrigin.getType())) {
+                    intent.putExtra(LayerFillService.KEY_MARK_MANUAL_NGW_ORIGIN, true);
+                }
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent);
             } else {
