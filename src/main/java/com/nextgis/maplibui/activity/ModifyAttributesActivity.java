@@ -33,6 +33,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.app.ProgressDialog;
 import android.database.Cursor;
 import android.location.Location;
 import android.media.AudioManager;
@@ -40,6 +41,7 @@ import android.media.SoundPool;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.preference.PreferenceManager;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.AppCompatSpinner;
@@ -64,10 +66,12 @@ import android.widget.Toast;
 
 import com.keenfin.easypicker.AttachInfo;
 import com.keenfin.easypicker.PhotoPicker;
+import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.GpsEventListener;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.Field;
 import com.nextgis.maplib.datasource.GeoGeometry;
+import com.nextgis.maplib.datasource.GeoGeometryFactory;
 import com.nextgis.maplib.datasource.GeoMultiPoint;
 import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.datasource.ngw.Connection;
@@ -81,6 +85,7 @@ import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
+import com.nextgis.maplib.util.GeoGeometryUtil;
 import com.nextgis.maplib.util.LocationUtil;
 import com.nextgis.maplib.util.MapUtil;
 import com.nextgis.maplib.util.PermissionUtil;
@@ -98,6 +103,8 @@ import com.nextgis.maplibui.formcontrol.Sign;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.NotificationHelper;
+import com.nextgis.maplibui.util.PhotoOverlayData;
+import com.nextgis.maplibui.util.PhotoOverlayUtil;
 import com.nextgis.maplibui.util.SettingsConstantsUI;
 
 import org.json.JSONException;
@@ -136,6 +143,8 @@ public class ModifyAttributesActivity
         extends NGActivity
         implements GpsEventListener
 {
+    private static final String LOG_FEATURE_SAVE = "FeatureSave";
+
     protected long PROGRESS_DELAY = 1000L;
     protected long MAX_TAKE_TIME  = Integer.MAX_VALUE;
 
@@ -541,8 +550,7 @@ public class ModifyAttributesActivity
                     .setPositiveButton(R.string.save, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-                            if (saveFeature())
-                                finish();
+                            runSaveAndFinish();
                         }
                     })
                     .setNegativeButton(R.string.discard, new DialogInterface.OnClickListener() {
@@ -578,8 +586,7 @@ public class ModifyAttributesActivity
             app.showSettings(SettingsConstantsUI.ACTION_PREFS_GENERAL, -1, null);
             return true;
         } else if (id == R.id.menu_apply) {
-            if (saveFeature())
-                finish();
+            runSaveAndFinish();
             return true;
         }
 
@@ -669,14 +676,60 @@ public class ModifyAttributesActivity
     }
 
 
+    private void runSaveAndFinish() {
+        PhotoOverlaySettings overlaySettings = readPhotoOverlaySettings();
+        PhotoOverlayData overlayData = overlaySettings.enabled
+                ? buildPhotoOverlayData(overlaySettings) : null;
+        boolean async = overlayData != null
+                && overlayData.hasContent()
+                && hasNewPhotoAttaches();
+
+        if (async) {
+            ProgressDialog dialog = ProgressDialog.show(
+                    this,
+                    null,
+                    getString(R.string.photo_overlay_processing),
+                    true,
+                    false);
+            new Thread(() -> {
+                boolean ok = saveFeatureInternal(overlayData, overlaySettings);
+                runOnUiThread(() -> {
+                    if (dialog.isShowing()) {
+                        dialog.dismiss();
+                    }
+                    if (ok) {
+                        finish();
+                    }
+                });
+            }).start();
+            return;
+        }
+
+        if (saveFeatureInternal(overlayData, overlaySettings)) {
+            finish();
+        }
+    }
+
+
     protected boolean saveFeature()
+    {
+        PhotoOverlaySettings overlaySettings = readPhotoOverlaySettings();
+        PhotoOverlayData overlayData = overlaySettings.enabled
+                ? buildPhotoOverlayData(overlaySettings) : null;
+        return saveFeatureInternal(overlayData, overlaySettings);
+    }
+
+
+    protected boolean saveFeatureInternal(
+            PhotoOverlayData overlayData,
+            PhotoOverlaySettings overlaySettings)
     {
         if (mIsViewOnly) {
             return false;
         }
 
         if (mLayer == null) {
-            Toast.makeText(this, R.string.error_layer_not_inited, Toast.LENGTH_SHORT).show();
+            showShortToast(R.string.error_layer_not_inited);
             return false;
         }
 
@@ -694,7 +747,7 @@ public class ModifyAttributesActivity
             }
         }
 
-         GeoGeometry geoGeometry =  putGeometry(values);
+        GeoGeometry geoGeometry = putGeometry(values);
         IGISApplication app = (IGISApplication) getApplication();
 
         if (null == app) {
@@ -704,34 +757,55 @@ public class ModifyAttributesActivity
         Uri uri = Uri.parse(
                 "content://" + app.getAuthority() + "/" + mLayer.getPath().getName());
 
+        if (mFeatureId == NOT_FOUND && geoGeometry == null) {
+            logFeatureSaveFailure("new feature geometry missing", uri, values, null);
+            return false;
+        }
+
         boolean error;
         if (mFeatureId == NOT_FOUND) {
             // we need to get proper mFeatureId for new features first
-            Uri result = getContentResolver().insert(uri, values);
-            if (error = result == null)
-                new AlertDialog.Builder(this)
-                        .setMessage(R.string.error_db_insert)
-                        .setPositiveButton(R.string.ok, null)
-                        .create()
-                        .show();
+            Uri result = null;
+            try {
+                result = getContentResolver().insert(uri, values);
+            } catch (RuntimeException e) {
+                logFeatureSaveException("insert threw", uri, values, geoGeometry, e);
+                showDbError(R.string.error_db_insert);
+                return false;
+            }
+            error = result == null;
+            if (error) {
+                logFeatureSaveFailure("insert returned null", uri, values, geoGeometry);
+                showDbError(R.string.error_db_insert);
                 //Toast.makeText(this, getText(R.string.error_db_insert), Toast.LENGTH_SHORT).show();
-            else
+            } else {
                 mFeatureId = Long.parseLong(result.getLastPathSegment());
+            }
         } else {
             Uri updateUri = ContentUris.withAppendedId(uri, mFeatureId);
-            boolean valuesUpdated = getContentResolver().update(updateUri, values, null, null) == 1;
-            if (error = !valuesUpdated)
-                new AlertDialog.Builder(this)
-                        .setMessage(R.string.error_db_update)
-                        .setPositiveButton(R.string.ok, null)
-                        .create()
-                        .show();
+            boolean valuesUpdated;
+            try {
+                valuesUpdated = getContentResolver().update(updateUri, values, null, null) == 1;
+            } catch (RuntimeException e) {
+                logFeatureSaveException("update threw", updateUri, values, geoGeometry, e);
+                showDbError(R.string.error_db_update);
+                return false;
+            }
+            error = !valuesUpdated;
+            if (error) {
+                logFeatureSaveFailure("update affected 0 rows", updateUri, values, geoGeometry);
+                showDbError(R.string.error_db_update);
                 //Toast.makeText(this, getText(R.string.error_db_update), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        if (error) {
+            return false;
         }
 
         for (Map.Entry<String, IControl> field : mFields.entrySet()) {
             if (field.getKey().startsWith(PhotoGallery.GALLERY_PREFIX) && field.getValue() instanceof PhotoGallery)
-                putAttaches((PhotoGallery) field.getValue());
+                putAttaches((PhotoGallery) field.getValue(), overlayData, overlaySettings);
         }
         putSign();
         Intent data = new Intent();
@@ -740,6 +814,133 @@ public class ModifyAttributesActivity
             data.putExtra(KEY_ADDED_POINT, new double[]{ ((GeoPoint)geoGeometry).getX(), ((GeoPoint)geoGeometry).getY() });
         setResult(RESULT_OK, data);
         return !error;
+    }
+
+
+    protected void showDbError(final int messageResId)
+    {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            showDbErrorOnUiThread(messageResId);
+        } else {
+            runOnUiThread(() -> showDbErrorOnUiThread(messageResId));
+        }
+    }
+
+
+    protected void showDbErrorOnUiThread(int messageResId)
+    {
+        if (isFinishing() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1
+                && isDestroyed())) {
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setMessage(messageResId)
+                .setPositiveButton(R.string.ok, null)
+                .create()
+                .show();
+    }
+
+
+    protected void showShortToast(final int messageResId)
+    {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Toast.makeText(this, getText(messageResId), Toast.LENGTH_SHORT).show();
+        } else {
+            runOnUiThread(() ->
+                    Toast.makeText(this, getText(messageResId), Toast.LENGTH_SHORT).show());
+        }
+    }
+
+
+    protected void logFeatureSaveFailure(
+            String reason,
+            Uri uri,
+            ContentValues values,
+            GeoGeometry geometry)
+    {
+        String message = buildFeatureSaveLogMessage(reason, uri, values, geometry);
+        Log.w(TAG, message);
+        HyperLog.w(TAG, message);
+    }
+
+
+    protected void logFeatureSaveException(
+            String reason,
+            Uri uri,
+            ContentValues values,
+            GeoGeometry geometry,
+            RuntimeException e)
+    {
+        String message = buildFeatureSaveLogMessage(reason, uri, values, geometry);
+        Log.e(TAG, message, e);
+        HyperLog.w(TAG, message + " error=" + e.getClass().getSimpleName()
+                + ": " + e.getMessage(), e);
+    }
+
+
+    protected String buildFeatureSaveLogMessage(
+            String reason,
+            Uri uri,
+            ContentValues values,
+            GeoGeometry geometry)
+    {
+        String layerInfo = mLayer == null ? "<null>"
+                : "\"" + mLayer.getName() + "\" path=" + mLayer.getPath().getName()
+                + " id=" + mLayer.getId()
+                + " geomType=" + mLayer.getGeometryType();
+        return LOG_FEATURE_SAVE + " " + reason
+                + " uri=" + uri
+                + " layer=" + layerInfo
+                + " featureId=" + mFeatureId
+                + " geometry=" + describeGeometry(geometry)
+                + " intentGeometry=" + describeGeometry(mGeometry)
+                + " geometryChanged=" + mIsGeometryChanged
+                + " location=" + describeLocation(mLocation)
+                + " values=" + summarizeContentValues(values);
+    }
+
+
+    protected static String describeGeometry(GeoGeometry geometry)
+    {
+        if (geometry == null) {
+            return "<null>";
+        }
+        return "type=" + geometry.getType() + " valid=" + geometry.isValid();
+    }
+
+
+    protected static String describeLocation(Location location)
+    {
+        if (location == null) {
+            return "<null>";
+        }
+        return "lat=" + location.getLatitude()
+                + " lon=" + location.getLongitude()
+                + " acc=" + location.getAccuracy();
+    }
+
+
+    protected static String summarizeContentValues(ContentValues values)
+    {
+        if (values == null) {
+            return "<null>";
+        }
+        StringBuilder sb = new StringBuilder("{size=").append(values.size()).append(", keys=[");
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : values.valueSet()) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            Object value = entry.getValue();
+            sb.append(entry.getKey()).append(":");
+            if (value instanceof byte[]) {
+                sb.append("byte[").append(((byte[]) value).length).append("]");
+            } else {
+                sb.append(value == null ? "null" : value.getClass().getSimpleName());
+            }
+        }
+        return sb.append("]}").toString();
     }
 
 
@@ -835,7 +1036,7 @@ public class ModifyAttributesActivity
             geometry = mGeometry;
         } else if (NOT_FOUND == mFeatureId) {
             if (null == mLocation) {
-                Toast.makeText(this, getText(R.string.error_no_location), Toast.LENGTH_SHORT).show();
+                showShortToast(R.string.error_no_location);
                 return null;
             }
 
@@ -865,7 +1066,10 @@ public class ModifyAttributesActivity
         return geometry;
     }
 
-    protected int putAttaches(PhotoGallery gallery) {
+    protected int putAttaches(
+            PhotoGallery gallery,
+            PhotoOverlayData overlayData,
+            PhotoOverlaySettings overlaySettings) {
         int total = 0;
         if (gallery != null && mFeatureId != NOT_FOUND) {
             List<Integer> deletedAttaches = gallery.getDeletedAttaches();
@@ -917,7 +1121,7 @@ public class ModifyAttributesActivity
                     Toast.makeText(this, getText(com.keenfin.easypicker.R.string.photo_fail_attach), Toast.LENGTH_SHORT).show();
                     Log.d(TAG, "attach insert failed");
                 } else {
-                    if (copyToStream(result, pathString))
+                    if (copyAttachmentToStream(result, pathString, overlayData, overlaySettings))
                         total++;
 
                     Log.d(TAG, "attach insert success: " + result.toString());
@@ -926,6 +1130,176 @@ public class ModifyAttributesActivity
         }
 
         return total;
+    }
+
+    protected boolean copyAttachmentToStream(
+            Uri uri,
+            String path,
+            PhotoOverlayData overlayData,
+            PhotoOverlaySettings overlaySettings)
+    {
+        boolean shouldProcess = overlaySettings != null
+                && overlaySettings.enabled
+                && overlayData != null
+                && overlayData.hasContent();
+        if (!shouldProcess) {
+            return copyToStream(uri, path);
+        }
+
+        File processedFile = null;
+        try {
+            processedFile = File.createTempFile("photo_attach_", ".jpg", getCacheDir());
+            if (!PhotoOverlayUtil.processToFile(
+                    this,
+                    path,
+                    processedFile,
+                    overlayData,
+                    overlaySettings.coordFormat,
+                    overlaySettings.coordFraction)) {
+                return copyToStream(uri, path);
+            }
+
+            OutputStream outStream = getContentResolver().openOutputStream(uri);
+            if (outStream == null) {
+                return false;
+            }
+            try (FileInputStream inStream = new FileInputStream(processedFile)) {
+                byte[] buffer = new byte[8192];
+                int counter;
+                while ((counter = inStream.read(buffer)) > 0) {
+                    outStream.write(buffer, 0, counter);
+                    outStream.flush();
+                }
+            } finally {
+                outStream.close();
+            }
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(
+                    this,
+                    getText(com.keenfin.easypicker.R.string.photo_fail_attach),
+                    Toast.LENGTH_SHORT).show();
+            return copyToStream(uri, path);
+        } finally {
+            if (processedFile != null) {
+                processedFile.delete();
+            }
+        }
+    }
+
+    private PhotoOverlaySettings readPhotoOverlaySettings() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        PhotoOverlaySettings settings = new PhotoOverlaySettings();
+        settings.enabled = prefs.getBoolean(SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_ENABLED, false);
+        settings.useObjectCoords = prefs.getBoolean(
+                SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_USE_OBJECT, false);
+        settings.showTime = prefs.getBoolean(
+                SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_SHOW_TIME, false);
+        String def = Location.FORMAT_DEGREES + "";
+        String preferred = prefs.getString(SettingsConstantsUI.KEY_PREF_COORD_FORMAT, def);
+        settings.coordFormat = Integer.parseInt(preferred != null ? preferred : def);
+        settings.coordFraction = prefs.getInt(SettingsConstantsUI.KEY_PREF_COORD_FRACTION, 6);
+        return settings;
+    }
+
+    private PhotoOverlayData buildPhotoOverlayData(PhotoOverlaySettings settings) {
+        PhotoOverlayData data = new PhotoOverlayData();
+        if (settings.showTime) {
+            data.timestamp = System.currentTimeMillis();
+        }
+
+        if (settings.useObjectCoords) {
+            double[] wgs = resolveObjectWgs84Point();
+            if (wgs != null) {
+                data.longitude = wgs[0];
+                data.latitude = wgs[1];
+            }
+        } else {
+            IGISApplication app = (IGISApplication) getApplication();
+            if (app != null) {
+                Location location = app.getGpsEventSource().getLastKnownLocation();
+                if (location != null) {
+                    data.latitude = location.getLatitude();
+                    data.longitude = location.getLongitude();
+                    if (settings.showTime) {
+                        data.timestamp = location.getTime();
+                    }
+                }
+            }
+        }
+        return data;
+    }
+
+    private double[] resolveObjectWgs84Point() {
+        GeoGeometry geometry = resolveFeatureGeometry();
+        if (geometry == null) {
+            return null;
+        }
+        return GeoGeometryUtil.getWgs84RepresentativePoint(geometry);
+    }
+
+    private GeoGeometry resolveFeatureGeometry() {
+        if (mGeometry != null && mIsGeometryChanged) {
+            return mGeometry;
+        }
+
+        if (mFeatureId != NOT_FOUND) {
+            Cursor cursor = mLayer.query(
+                    new String[]{FIELD_GEOM},
+                    FIELD_ID + " = " + mFeatureId,
+                    null,
+                    null,
+                    null);
+            if (cursor != null) {
+                try {
+                    if (cursor.moveToFirst()) {
+                        byte[] blob = cursor.getBlob(0);
+                        if (blob != null) {
+                            try {
+                                return GeoGeometryFactory.fromBlob(blob);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                } finally {
+                    cursor.close();
+                }
+            }
+        }
+
+        if (mGeometry != null) {
+            return mGeometry;
+        }
+
+        if (mLocation != null) {
+            GeoPoint pt = new GeoPoint(mLocation.getLongitude(), mLocation.getLatitude());
+            pt.setCRS(GeoConstants.CRS_WGS84);
+            return pt;
+        }
+
+        return null;
+    }
+
+    private boolean hasNewPhotoAttaches() {
+        for (Map.Entry<String, IControl> field : mFields.entrySet()) {
+            if (field.getKey().startsWith(PhotoGallery.GALLERY_PREFIX)
+                    && field.getValue() instanceof PhotoGallery) {
+                if (!((PhotoGallery) field.getValue()).getNewAttaches().isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    protected static class PhotoOverlaySettings {
+        boolean enabled;
+        boolean useObjectCoords;
+        boolean showTime;
+        int coordFormat;
+        int coordFraction;
     }
 
     protected boolean copyToStream(Uri uri, String path) {
@@ -1011,14 +1385,14 @@ public class ModifyAttributesActivity
     @Override
     public void onLocationChanged(Location location)
     {
-
+        setLocationText(location);
     }
 
 
     @Override
     public void onBestLocationChanged(Location location)
     {
-
+        setLocationText(location);
     }
 
 

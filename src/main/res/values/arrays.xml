@@ -247,6 +247,28 @@
         <item>@string/line_label_rotation_along</item>
         <item>@string/line_label_rotation_horizontal</item>
     </string-array>
+    <string-array name="text_justify_values" translatable="false">
+        <item>auto</item>
+        <item>left</item>
+        <item>center</item>
+        <item>right</item>
+    </string-array>
+    <string-array name="text_transform_values" translatable="false">
+        <item>none</item>
+        <item>uppercase</item>
+        <item>lowercase</item>
+    </string-array>
+    <string-array name="marker_icon_anchors" translatable="false">
+        <item>@string/center</item>
+        <item>@string/top</item>
+        <item>@string/right</item>
+        <item>@string/bottom</item>
+        <item>@string/left</item>
+        <item>@string/left_top</item>
+        <item>@string/right_top</item>
+        <item>@string/right_bottom</item>
+        <item>@string/left_bottom</item>
+    </string-array>
     <string-array name="label_text_sizes" translatable="false">
         <item>@string/very_small</item>
         <item>@string/small</item>

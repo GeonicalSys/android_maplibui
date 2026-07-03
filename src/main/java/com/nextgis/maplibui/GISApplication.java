@@ -52,6 +52,7 @@ import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
 import com.nextgis.maplib.datasource.ngw.Connection;
+import com.nextgis.maplib.datasource.ngw.LayerWithStyles;
 import com.nextgis.maplib.datasource.ngw.SyncAdapter;
 import com.nextgis.maplib.location.GpsEventSource;
 import com.nextgis.maplib.map.LayerFactory;
@@ -73,6 +74,7 @@ import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
+import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.SettingsConstantsUI;
 
 import java.io.File;
@@ -1162,6 +1164,11 @@ public abstract class GISApplication extends Application
             return;
         }
 
+        final String rebuildAccountName = layer.getAccountName();
+        final long rebuildRemoteId = layer.getRemoteId();
+        final long rebuildFormId = resolveNgwLayerRebuildFormId(
+                layer, rebuildAccountName, rebuildRemoteId);
+
         new Handler(Looper.getMainLooper()).post(() -> {
             if (layer == null || mMap == null) {
                 return;
@@ -1209,7 +1216,23 @@ public abstract class GISApplication extends Application
             Intent intent = new Intent(this, LayerFillService.class);
             intent.setAction(LayerFillService.ACTION_ADD_TASK);
             intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
-            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+            if (rebuildFormId > 0L) {
+                Account acc = getAccount(accountName);
+                if (acc != null) {
+                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE,
+                            LayerFillService.VECTOR_LAYER_WITH_FORM);
+                    intent.putExtra(LayerFillService.KEY_URI,
+                            Uri.parse(NGWUtil.getFormUrl(getAccountUrl(acc), rebuildFormId)));
+                    intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS,
+                            new long[]{rebuildFormId});
+                } else {
+                    HyperLog.w(Constants.TAG, "NGW schema rebuild: account missing for form restore \""
+                            + layerName + "\" account=" + accountName + " formId=" + rebuildFormId);
+                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                }
+            } else {
+                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+            }
             intent.putExtra(LayerFillService.KEY_NAME, layerName);
             intent.putExtra(LayerFillService.KEY_ACCOUNT, accountName);
             intent.putExtra(LayerFillService.KEY_REMOTE_ID, remoteId);
@@ -1226,8 +1249,58 @@ public abstract class GISApplication extends Application
             Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
             LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
             HyperLog.v(Constants.TAG, "NGW schema mismatch: scheduled LayerFillService rebuild for \""
-                    + layerName + "\"");
+                    + layerName + "\" formId=" + rebuildFormId);
         });
+    }
+
+    private long resolveNgwLayerRebuildFormId(
+            NGWVectorLayer layer,
+            String accountName,
+            long remoteId) {
+        long localFormId = findLocalNgwLayerFormId(layer);
+        if (localFormId > 0L) {
+            return localFormId;
+        }
+        if (TextUtils.isEmpty(accountName) || remoteId < 0L) {
+            return 0L;
+        }
+        Account acc = getAccount(accountName);
+        if (acc == null) {
+            HyperLog.w(Constants.TAG, "NGW schema rebuild: account missing while resolving form id"
+                    + " account=" + accountName + " remoteId=" + remoteId);
+            return 0L;
+        }
+        ArrayList<Long> forms = new ArrayList<>();
+        boolean ok = LayerWithStyles.fillStyles(
+                getAccountUrl(acc),
+                getAccountLogin(acc),
+                getAccountPassword(acc),
+                remoteId,
+                null,
+                forms);
+        if (!ok || forms.isEmpty() || forms.get(0) == null || forms.get(0) <= 0L) {
+            return 0L;
+        }
+        return forms.get(0);
+    }
+
+    private long findLocalNgwLayerFormId(NGWVectorLayer layer) {
+        if (layer == null || layer.getPath() == null) {
+            return 0L;
+        }
+        String prefix = LayerUtil.findFormJsonPrefix(layer.getPath().toString());
+        if (TextUtils.isEmpty(prefix)) {
+            return 0L;
+        }
+        if (prefix.endsWith("_")) {
+            prefix = prefix.substring(0, prefix.length() - 1);
+        }
+        try {
+            long formId = Long.parseLong(prefix);
+            return formId > 0L ? formId : 0L;
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
     }
 
     @Override

@@ -354,9 +354,11 @@ public class SelectNGWResourceDialog
                                 + collector.getName() + "\" remoteId=" + collector.getRemoteId()
                                 + " district=" + projectDistrict);
                     } else {
+                        mGroupLayer.setCollectorDistrict(null);
+                        mGroupLayer.save();
                         HyperLog.d(Constants.TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " import (dialog) collector=\""
                                 + collector.getName() + "\" remoteId=" + collector.getRemoteId()
-                                + " no resmeta district — filter disabled");
+                                + " no resmeta district; collector_district cleared");
                     }
                     ArrayList<LayerWithStyles> toImport = new ArrayList<>();
                     for (int li = 0; li < layers.size(); li++) {

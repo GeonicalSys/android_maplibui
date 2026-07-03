@@ -21,6 +21,7 @@
 
 package com.nextgis.maplibui.fragment;
 
+import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import androidx.appcompat.widget.SwitchCompat;
@@ -43,6 +44,7 @@ import android.widget.TextView;
 import com.nextgis.maplib.api.ITextStyle;
 import com.nextgis.maplib.datasource.Field;
 import com.nextgis.maplib.display.LabelAttributes;
+import com.nextgis.maplib.display.MarkerIconRegistry;
 import com.nextgis.maplib.display.MplStyleMapper;
 import com.nextgis.maplib.display.SimpleLineStyle;
 import com.nextgis.maplib.display.SimpleMarkerStyle;
@@ -56,6 +58,7 @@ import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.dialog.StyledDialogFragment;
 import com.nextgis.maplibui.util.ControlHelper;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -69,13 +72,14 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
     protected EditText mEditText, mLabelTemplateEdit, mTextHaloWidthEdit, mLabelMinZoomEdit, mLabelMaxZoomEdit;
     protected Spinner mField, mTextSize, mTextAlignment, mLineLabelRotation;
     protected CheckBox mTextEnabled;
-    protected SwitchCompat mNotHardcoded, mTextScaleWithZoom, mTextAllowOverlap, mLineLabelRepeat;
+    protected SwitchCompat mNotHardcoded, mTextScaleWithZoom, mTextAllowOverlap, mTextOptional, mLineLabelRepeat;
     protected TextView mFillAlphaLabel, mStrokeAlphaLabel;
     protected TextView mTextOpacityLabel;
     protected SeekBar mFillAlphaSeek, mStrokeAlphaSeek, mTextOpacitySeek;
     protected int mFillColor, mStrokeColor, mTextColor, mTextHaloColor;
     protected Style mStyle;
     protected VectorLayer mLayer;
+    protected View mBody;
 
     public StyleFragment() {
     }
@@ -103,8 +107,12 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             inflatePolygon(body);
         }
 
+        mBody = body;
         inflateText(body);
         inflateLabelSettings(body);
+        if (mTextEnabled != null) {
+            setTextAdvancedEnabled(mTextEnabled.isChecked());
+        }
         inflateOpacity(body);
 
         setView(body, true);
@@ -126,6 +134,47 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         });
         type.setSelection(((SimpleMarkerStyle) mStyle).getType() - 1);
 
+        SimpleMarkerStyle markerStyle = (SimpleMarkerStyle) mStyle;
+        bindMarkerIconSpinner(v.findViewById(R.id.marker_icon_image), markerStyle);
+        bindOptionalFloatEditText(v.findViewById(R.id.marker_icon_size),
+                markerStyle.getIconSize(),
+                markerStyle::setIconSize);
+        bindFloatEditText(v.findViewById(R.id.marker_icon_rotate),
+                markerStyle.getIconRotate(),
+                markerStyle::setIconRotate);
+        bindFloatEditText(v.findViewById(R.id.marker_icon_offset_x),
+                markerStyle.getIconOffsetX(),
+                markerStyle::setIconOffsetX);
+        bindFloatEditText(v.findViewById(R.id.marker_icon_offset_y),
+                markerStyle.getIconOffsetY(),
+                markerStyle::setIconOffsetY);
+        Spinner markerAnchor = v.findViewById(R.id.marker_icon_anchor);
+        if (markerAnchor != null) {
+            markerAnchor.setSelection(markerStyle.getIconAnchor());
+            markerAnchor.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    markerStyle.setIconAnchor(position);
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                }
+            });
+        }
+        SwitchCompat iconAllowOverlap = v.findViewById(R.id.marker_icon_allow_overlap);
+        if (iconAllowOverlap != null) {
+            iconAllowOverlap.setChecked(markerStyle.isIconAllowOverlap());
+            iconAllowOverlap.setOnCheckedChangeListener((buttonView, isChecked) ->
+                    markerStyle.setIconAllowOverlap(isChecked));
+        }
+        SwitchCompat iconIgnorePlacement = v.findViewById(R.id.marker_icon_ignore_placement);
+        if (iconIgnorePlacement != null) {
+            iconIgnorePlacement.setChecked(markerStyle.isIconIgnorePlacement());
+            iconIgnorePlacement.setOnCheckedChangeListener((buttonView, isChecked) ->
+                    markerStyle.setIconIgnorePlacement(isChecked));
+        }
+
         Spinner textAlignment = v.findViewById(R.id.text_alignment);
         textAlignment.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -143,7 +192,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
         float markerSize = ((SimpleMarkerStyle) mStyle).getSize();
         EditText sizeText = v.findViewById(R.id.size);
-        sizeText.setText(String.format(Locale.getDefault(), "%.0f", markerSize));
+        sizeText.setText(String.format(Locale.US, "%.0f", markerSize));
         sizeText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -157,9 +206,10 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
             @Override
             public void afterTextChanged(Editable s) {
-                try {
-                    ((SimpleMarkerStyle) mStyle).setSize(Float.parseFloat(s.toString()));
-                } catch (Exception ignored) { }
+                Float parsed = parseFloatInput(s, null);
+                if (parsed != null) {
+                    ((SimpleMarkerStyle) mStyle).setSize(parsed);
+                }
             }
         });
 
@@ -182,7 +232,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
         float width = mStyle.getWidth();
         EditText widthText = v.findViewById(R.id.width);
-        widthText.setText(String.format(Locale.getDefault(), "%.0f", width));
+        widthText.setText(String.format(Locale.US, "%.0f", width));
         widthText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -196,9 +246,10 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
             @Override
             public void afterTextChanged(Editable s) {
-                try {
-                    mStyle.setWidth(Float.parseFloat(s.toString()));
-                } catch (Exception ignored) { }
+                Float parsed = parseFloatInput(s, null);
+                if (parsed != null) {
+                    mStyle.setWidth(parsed);
+                }
             }
         });
         inflateGeometryScale(v);
@@ -212,6 +263,253 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         scaleWithZoom.setChecked(mStyle.isScaleSizeWithZoom());
         scaleWithZoom.setOnCheckedChangeListener((buttonView, isChecked) ->
                 mStyle.setScaleSizeWithZoom(isChecked));
+        bindStringEditText(v.findViewById(R.id.geometry_zoom_scale_stops),
+                mStyle.getSizeZoomScaleStops(),
+                mStyle::setSizeZoomScaleStops);
+    }
+
+    private void bindFloatEditText(EditText editText, float value, FloatSetter setter) {
+        bindFloatEditText(editText, value, setter, "%.2f");
+    }
+
+    private void bindFloatEditText(
+            EditText editText,
+            float value,
+            FloatSetter setter,
+            String format) {
+        if (editText == null) {
+            return;
+        }
+        if (value != 0f) {
+            editText.setText(String.format(Locale.US, format, value));
+        }
+        editText.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable s) {
+                Float parsed = parseFloatInput(s, null);
+                if (parsed != null) {
+                    setter.set(parsed);
+                }
+            }
+        });
+    }
+
+    private void bindOptionalFloatEditText(EditText editText, float value, FloatSetter setter) {
+        if (editText == null) {
+            return;
+        }
+        editText.setText(formatOptionalFloat(value));
+        editText.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable s) {
+                Float parsed = parseFloatInput(s, 0f);
+                if (parsed != null) {
+                    setter.set(parsed);
+                }
+            }
+        });
+    }
+
+    private static Float parseFloatInput(CharSequence text, Float emptyValue) {
+        if (text == null) {
+            return emptyValue;
+        }
+        String value = text.toString().trim().replace(',', '.');
+        if (value.isEmpty()) {
+            return emptyValue;
+        }
+        try {
+            return Float.parseFloat(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static String formatOptionalFloat(float value) {
+        if (Math.abs(value - Math.round(value)) < 0.0001f) {
+            return String.format(Locale.US, "%.0f", value);
+        }
+        return Float.toString(value);
+    }
+
+    private void bindStringEditText(EditText editText, String value, StringSetter setter) {
+        if (editText == null) {
+            return;
+        }
+        if (value != null) {
+            editText.setText(value);
+        }
+        editText.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable s) {
+                setter.set(s.toString());
+            }
+        });
+    }
+
+    private void bindStringSpinner(Spinner spinner, String value, StringSetter setter) {
+        if (spinner == null) {
+            return;
+        }
+        String selected = value != null ? value : "";
+        for (int i = 0; i < spinner.getCount(); i++) {
+            Object item = spinner.getItemAtPosition(i);
+            if (item != null && selected.equalsIgnoreCase(item.toString())) {
+                spinner.setSelection(i);
+                break;
+            }
+        }
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                Object item = parent.getItemAtPosition(position);
+                if (item != null) {
+                    setter.set(item.toString());
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
+    private void bindStringSpinner(
+            Spinner spinner,
+            String value,
+            List<String> entries,
+            StringSetter setter) {
+        if (spinner == null) {
+            return;
+        }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                spinner.getContext(),
+                android.R.layout.simple_spinner_item,
+                entries);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        bindStringSpinner(spinner, value, setter);
+    }
+
+    private List<String> getAvailableLabelFonts(Spinner spinner, String currentValue) {
+        List<String> fonts = new ArrayList<>();
+        if (spinner != null) {
+            try {
+                String[] assetFonts = spinner.getContext().getAssets().list("fonts");
+                if (assetFonts != null) {
+                    for (String font : assetFonts) {
+                        addUniqueFont(fonts, font);
+                    }
+                }
+            } catch (IOException ignored) {
+            }
+        }
+        addUniqueFont(fonts, LabelAttributes.DEFAULT_TEXT_FONT);
+        addUniqueFont(fonts, currentValue);
+        return fonts;
+    }
+
+    private void bindMarkerIconSpinner(Spinner spinner, SimpleMarkerStyle markerStyle) {
+        if (spinner == null || markerStyle == null) {
+            return;
+        }
+        Context context = spinner.getContext();
+        List<String> values = new ArrayList<>();
+        values.add("");
+        if (context != null) {
+            for (String iconName : MarkerIconRegistry.availableAssetIconNames(context.getAssets())) {
+                addUniqueValue(values, iconName);
+            }
+        }
+        addUniqueValue(values, markerStyle.getIconImage());
+
+        List<String> labels = new ArrayList<>();
+        for (int i = 0; i < values.size(); i++) {
+            labels.add(i == 0 ? getString(R.string.marker_icon_none) : values.get(i));
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                spinner.getContext(),
+                android.R.layout.simple_spinner_item,
+                labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+
+        String current = markerStyle.getIconImage();
+        int selected = 0;
+        if (current != null) {
+            for (int i = 1; i < values.size(); i++) {
+                if (current.equalsIgnoreCase(values.get(i))) {
+                    selected = i;
+                    break;
+                }
+            }
+        }
+        spinner.setSelection(selected);
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                markerStyle.setIconImage(position > 0 ? values.get(position) : null);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
+    private static void addUniqueFont(List<String> fonts, String font) {
+        if (font == null) {
+            return;
+        }
+        String trimmed = font.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+        for (String existing : fonts) {
+            if (existing.equalsIgnoreCase(trimmed)) {
+                return;
+            }
+        }
+        fonts.add(trimmed);
+    }
+
+    private static void addUniqueValue(List<String> values, String value) {
+        if (value == null) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+        for (String existing : values) {
+            if (existing.equalsIgnoreCase(trimmed)) {
+                return;
+            }
+        }
+        values.add(trimmed);
+    }
+
+    private interface FloatSetter {
+        void set(float value);
+    }
+
+    private interface StringSetter {
+        void set(String value);
+    }
+
+    private static class SimpleTextWatcher implements TextWatcher {
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+        }
+
+        @Override
+        public void afterTextChanged(Editable s) {
+        }
     }
 
     private void inflateLine(View v) {
@@ -231,7 +529,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
         float width = mStyle.getWidth();
         EditText widthText = v.findViewById(R.id.width);
-        widthText.setText(String.format(Locale.getDefault(), "%.0f", width));
+        widthText.setText(String.format(Locale.US, "%.0f", width));
         widthText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -245,21 +543,25 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
             @Override
             public void afterTextChanged(Editable s) {
-                try {
-                    mStyle.setWidth(Float.parseFloat(s.toString()));
-                } catch (Exception ignored) { }
+                Float parsed = parseFloatInput(s, null);
+                if (parsed != null) {
+                    mStyle.setWidth(parsed);
+                }
             }
         });
 
         Spinner type = v.findViewById(R.id.type);
         final View dashPresetLabel = v.findViewById(R.id.dash_preset_label);
         final Spinner dashPreset = v.findViewById(R.id.dash_preset);
+        final View dashArrayLabel = v.findViewById(R.id.dash_array_label);
+        final EditText dashArray = v.findViewById(R.id.dash_array);
+        final SimpleLineStyle lineStyle = (SimpleLineStyle) mStyle;
         if (dashPreset != null) {
-            dashPreset.setSelection(((SimpleLineStyle) mStyle).getDashPreset());
+            dashPreset.setSelection(lineStyle.getDashPreset());
             dashPreset.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    ((SimpleLineStyle) mStyle).setDashPreset(position);
+                    lineStyle.setDashPreset(position);
                 }
 
                 @Override
@@ -267,14 +569,15 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
                 }
             });
         }
+        bindStringEditText(dashArray, lineStyle.getDashArray(), lineStyle::setDashArray);
 
         Spinner lineCap = v.findViewById(R.id.line_cap);
         if (lineCap != null) {
-            lineCap.setSelection(((SimpleLineStyle) mStyle).getLineCap());
+            lineCap.setSelection(lineStyle.getLineCap());
             lineCap.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    ((SimpleLineStyle) mStyle).setLineCap(position);
+                    lineStyle.setLineCap(position);
                 }
 
                 @Override
@@ -287,11 +590,11 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         final View lineMiterLimitLabel = v.findViewById(R.id.line_miter_limit_label);
         final EditText lineMiterLimit = v.findViewById(R.id.line_miter_limit);
         if (lineJoin != null) {
-            lineJoin.setSelection(((SimpleLineStyle) mStyle).getLineJoin());
+            lineJoin.setSelection(lineStyle.getLineJoin());
             lineJoin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    ((SimpleLineStyle) mStyle).setLineJoin(position);
+                    lineStyle.setLineJoin(position);
                     updateLineMiterLimitVisibility(lineMiterLimitLabel, lineMiterLimit, position);
                 }
 
@@ -300,11 +603,11 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
                 }
             });
             updateLineMiterLimitVisibility(
-                    lineMiterLimitLabel, lineMiterLimit, ((SimpleLineStyle) mStyle).getLineJoin());
+                    lineMiterLimitLabel, lineMiterLimit, lineStyle.getLineJoin());
         }
         if (lineMiterLimit != null) {
-            lineMiterLimit.setText(String.format(Locale.getDefault(), "%.1f",
-                    ((SimpleLineStyle) mStyle).getLineMiterLimit()));
+            lineMiterLimit.setText(String.format(Locale.US, "%.1f",
+                    lineStyle.getLineMiterLimit()));
             lineMiterLimit.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -316,23 +619,32 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
                 @Override
                 public void afterTextChanged(Editable s) {
-                    try {
-                        ((SimpleLineStyle) mStyle).setLineMiterLimit(Float.parseFloat(s.toString()));
-                    } catch (Exception ignored) {
+                    Float parsed = parseFloatInput(s, null);
+                    if (parsed != null) {
+                        lineStyle.setLineMiterLimit(parsed);
                     }
                 }
             });
         }
+        bindFloatEditText(v.findViewById(R.id.line_offset),
+                lineStyle.getLineOffset(),
+                lineStyle::setLineOffset);
+        bindFloatEditText(v.findViewById(R.id.line_gap_width),
+                lineStyle.getLineGapWidth(),
+                lineStyle::setLineGapWidth);
+        bindFloatEditText(v.findViewById(R.id.line_outline_multiplier),
+                lineStyle.getLineOutlineMultiplier(),
+                lineStyle::setLineOutlineMultiplier);
 
         bindBlurPresetSpinner(v.findViewById(R.id.line_blur),
-                MplStyleMapper.blurPresetIndex(((SimpleLineStyle) mStyle).getLineBlur()),
-                preset -> ((SimpleLineStyle) mStyle).setLineBlur(MplStyleMapper.blurPresetValue(preset)));
+                MplStyleMapper.blurPresetIndex(lineStyle.getLineBlur()),
+                preset -> lineStyle.setLineBlur(MplStyleMapper.blurPresetValue(preset)));
 
         type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                ((SimpleLineStyle) mStyle).setType(position + 1);
-                updateLineDashPresetVisibility(dashPresetLabel, dashPreset);
+                lineStyle.setType(position + 1);
+                updateLineDashPresetVisibility(dashPresetLabel, dashPreset, dashArrayLabel, dashArray);
             }
 
             @Override
@@ -340,8 +652,8 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
             }
         });
-        type.setSelection(((SimpleLineStyle) mStyle).getType() - 1);
-        updateLineDashPresetVisibility(dashPresetLabel, dashPreset);
+        type.setSelection(lineStyle.getType() - 1);
+        updateLineDashPresetVisibility(dashPresetLabel, dashPreset, dashArrayLabel, dashArray);
         inflateGeometryScale(v);
     }
 
@@ -378,7 +690,11 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         field.setVisibility(visibility);
     }
 
-    private void updateLineDashPresetVisibility(View dashPresetLabel, Spinner dashPreset) {
+    private void updateLineDashPresetVisibility(
+            View dashPresetLabel,
+            Spinner dashPreset,
+            View dashArrayLabel,
+            View dashArray) {
         if (dashPresetLabel == null || dashPreset == null) {
             return;
         }
@@ -387,6 +703,12 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         int visibility = isDash ? View.VISIBLE : View.GONE;
         dashPresetLabel.setVisibility(visibility);
         dashPreset.setVisibility(visibility);
+        if (dashArrayLabel != null) {
+            dashArrayLabel.setVisibility(visibility);
+        }
+        if (dashArray != null) {
+            dashArray.setVisibility(visibility);
+        }
     }
 
     private void inflatePolygon(View v) {
@@ -402,20 +724,32 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         CheckBox fillCheck = v.findViewById(R.id.fill);
         final View fillPatternLabel = v.findViewById(R.id.fill_pattern_label);
         final Spinner fillPattern = v.findViewById(R.id.fill_pattern);
+        final View fillPatternImageLabel = v.findViewById(R.id.fill_pattern_image_label);
+        final EditText fillPatternImage = v.findViewById(R.id.fill_pattern_image);
+        final View fillTranslateLabel = v.findViewById(R.id.fill_translate_label);
+        final View fillTranslate = v.findViewById(R.id.fill_translate);
+        final SimplePolygonStyle polygonStyle = (SimplePolygonStyle) mStyle;
         fillCheck.setChecked(fill);
         fillCheck.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                ((SimplePolygonStyle) mStyle).setFill(isChecked);
-                updatePolygonFillPatternVisibility(fillPatternLabel, fillPattern, isChecked);
+                polygonStyle.setFill(isChecked);
+                updatePolygonFillPatternVisibility(
+                        fillPatternLabel,
+                        fillPattern,
+                        fillPatternImageLabel,
+                        fillPatternImage,
+                        fillTranslateLabel,
+                        fillTranslate,
+                        isChecked);
             }
         });
         if (fillPattern != null) {
-            fillPattern.setSelection(((SimplePolygonStyle) mStyle).getFillPattern());
+            fillPattern.setSelection(polygonStyle.getFillPattern());
             fillPattern.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    ((SimplePolygonStyle) mStyle).setFillPattern(position);
+                    polygonStyle.setFillPattern(position);
                 }
 
                 @Override
@@ -423,10 +757,26 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
                 }
             });
         }
-        updatePolygonFillPatternVisibility(fillPatternLabel, fillPattern, fill);
+        bindStringEditText(fillPatternImage,
+                polygonStyle.getFillPatternImage(),
+                polygonStyle::setFillPatternImage);
+        bindFloatEditText(v.findViewById(R.id.fill_translate_x),
+                polygonStyle.getFillTranslateX(),
+                polygonStyle::setFillTranslateX);
+        bindFloatEditText(v.findViewById(R.id.fill_translate_y),
+                polygonStyle.getFillTranslateY(),
+                polygonStyle::setFillTranslateY);
+        updatePolygonFillPatternVisibility(
+                fillPatternLabel,
+                fillPattern,
+                fillPatternImageLabel,
+                fillPatternImage,
+                fillTranslateLabel,
+                fillTranslate,
+                fill);
 
         EditText widthText = v.findViewById(R.id.width);
-        widthText.setText(String.format(Locale.getDefault(), "%.0f", width));
+        widthText.setText(String.format(Locale.US, "%.0f", width));
         widthText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -440,9 +790,10 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
             @Override
             public void afterTextChanged(Editable s) {
-                try {
-                    mStyle.setWidth(Float.parseFloat(s.toString()));
-                } catch (Exception ignored) { }
+                Float parsed = parseFloatInput(s, null);
+                if (parsed != null) {
+                    mStyle.setWidth(parsed);
+                }
             }
         });
 
@@ -452,16 +803,35 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         LinearLayout color_stroke = v.findViewById(R.id.color_stroke);
         color_stroke.setOnClickListener(this);
         setStrokeColor(mStrokeColor);
+        inflateGeometryScale(v);
     }
 
     private void updatePolygonFillPatternVisibility(
-            View fillPatternLabel, Spinner fillPattern, boolean fillEnabled) {
+            View fillPatternLabel,
+            Spinner fillPattern,
+            View fillPatternImageLabel,
+            View fillPatternImage,
+            View fillTranslateLabel,
+            View fillTranslate,
+            boolean fillEnabled) {
         if (fillPatternLabel == null || fillPattern == null) {
             return;
         }
         int visibility = fillEnabled ? View.VISIBLE : View.GONE;
         fillPatternLabel.setVisibility(visibility);
         fillPattern.setVisibility(visibility);
+        if (fillPatternImageLabel != null) {
+            fillPatternImageLabel.setVisibility(visibility);
+        }
+        if (fillPatternImage != null) {
+            fillPatternImage.setVisibility(visibility);
+        }
+        if (fillTranslateLabel != null) {
+            fillTranslateLabel.setVisibility(visibility);
+        }
+        if (fillTranslate != null) {
+            fillTranslate.setVisibility(visibility);
+        }
     }
 
     private void inflateText(View body) {
@@ -558,12 +928,15 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
                     mTextScaleWithZoom.setEnabled(isChecked);
                 if (mTextAllowOverlap != null)
                     mTextAllowOverlap.setEnabled(isChecked);
+                if (mTextOptional != null)
+                    mTextOptional.setEnabled(isChecked);
                 if (mColorTextHalo != null)
                     mColorTextHalo.setEnabled(isChecked);
                 if (mLineLabelRepeat != null)
                     mLineLabelRepeat.setEnabled(isChecked);
                 if (mLineLabelRotation != null)
                     mLineLabelRotation.setEnabled(isChecked);
+                setTextAdvancedEnabled(isChecked);
 
                 if (!isChecked) {
                     style.setField(null);
@@ -596,6 +969,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             mLineLabelRepeat.setEnabled(isChecked);
         if (mLineLabelRotation != null)
             mLineLabelRotation.setEnabled(isChecked);
+        setTextAdvancedEnabled(isChecked);
 
         mNotHardcoded.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -624,6 +998,34 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
             }
         });
+    }
+
+    private void setTextAdvancedEnabled(boolean enabled) {
+        View root = getView() != null ? getView() : mBody;
+        if (root == null) {
+            return;
+        }
+        int[] ids = new int[]{
+                R.id.text_halo_blur,
+                R.id.text_zoom_scale_stops,
+                R.id.text_optional,
+                R.id.text_symbol_spacing,
+                R.id.text_max_width,
+                R.id.text_font,
+                R.id.text_justify,
+                R.id.text_transform,
+                R.id.text_letter_spacing,
+                R.id.text_line_height,
+                R.id.text_padding,
+                R.id.text_keep_upright,
+                R.id.text_max_angle
+        };
+        for (int id : ids) {
+            View view = root.findViewById(id);
+            if (view != null) {
+                view.setEnabled(enabled);
+            }
+        }
     }
 
     private void inflateLineLabelSettings(View body) {
@@ -752,14 +1154,14 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         mLabelMaxZoomEdit = body.findViewById(R.id.label_max_zoom);
         if (mLabelMinZoomEdit != null) {
             if (labelAttributes.getLabelMinZoom() >= 0f) {
-                mLabelMinZoomEdit.setText(String.format(Locale.getDefault(), "%.0f",
+                mLabelMinZoomEdit.setText(String.format(Locale.US, "%.0f",
                         labelAttributes.getLabelMinZoom()));
             }
             mLabelMinZoomEdit.addTextChangedListener(new SimpleZoomWatcher(labelAttributes, true));
         }
         if (mLabelMaxZoomEdit != null) {
             if (labelAttributes.getLabelMaxZoom() >= 0f) {
-                mLabelMaxZoomEdit.setText(String.format(Locale.getDefault(), "%.0f",
+                mLabelMaxZoomEdit.setText(String.format(Locale.US, "%.0f",
                         labelAttributes.getLabelMaxZoom()));
             }
             mLabelMaxZoomEdit.addTextChangedListener(new SimpleZoomWatcher(labelAttributes, false));
@@ -777,7 +1179,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         mTextHaloWidthEdit = body.findViewById(R.id.text_halo_width);
         if (mTextHaloWidthEdit != null) {
             mTextHaloWidthEdit.setText(
-                    String.format(Locale.getDefault(), "%.1f", labelAttributes.getTextHaloWidth()));
+                    String.format(Locale.US, "%.1f", labelAttributes.getTextHaloWidth()));
             mTextHaloWidthEdit.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -789,13 +1191,16 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
                 @Override
                 public void afterTextChanged(Editable s) {
-                    try {
-                        labelAttributes.setTextHaloWidth(Float.parseFloat(s.toString()));
-                    } catch (Exception ignored) {
+                    Float parsed = parseFloatInput(s, null);
+                    if (parsed != null) {
+                        labelAttributes.setTextHaloWidth(parsed);
                     }
                 }
             });
         }
+        bindFloatEditText(body.findViewById(R.id.text_halo_blur),
+                labelAttributes.getTextHaloBlur(),
+                labelAttributes::setTextHaloBlur);
 
         mTextScaleWithZoom = body.findViewById(R.id.text_scale_with_zoom);
         if (mTextScaleWithZoom != null) {
@@ -803,6 +1208,9 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             mTextScaleWithZoom.setOnCheckedChangeListener((buttonView, isChecked) ->
                     labelAttributes.setTextScaleWithZoom(isChecked));
         }
+        bindStringEditText(body.findViewById(R.id.text_zoom_scale_stops),
+                labelAttributes.getTextZoomScaleStops(),
+                labelAttributes::setTextZoomScaleStops);
 
         mTextAllowOverlap = body.findViewById(R.id.text_allow_overlap);
         if (mTextAllowOverlap != null) {
@@ -811,6 +1219,48 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             mTextAllowOverlap.setOnCheckedChangeListener((buttonView, isChecked) ->
                     labelAttributes.setTextAllowOverlap(isChecked));
         }
+        mTextOptional = body.findViewById(R.id.text_optional);
+        if (mTextOptional != null) {
+            mTextOptional.setChecked(labelAttributes.isTextOptional());
+            mTextOptional.setOnCheckedChangeListener((buttonView, isChecked) ->
+                    labelAttributes.setTextOptional(isChecked));
+        }
+        bindFloatEditText(body.findViewById(R.id.text_symbol_spacing),
+                labelAttributes.getSymbolSpacing(),
+                labelAttributes::setSymbolSpacing);
+        bindFloatEditText(body.findViewById(R.id.text_max_width),
+                labelAttributes.getTextMaxWidth(),
+                labelAttributes::setTextMaxWidth);
+        Spinner textFont = body.findViewById(R.id.text_font);
+        bindStringSpinner(textFont,
+                labelAttributes.getTextFont(),
+                getAvailableLabelFonts(textFont, labelAttributes.getTextFont()),
+                labelAttributes::setTextFont);
+        bindStringSpinner(body.findViewById(R.id.text_justify),
+                labelAttributes.getTextJustify(),
+                labelAttributes::setTextJustify);
+        bindStringSpinner(body.findViewById(R.id.text_transform),
+                labelAttributes.getTextTransform(),
+                labelAttributes::setTextTransform);
+        bindFloatEditText(body.findViewById(R.id.text_letter_spacing),
+                labelAttributes.getTextLetterSpacing(),
+                labelAttributes::setTextLetterSpacing);
+        bindFloatEditText(body.findViewById(R.id.text_line_height),
+                labelAttributes.getTextLineHeight(),
+                labelAttributes::setTextLineHeight);
+        bindFloatEditText(body.findViewById(R.id.text_padding),
+                labelAttributes.getTextPadding(),
+                labelAttributes::setTextPadding);
+        SwitchCompat textKeepUpright = body.findViewById(R.id.text_keep_upright);
+        if (textKeepUpright != null) {
+            Boolean keepUpright = labelAttributes.getTextKeepUpright();
+            textKeepUpright.setChecked(keepUpright == null || keepUpright);
+            textKeepUpright.setOnCheckedChangeListener((buttonView, isChecked) ->
+                    labelAttributes.setTextKeepUpright(isChecked));
+        }
+        bindFloatEditText(body.findViewById(R.id.text_max_angle),
+                labelAttributes.getTextMaxAngle(),
+                labelAttributes::setTextMaxAngle);
 
         mTextOpacityLabel = body.findViewById(R.id.text_opacity_label);
         mTextOpacitySeek = body.findViewById(R.id.text_opacity_seek);
@@ -873,14 +1323,13 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
                 }
                 return;
             }
-            try {
-                float zoom = Float.parseFloat(raw);
+            Float zoom = parseFloatInput(raw, null);
+            if (zoom != null) {
                 if (mMinZoom) {
                     mLabelAttributes.setLabelMinZoom(zoom);
                 } else {
                     mLabelAttributes.setLabelMaxZoom(zoom);
                 }
-            } catch (Exception ignored) {
             }
         }
     }

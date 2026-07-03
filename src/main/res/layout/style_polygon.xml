@@ -94,6 +94,8 @@
         android:layout_height="wrap_content"
         android:inputType="number"/>
 
+    <include layout="@layout/style_geometry_scale" />
+
     <CheckBox
         android:id="@+id/fill"
         android:layout_width="match_parent"
@@ -117,6 +119,51 @@
         android:layout_height="wrap_content"
         android:entries="@array/polygon_fill_patterns"
         android:padding="5dp"/>
+
+    <TextView
+        android:id="@+id/fill_pattern_image_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/polygon_fill_pattern_image"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <EditText
+        android:id="@+id/fill_pattern_image"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/marker_icon_image_hint"
+        android:inputType="text"/>
+
+    <TextView
+        android:id="@+id/fill_translate_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/polygon_fill_translate"
+        android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+    <LinearLayout
+        android:id="@+id/fill_translate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/fill_translate_x"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:inputType="numberDecimal|numberSigned"/>
+
+        <EditText
+            android:id="@+id/fill_translate_y"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:inputType="numberDecimal|numberSigned"/>
+    </LinearLayout>
 
     <include layout="@layout/style_opacity" />
 

@@ -52,6 +52,9 @@ public interface SettingsConstantsUI
     String KEY_PREF_LAYER_LABEL          = "layer_label";
     String KEY_PREF_SHOW_GEO_DIALOG      = "show_geo_dialog";
 
+    String KEY_PREF_PHOTO_OVERLAY_ENABLED   = "photo_overlay_enabled";
+    String KEY_PREF_PHOTO_OVERLAY_USE_OBJECT = "photo_overlay_use_object_coords";
+    String KEY_PREF_PHOTO_OVERLAY_SHOW_TIME  = "photo_overlay_show_time";
 
     String KEY_PREF_OFFLINE_SYNC_ON     = "offline_sync_on";
 

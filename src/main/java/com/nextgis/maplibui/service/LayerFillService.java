@@ -568,10 +568,19 @@ public class LayerFillService extends Service implements IProgressor {
         /* Next progress update must not be skipped (throttle carries mLastUpdate across tasks). */
         mLastUpdate = 0L;
         progressor.setValue(0);
+        HyperLog.d(Constants.TAG, "LayerFillService: start "
+                + task.getClass().getSimpleName() + " " + task.logContext());
         boolean result = task.execute(progressor);
         if (!result && !mIsCanceled) {
             HyperLog.w(Constants.TAG, "LayerFillService: fill task failed "
                     + task.getClass().getSimpleName() + " — " + mProgressMessage);
+        }
+
+        if (!result && !mIsCanceled) {
+            HyperLog.w(Constants.TAG, "LayerFillService: fill task context "
+                    + task.getClass().getSimpleName()
+                    + " " + task.logContext()
+                    + " message=" + ProdLogUtil.truncateForLog(mProgressMessage, 600));
         }
 
         if ((!(task instanceof UnzipForm)) || !task.subTaskWasRunned) {
@@ -1058,17 +1067,22 @@ public class LayerFillService extends Service implements IProgressor {
                 mLayerRestoreInsertIndex = bundle.getInt(KEY_LAYER_RESTORE_INSERT_INDEX, -1);
             }
 
-            Serializable serializable = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
-            if (serializable instanceof ArrayList<?>) {
-
-                ArrayList<Long> idsList = (ArrayList<Long>) serializable;
-
-                long[] idsArray = new long[idsList.size()];
-                for (int i = 0; i < idsList.size(); i++) {
-                    idsArray[i] = idsList.get(i);
-                }
-
+            long[] idsArray = bundle.getLongArray(KEY_DEFAULT_FORM_IDS);
+            if (idsArray != null) {
                 defaultFormIDArray = idsArray;
+            } else {
+                Serializable serializable = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
+                if (serializable instanceof long[]) {
+                    defaultFormIDArray = (long[]) serializable;
+                } else if (serializable instanceof ArrayList<?>) {
+                    ArrayList<?> idsList = (ArrayList<?>) serializable;
+                    long[] converted = new long[idsList.size()];
+                    for (int i = 0; i < idsList.size(); i++) {
+                        Object id = idsList.get(i);
+                        converted[i] = id instanceof Number ? ((Number) id).longValue() : 0L;
+                    }
+                    defaultFormIDArray = converted;
+                }
             }
 
             //defaultFormIDArray = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
@@ -1092,6 +1106,14 @@ public class LayerFillService extends Service implements IProgressor {
                 return getString(R.string.processing);
             }
             return getString(R.string.processing) + " " + name;
+        }
+
+        String logContext() {
+            return "layer=\"" + ProdLogUtil.truncateForLog(mLayerName, 100) + "\""
+                    + " path=" + (mLayerPath != null ? mLayerPath.getAbsolutePath() : "<null>")
+                    + " groupId=" + (mLayerGroup != null ? mLayerGroup.getId() : Constants.NOT_FOUND)
+                    + " collectorOrder=" + mCollectorOrderIndex
+                    + " restoreIndex=" + mLayerRestoreInsertIndex;
         }
 
         public ILayer getLayer() {
@@ -1228,6 +1250,7 @@ public class LayerFillService extends Service implements IProgressor {
                     JSONObject metaJson = new JSONObject(jsonText);
                     File dataFile = new File(mLayerPath, NGFP_FILE_DATA);
                     Bundle extra = new Bundle();
+                    extra.putInt(KEY_LAYER_GROUP_ID, mLayerGroup.getId());
                     extra.putSerializable(KEY_LAYER_PATH, mLayerPath);
                     extra.putString(KEY_NAME, mLayerName);
 
@@ -1300,6 +1323,7 @@ public class LayerFillService extends Service implements IProgressor {
                         File form = new File(mLayerPath, formPrefix + FILE_FORM);
                         ArrayList<String> lookupTableIds = LayerUtil.fillLookupTableIds(form);
 
+                        extra.putInt(KEY_INPUT_TYPE, NGW_LAYER);
                         extra.putStringArrayList(KEY_LOOKUP_ID, lookupTableIds);
                         extra.putLong(KEY_REMOTE_ID, resourceId);
                         extra.putLong(KEY_COLLECTOR_TRACKING_REMOTE_ID, mRemoteId);
@@ -1324,6 +1348,7 @@ public class LayerFillService extends Service implements IProgressor {
                             subTaskWasRunned = false;
                         }
                     } else {
+                        extra.putInt(KEY_INPUT_TYPE, VECTOR_LAYER);
                         extra.putSerializable(LayerFillService.KEY_PATH, dataFile);
                         extra.putBoolean(LayerFillService.KEY_DELETE_SRC_FILE, true);
                         extra.putLongArray(KEY_DEFAULT_FORM_IDS, defaultFormIDArray);
@@ -1505,8 +1530,29 @@ public class LayerFillService extends Service implements IProgressor {
             initLayer();
         }
 
-        private boolean handleNgwExecuteError(Exception e, IProgressor progressor) {
+        @Override
+        String logContext() {
+            return super.logContext()
+                    + " remoteId=" + mRemoteIdInit
+                    + " trackingRemoteId=" + mTrackingRemoteId
+                    + " account=\"" + ProdLogUtil.truncateForLog(mAccountNameInit, 100) + "\"";
+        }
+
+        private String failureContext(int attempt) {
+            return "NGW fill failed attempt=" + attempt + "/" + NGW_FILL_MAX_ATTEMPTS
+                    + " " + logContext();
+        }
+
+        private boolean handleNgwExecuteError(Exception e, IProgressor progressor, int attempt) {
+            String context = failureContext(attempt);
+            Log.w(Constants.TAG, context + ": " + e.getMessage(), e);
+            HyperLog.w(Constants.TAG, ProdLogUtil.withStack(context + ": "
+                    + ProdLogUtil.truncateForLog(e.getMessage(), 500), e));
+
             String error = e.getLocalizedMessage();
+            if (TextUtils.isEmpty(error)) {
+                error = e.getClass().getSimpleName();
+            }
             if (e instanceof JSONException && e.getMessage().equals("No value for fields")){
                 error = getResources().getString(com.nextgis.maplib.R.string.error_forbidden);
             }
@@ -1579,9 +1625,15 @@ public class LayerFillService extends Service implements IProgressor {
                     return true;
                 } catch (IOException e) {
                     if (!NetworkUtil.isTransientNetworkFailure(e) || attempt >= NGW_FILL_MAX_ATTEMPTS) {
-                        return handleNgwExecuteError(e, progressor);
+                        return handleNgwExecuteError(e, progressor, attempt);
                     }
-                    HyperLog.d(Constants.TAG, "NGW fill transient error, attempt " + attempt + "/" + NGW_FILL_MAX_ATTEMPTS + ": " + e.getMessage());
+                    String retryContext = "NGW fill transient retry attempt=" + attempt
+                            + "/" + NGW_FILL_MAX_ATTEMPTS
+                            + " next=" + (attempt + 1)
+                            + " " + logContext();
+                    Log.w(Constants.TAG, retryContext + ": " + e.getMessage(), e);
+                    HyperLog.w(Constants.TAG, ProdLogUtil.withStack(retryContext + ": "
+                            + ProdLogUtil.truncateForLog(e.getMessage(), 500), e));
                     if (progressor != null) {
                         progressor.setMessage(getString(R.string.layer_fill_network_retry, attempt + 1, NGW_FILL_MAX_ATTEMPTS));
                     }
@@ -1595,7 +1647,7 @@ public class LayerFillService extends Service implements IProgressor {
                     }
                     rebuildNgwLayerAfterTransientFailure();
                 } catch (JSONException | SQLiteException | NGException | ClassCastException e) {
-                    return handleNgwExecuteError(e, progressor);
+                    return handleNgwExecuteError(e, progressor, attempt);
                 }
             }
             return false;
