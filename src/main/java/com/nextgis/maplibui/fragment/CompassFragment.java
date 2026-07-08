@@ -135,7 +135,7 @@ public class CompassFragment extends Fragment implements View.OnTouchListener {
         mCompass.post(new Runnable() {
             @Override
             public void run() {
-                loadImage(mCompass, "compass_bezel.png");
+                loadImage(mCompass, "compass_bezel_n.png");
             }
         });
         mCompassNeedle.post(new Runnable() {

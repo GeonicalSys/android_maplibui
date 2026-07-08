@@ -23,6 +23,8 @@
 
 package com.nextgis.maplibui.control;
 
+import static com.nextgis.maplib.util.LayerUtil.getColumnIndexSafely;
+
 import android.content.Context;
 import android.database.Cursor;
 import android.os.Bundle;
@@ -67,7 +69,7 @@ public class TextEdit
         if (ControlHelper.hasKey(savedState, mFieldName))
             text = savedState.getString(ControlHelper.getSavedStateKey(mFieldName));
         else if (null != featureCursor) {
-            int column = featureCursor.getColumnIndex(mFieldName);
+            int column = getColumnIndexSafely(featureCursor, mFieldName); //featureCursor.getColumnIndex(mFieldName);
             if (column >= 0)
                 text = featureCursor.getString(column);
         }
@@ -81,17 +83,17 @@ public class TextEdit
 
             case GeoConstants.FTInteger:
                 setSingleLine(true);
-                setInputType(InputType.TYPE_CLASS_NUMBER);
+                setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED );
                 break;
 
             case GeoConstants.FTLong:
                 setSingleLine(true);
-                setInputType(InputType.TYPE_CLASS_NUMBER);
+                setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED );
                 break;
 
             case GeoConstants.FTReal:
                 setSingleLine(true);
-                setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED );
                 break;
         }
     }
