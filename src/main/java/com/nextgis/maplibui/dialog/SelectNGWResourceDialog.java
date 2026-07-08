@@ -67,6 +67,7 @@ import com.nextgis.maplibui.mapui.NGWRasterLayerUI;
 import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
+import com.nextgis.maplibui.util.CollectorProjectRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -290,6 +291,23 @@ public class SelectNGWResourceDialog
 
         List<CheckState> checkStates = mListAdapter.getCheckState();
         Connections connections = mListAdapter.getConnections();
+        int selectedCollectorCount = countSelectedCollectorResources(connections, checkStates);
+        if (selectedCollectorCount > 1) {
+            Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+            HyperLog.w(Constants.TAG, "Collector import (dialog): multiple collector projects selected in one batch");
+            setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+            setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+            return;
+        }
+        if (selectedCollectorCount == 1) {
+            CollectorResource selectedCollector = findSelectedCollectorResource(connections, checkStates);
+            if (selectedCollector == null || !prepareCollectorWorkspaceForImport(context, selectedCollector)) {
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                return;
+            }
+        }
+
         final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
             if (checkState.isCheckState1()) { //create raster
@@ -443,6 +461,8 @@ public class SelectNGWResourceDialog
                             if (layer.getFormCount() > 0 && layer.getFormId(0) != null) {
                                 formId = layer.getFormId(0);
                                 intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
+                                intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS,
+                                        new long[]{formId});
                                 String path = NGWUtil.getFormUrl(connection.getURL(), formId);
                                 intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
                                 intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
@@ -476,6 +496,8 @@ public class SelectNGWResourceDialog
                         Long formId = layer.getFormId(0);
                         if (formId != null && formId > 0L) {
                             intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
+                            intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS,
+                                    new long[]{formId});
                             String path = NGWUtil.getFormUrl(connection.getURL(), formId);
                             intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
                             intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
@@ -503,6 +525,64 @@ public class SelectNGWResourceDialog
             LayerFillProgressDialogFragment.startBatchFillProgress(hostActivity);
         }
         mGroupLayer.save();
+    }
+
+    private int countSelectedCollectorResources(Connections connections, List<CheckState> checkStates) {
+        int count = 0;
+        if (connections == null || checkStates == null) {
+            return count;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private CollectorResource findSelectedCollectorResource(
+            Connections connections,
+            List<CheckState> checkStates) {
+        if (connections == null || checkStates == null) {
+            return null;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                return (CollectorResource) resource;
+            }
+        }
+        return null;
+    }
+
+    private boolean prepareCollectorWorkspaceForImport(Context context, CollectorResource collector) {
+        if (context == null || collector == null || collector.getConnection() == null) {
+            return false;
+        }
+        Connection connection = collector.getConnection();
+        CollectorProjectMetadata metadata = CollectorProjectMetadata.create(
+                connection.getName(),
+                collector.getRemoteId(),
+                collector.getName(),
+                collector.getProjectDistrict());
+        LayerGroup projectWorkspace = CollectorProjectRegistry.prepareCollectorProjectWorkspace(
+                context,
+                metadata);
+        if (projectWorkspace == null) {
+            HyperLog.e(Constants.TAG, "Collector import (dialog): failed to prepare isolated workspace remoteId="
+                    + collector.getRemoteId() + " account=" + connection.getName());
+            Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        mGroupLayer = projectWorkspace;
+        return true;
     }
 
 }

@@ -26,6 +26,11 @@
       xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/menu_edit_attributes"
+        android:icon="@drawable/ic_action_attributes"
+        android:title="@string/edit_attributes"
+        app:showAsAction="always"/>
+    <item
         android:id="@+id/menu_edit_move_point_to_center"
         android:icon="@drawable/ic_action_move_point_to_center"
         android:title="@string/move_point_to_center"

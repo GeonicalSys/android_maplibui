@@ -61,12 +61,16 @@ import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.map.MaplibreMapInteraction;
+import com.nextgis.maplib.map.NGWLookupTable;
 import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.FileUtil;
+import com.nextgis.maplib.util.LayerFormHashUtil;
 import com.nextgis.maplib.util.NGWUtil;
 import com.nextgis.maplib.util.FeatureChanges;
+import com.nextgis.maplib.util.NetworkUtil;
 import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
@@ -75,10 +79,15 @@ import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
+import com.nextgis.maplibui.util.LayerBackupManager;
 import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.SettingsConstantsUI;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -87,6 +96,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static com.nextgis.maplib.util.Constants.MAP_EXT;
 import static com.nextgis.maplib.util.Constants.MESSAGE_ALERT_INTENT;
@@ -105,6 +116,7 @@ import androidx.core.content.ContextCompat;
 import org.maplibre.android.MapLibre;
 import org.maplibre.android.MapStrictMode;
 import org.maplibre.android.WellKnownTileServer;
+import org.json.JSONObject;
 
 //import leakcanary.LeakCanary;
 //import shark.AndroidReferenceMatchers;
@@ -165,6 +177,8 @@ public abstract class GISApplication extends Application
     private int mCollectorRepairPassesRemaining;
 
     private static final int COLLECTOR_MAX_REPAIR_PASSES = 3;
+    /** Collector foundation: NGFP zip entry name used by form-only sync outside LayerFillService. */
+    private static final String COLLECTOR_NGFP_ZIP_META = "meta.json";
 
     private final Object mStandaloneVerifyLock = new Object();
     private final ArrayList<Bundle> mStandaloneFillVerifyQueue = new ArrayList<>();
@@ -663,6 +677,683 @@ public abstract class GISApplication extends Application
         return LayerFillService.tryEnqueueRepairBatchOnActiveInstance(this, repairBundles, deferMapReload);
     }
 
+    private Intent buildCollectorProjectLayerFillIntent(
+            int groupId,
+            String accountName,
+            String collectorProjectUid,
+            long remoteId,
+            String layerName,
+            String layerConfigJson,
+            long formId,
+            boolean collectorEditable,
+            int collectorOrder,
+            long[] fullCollectorProjectRemoteIds,
+            Float minZoom,
+            Float maxZoom,
+            Boolean visible,
+            int restoreIndex) {
+        Intent intent = new Intent(this, LayerFillService.class);
+        intent.setAction(LayerFillService.ACTION_ADD_TASK);
+        intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+        intent.putExtra(LayerFillService.KEY_NAME, layerName);
+        intent.putExtra(LayerFillService.KEY_ACCOUNT, accountName);
+        intent.putExtra(LayerFillService.KEY_REMOTE_ID, remoteId);
+        intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
+        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+        intent.putExtra(LayerFillService.KEY_COLLECTOR_TRACKING_REMOTE_ID, remoteId);
+        intent.putExtra(LayerFillService.KEY_COLLECTOR_LAYER_EDITABLE, collectorEditable);
+        if (!TextUtils.isEmpty(collectorProjectUid)) {
+            intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_UID, collectorProjectUid);
+        }
+        if (!TextUtils.isEmpty(layerConfigJson)) {
+            intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, layerConfigJson);
+        }
+        if (collectorOrder >= 0 && fullCollectorProjectRemoteIds != null) {
+            intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, collectorOrder);
+            intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS,
+                    fullCollectorProjectRemoteIds);
+        }
+        if (minZoom != null) {
+            intent.putExtra(LayerFillService.KEY_MIN_ZOOM, minZoom);
+        }
+        if (maxZoom != null) {
+            intent.putExtra(LayerFillService.KEY_MAX_ZOOM, maxZoom);
+        }
+        if (visible != null) {
+            intent.putExtra(LayerFillService.KEY_VISIBLE, visible);
+        }
+        if (restoreIndex >= 0) {
+            intent.putExtra(LayerFillService.KEY_LAYER_RESTORE_INSERT_INDEX, restoreIndex);
+        }
+        if (formId > 0L) {
+            intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
+            intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS, new long[]{formId});
+            Account acc = getAccount(accountName);
+            if (acc != null) {
+                intent.putExtra(LayerFillService.KEY_INPUT_TYPE,
+                        LayerFillService.VECTOR_LAYER_WITH_FORM);
+                intent.putExtra(LayerFillService.KEY_URI,
+                        Uri.parse(NGWUtil.getFormUrl(getAccountUrl(acc), formId)));
+            } else {
+                HyperLog.w(Constants.TAG, "Collector composition sync: account missing for form"
+                        + " layer=\"" + layerName + "\" account=" + accountName
+                        + " formId=" + formId);
+            }
+        }
+        return intent;
+    }
+
+    @Override
+    public void scheduleCollectorProjectLayerFills(
+            int groupId,
+            String accountName,
+            String collectorProjectUid,
+            long[] remoteIds,
+            String[] names,
+            String[] configJsons,
+            long[] formIds,
+            boolean[] collectorEditables,
+            long[] fullCollectorProjectRemoteIds) {
+        if (groupId == Constants.NOT_FOUND || TextUtils.isEmpty(accountName)
+                || remoteIds == null || names == null || configJsons == null || formIds == null
+                || collectorEditables == null || remoteIds.length == 0
+                || remoteIds.length != names.length
+                || remoteIds.length != configJsons.length
+                || remoteIds.length != formIds.length
+                || remoteIds.length != collectorEditables.length) {
+            HyperLog.w(Constants.TAG, "Collector composition sync: invalid fill batch");
+            return;
+        }
+
+        final long[] ids = Arrays.copyOf(remoteIds, remoteIds.length);
+        final String[] layerNames = Arrays.copyOf(names, names.length);
+        final String[] configs = Arrays.copyOf(configJsons, configJsons.length);
+        final long[] forms = Arrays.copyOf(formIds, formIds.length);
+        final boolean[] editables = Arrays.copyOf(collectorEditables, collectorEditables.length);
+        final long[] fullOrder = fullCollectorProjectRemoteIds != null
+                ? Arrays.copyOf(fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length)
+                : null;
+
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (mMap == null) {
+                return;
+            }
+            ILayer groupLayer = mMap.getLayerById(groupId);
+            if (!(groupLayer instanceof LayerGroup)) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: fill group missing id="
+                        + groupId);
+                return;
+            }
+            boolean registered = registerCollectorImportBatch(
+                    groupId,
+                    accountName,
+                    collectorProjectUid,
+                    ids,
+                    layerNames,
+                    configs,
+                    forms,
+                    editables,
+                    fullOrder);
+            if (!registered) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: add batch without verify"
+                        + " group=" + groupId + " count=" + ids.length);
+            }
+
+            ArrayList<Intent> intents = new ArrayList<>();
+            for (int i = 0; i < ids.length; i++) {
+                int order = collectorProjectIndexOf(ids[i], fullOrder);
+                if (order < 0) {
+                    order = i;
+                }
+                intents.add(buildCollectorProjectLayerFillIntent(
+                        groupId,
+                        accountName,
+                        collectorProjectUid,
+                        ids[i],
+                        layerNames[i],
+                        configs[i],
+                        forms[i],
+                        editables[i],
+                        order,
+                        fullOrder,
+                        null,
+                        null,
+                        null,
+                        -1));
+            }
+            if (intents.isEmpty()) {
+                return;
+            }
+            setLayerFillBatchDeferringHeavyMapReload(true);
+            LayerFillService.startFillBatch(this, intents);
+            Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
+            LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
+            HyperLog.v(Constants.TAG, "Collector composition sync: scheduled add fill batch count="
+                    + intents.size() + " group=" + groupId);
+        });
+    }
+
+    @Override
+    public void applyCollectorLayerForm(
+            final NGWVectorLayer layer,
+            final long formId,
+            final String formHash) {
+        if (layer == null || layer.getPath() == null) {
+            return;
+        }
+        final String accountName = layer.getAccountName();
+        final File layerPath = layer.getPath();
+        final LayerOriginMetadata originSnapshot = layer.getLayerOriginMetadata();
+        final long oldFormId = originSnapshot != null ? originSnapshot.getFormId() : 0L;
+
+        Thread worker = new Thread(() -> {
+            String appliedHash = formHash;
+            File tempDir = null;
+            try {
+                if (formId > 0L) {
+                    Account acc = getAccount(accountName);
+                    if (acc == null) {
+                        HyperLog.w(Constants.TAG, "Collector form sync: account missing layer=\""
+                                + layer.getName() + "\" account=" + accountName);
+                        return;
+                    }
+                    tempDir = new File(layerPath, ".collector_form_sync_"
+                            + formId + "_" + System.currentTimeMillis());
+                    if (!tempDir.mkdirs() && !tempDir.exists()) {
+                        HyperLog.w(Constants.TAG, "Collector form sync: cannot create temp dir "
+                                + tempDir);
+                        return;
+                    }
+                    byte[] payload = downloadCollectorFormPayload(acc, formId);
+                    if (payload == null || payload.length == 0) {
+                        HyperLog.w(Constants.TAG, "Collector form sync: empty NGFP payload layer=\""
+                                + layer.getName() + "\" formId=" + formId);
+                        return;
+                    }
+                    String downloadedHash = LayerFormHashUtil.md5NgfpZip(
+                            new ByteArrayInputStream(payload));
+                    if (!TextUtils.isEmpty(formHash)
+                            && !TextUtils.isEmpty(downloadedHash)
+                            && !formHash.equals(downloadedHash)) {
+                        HyperLog.w(Constants.TAG, "Collector form sync: snapshot/download hash mismatch"
+                                + " layer=\"" + layer.getName() + "\" formId=" + formId
+                                + " snapshot=" + formHash + " downloaded=" + downloadedHash);
+                    }
+                    if (TextUtils.isEmpty(appliedHash)) {
+                        appliedHash = downloadedHash;
+                    }
+                    unzipCollectorFormPayload(payload, tempDir);
+                    normalizeNgfpMeta(new File(tempDir, COLLECTOR_NGFP_ZIP_META));
+                    installCollectorFormFiles(layerPath, oldFormId, formId, tempDir);
+                    if (TextUtils.isEmpty(appliedHash)) {
+                        appliedHash = LayerFormHashUtil.md5LocalNgfpFiles(layerPath, formId);
+                    }
+                    fillMissingLookupTablesForCollectorForm(layer, formId);
+                } else {
+                    deleteAllFormSidecars(layerPath);
+                    appliedHash = "";
+                }
+            } catch (Exception e) {
+                HyperLog.w(Constants.TAG, "Collector form sync failed layer=\""
+                        + layer.getName() + "\" formId=" + formId + ": " + e.getMessage(), e);
+                return;
+            } finally {
+                if (tempDir != null) {
+                    FileUtil.deleteRecursive(tempDir);
+                }
+            }
+
+            final String finalAppliedHash = appliedHash;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                LayerOriginMetadata current = layer.getLayerOriginMetadata();
+                if (current != null && current.isManagedByProject()
+                        && !TextUtils.isEmpty(current.getProjectUid())) {
+                    LayerOriginMetadata updated = LayerOriginMetadata.collectorLayer(
+                            current.getProjectUid(),
+                            current.getCollectorOrder(),
+                            formId);
+                    updated.setRenderMode(current.getRenderMode());
+                    layer.setLayerOriginMetadata(updated);
+                }
+                SharedPreferences.Editor editor = layer.getPreferences().edit();
+                if (formId > 0L && !TextUtils.isEmpty(finalAppliedHash)) {
+                    editor.putString(SettingsConstants.KEY_PREF_LAST_FORM_HASH, finalAppliedHash);
+                } else {
+                    editor.remove(SettingsConstants.KEY_PREF_LAST_FORM_HASH);
+                }
+                editor.apply();
+                try {
+                    layer.save();
+                    if (mMap != null) {
+                        mMap.save();
+                    }
+                } catch (Exception e) {
+                    HyperLog.w(Constants.TAG, "Collector form sync: save failed layer=\""
+                            + layer.getName() + "\": " + e.getMessage(), e);
+                }
+                HyperLog.v(Constants.TAG, "Collector form sync: applied layer=\""
+                        + layer.getName() + "\" formId=" + formId
+                        + " hash=" + (TextUtils.isEmpty(finalAppliedHash)
+                        ? "<empty>" : finalAppliedHash));
+            });
+        }, "CollectorFormSync");
+        worker.start();
+    }
+
+    private byte[] downloadCollectorFormPayload(Account account, long formId) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            NetworkUtil.getStream(
+                    NGWUtil.getFormUrl(getAccountUrl(account), formId),
+                    getAccountLogin(account),
+                    getAccountPassword(account),
+                    out);
+            return out.toByteArray();
+        } finally {
+            out.close();
+        }
+    }
+
+    private void unzipCollectorFormPayload(byte[] payload, File outputDir) throws IOException {
+        ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(payload));
+        byte[] buffer = new byte[Constants.IO_BUFFER_SIZE];
+        try {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (!entry.isDirectory()) {
+                    String entryName = normalizeNgfpEntryName(entry.getName());
+                    if (COLLECTOR_NGFP_ZIP_META.equals(entryName)
+                            || ConstantsUI.FILE_FORM.equals(entryName)) {
+                        File outFile = new File(outputDir, entryName);
+                        FileOutputStream out = new FileOutputStream(outFile);
+                        try {
+                            FileUtil.copyStream(zis, out, buffer, Constants.IO_BUFFER_SIZE);
+                        } finally {
+                            out.close();
+                        }
+                    }
+                }
+                zis.closeEntry();
+            }
+        } finally {
+            zis.close();
+        }
+        if (!new File(outputDir, ConstantsUI.FILE_FORM).exists()
+                || !new File(outputDir, COLLECTOR_NGFP_ZIP_META).exists()) {
+            throw new IOException("NGFP archive missing form.json or meta.json");
+        }
+    }
+
+    private String normalizeNgfpEntryName(String raw) {
+        if (TextUtils.isEmpty(raw)) {
+            return "";
+        }
+        String name = raw.replace('\\', '/');
+        while (name.startsWith("/")) {
+            name = name.substring(1);
+        }
+        int pos = name.lastIndexOf('/');
+        if (pos >= 0) {
+            name = name.substring(pos + 1);
+        }
+        return name;
+    }
+
+    private void normalizeNgfpMeta(File meta) {
+        if (meta == null || !meta.exists()) {
+            return;
+        }
+        try {
+            JSONObject metaJson = new JSONObject(FileUtil.readFromFile(meta));
+            if (!metaJson.isNull(ConstantsUI.JSON_NGW_CONNECTION_KEY)) {
+                metaJson.remove(ConstantsUI.JSON_NGW_CONNECTION_KEY);
+                FileUtil.writeToFile(meta, metaJson.toString());
+            }
+        } catch (Exception e) {
+            HyperLog.w(Constants.TAG, "Collector form sync: meta normalize failed "
+                    + meta + ": " + e.getMessage());
+        }
+    }
+
+    private void installCollectorFormFiles(
+            File layerPath,
+            long oldFormId,
+            long formId,
+            File tempDir) throws IOException {
+        if (oldFormId > 0L && oldFormId != formId) {
+            deleteFormSidecars(layerPath, oldFormId);
+        }
+        replaceFile(
+                new File(tempDir, ConstantsUI.FILE_FORM),
+                new File(layerPath, formId + "_" + ConstantsUI.FILE_FORM));
+        replaceFile(
+                new File(tempDir, COLLECTOR_NGFP_ZIP_META),
+                new File(layerPath, formId + "_" + LayerFillService.NGFP_META));
+    }
+
+    private void replaceFile(File source, File target) throws IOException {
+        if (source == null || !source.exists()) {
+            throw new IOException("Missing source " + source);
+        }
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new IOException("Cannot create " + parent);
+        }
+        if (target.exists() && !target.delete()) {
+            throw new IOException("Cannot replace " + target);
+        }
+        if (source.renameTo(target)) {
+            return;
+        }
+        FileInputStream in = new FileInputStream(source);
+        FileOutputStream out = new FileOutputStream(target);
+        try {
+            byte[] buffer = new byte[Constants.IO_BUFFER_SIZE];
+            FileUtil.copyStream(in, out, buffer, Constants.IO_BUFFER_SIZE);
+        } finally {
+            in.close();
+            out.close();
+        }
+        //noinspection ResultOfMethodCallIgnored
+        source.delete();
+    }
+
+    private void deleteFormSidecars(File layerPath, long formId) {
+        if (layerPath == null || formId <= 0L) {
+            return;
+        }
+        //noinspection ResultOfMethodCallIgnored
+        new File(layerPath, formId + "_" + ConstantsUI.FILE_FORM).delete();
+        //noinspection ResultOfMethodCallIgnored
+        new File(layerPath, formId + "_" + LayerFillService.NGFP_META).delete();
+    }
+
+    private void deleteAllFormSidecars(File layerPath) {
+        if (layerPath == null || !layerPath.exists()) {
+            return;
+        }
+        File[] files = layerPath.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            String name = file.getName();
+            if (file.isFile()
+                    && (ConstantsUI.FILE_FORM.equals(name)
+                    || LayerFillService.NGFP_META.equals(name)
+                    || name.endsWith("_" + ConstantsUI.FILE_FORM)
+                    || name.endsWith("_" + LayerFillService.NGFP_META))) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+        }
+    }
+
+    private void fillMissingLookupTablesForCollectorForm(NGWVectorLayer layer, long formId) {
+        if (layer == null || formId <= 0L) {
+            return;
+        }
+        LayerGroup parentGroup = resolveLayerParentGroup(layer);
+        if (parentGroup == null) {
+            return;
+        }
+        File form = new File(layer.getPath(), formId + "_" + ConstantsUI.FILE_FORM);
+        try {
+            ArrayList<String> lookupIds = LayerUtil.fillLookupTableIds(form);
+            boolean added = false;
+            for (String id : lookupIds) {
+                if (TextUtils.isEmpty(id) || hasLookupTable(parentGroup, layer.getAccountName(), id)) {
+                    continue;
+                }
+                NGWLookupTable table = new NGWLookupTable(
+                        layer.getContext(), parentGroup.createLayerStorage());
+                table.setAccountName(layer.getAccountName());
+                table.setRemoteId(Long.parseLong(id));
+                table.setSyncType(Constants.SYNC_ALL);
+                table.setName(getText(com.nextgis.maplibui.R.string.layer_lookuptable) + " #" + id);
+                table.fillFromNGW(null);
+                parentGroup.addLayer(table);
+                added = true;
+            }
+            if (added) {
+                parentGroup.save();
+                if (mMap != null) {
+                    mMap.save();
+                }
+            }
+        } catch (Exception e) {
+            HyperLog.w(Constants.TAG, "Collector form sync: lookup fill failed layer=\""
+                    + layer.getName() + "\": " + e.getMessage(), e);
+        }
+    }
+
+    private boolean hasLookupTable(LayerGroup parentGroup, String accountName, String lookupId) {
+        for (int i = 0; i < parentGroup.getLayerCount(); i++) {
+            ILayer layer = parentGroup.getLayer(i);
+            if (layer instanceof NGWLookupTable) {
+                NGWLookupTable table = (NGWLookupTable) layer;
+                if (accountName.equals(table.getAccountName())
+                        && lookupId.equals(String.valueOf(table.getRemoteId()))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public void scheduleCollectorLayerRebuildFromProject(
+            final NGWVectorLayer layer,
+            final long formId,
+            final int collectorOrder,
+            final long[] fullCollectorProjectRemoteIds,
+            final boolean collectorEditable,
+            final String layerConfigJson) {
+        if (layer == null || mMap == null) {
+            return;
+        }
+
+        final String changeTable = layer.getChangeTableName();
+        if (FeatureChanges.isChanges(changeTable)) {
+            SyncResult flushSr = new SyncResult();
+            boolean flushOk = false;
+            try {
+                flushOk = layer.sendLocalChanges(flushSr);
+            } catch (RuntimeException e) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: sendLocalChanges crashed for \""
+                        + layer.getName() + "\": " + e.getMessage(), e);
+            }
+            if (!flushOk) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: sendLocalChanges reported failure for \""
+                        + layer.getName() + "\"");
+            }
+        }
+        if (FeatureChanges.isChanges(changeTable)) {
+            LayerBackupManager.BackupResult backupResult =
+                    LayerBackupManager.backupLayerData(
+                            this,
+                            layer,
+                            LayerBackupManager.REASON_SCHEMA_REBUILD);
+            if (!backupResult.isSuccess()) {
+                postLayerBackupAlert(getString(
+                        com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_failed,
+                        layer.getName()));
+                HyperLog.w(Constants.TAG, "Collector composition sync: skipped refill for \""
+                        + layer.getName() + "\" because backup failed: "
+                        + backupResult.getError());
+                return;
+            }
+            postLayerBackupAlert(getString(
+                    com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
+                    layer.getName()));
+            HyperLog.v(Constants.TAG, "Collector composition sync: backup created before refill for \""
+                    + layer.getName() + "\": " + backupResult.getFile());
+        }
+
+        final String layerName = layer.getName();
+        final String accountName = layer.getAccountName();
+        final long remoteId = layer.getRemoteId();
+        final float minZ = layer.getMinZoom();
+        final float maxZ = layer.getMaxZoom();
+        final boolean visible = layer.isVisible();
+        final LayerOriginMetadata origin = layer.getLayerOriginMetadata();
+        final String projectUid = origin != null ? origin.getProjectUid() : null;
+        final long[] fullOrder = fullCollectorProjectRemoteIds != null
+                ? Arrays.copyOf(fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length)
+                : null;
+
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (layer == null || mMap == null) {
+                return;
+            }
+            LayerGroup parentGroup = resolveLayerParentGroup(layer);
+            if (parentGroup == null) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: no parent LayerGroup for refill "
+                        + layerName);
+                return;
+            }
+            final int groupId = parentGroup.getId();
+            int restoreIndex = parentGroup.getChildLayerIndex(layer);
+            if (restoreIndex < 0) {
+                restoreIndex = parentGroup.getLayerCount();
+            }
+
+            parentGroup.removeLayer(layer);
+            layer.delete(true);
+            mMap.save();
+
+            boolean registered = registerCollectorImportBatch(
+                    groupId,
+                    accountName,
+                    projectUid,
+                    new long[]{remoteId},
+                    new String[]{layerName},
+                    new String[]{layerConfigJson},
+                    new long[]{formId},
+                    new boolean[]{collectorEditable},
+                    fullOrder);
+            if (!registered) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: refill without verify layer=\""
+                        + layerName + "\" remoteId=" + remoteId);
+            }
+
+            Intent intent = buildCollectorProjectLayerFillIntent(
+                    groupId,
+                    accountName,
+                    projectUid,
+                    remoteId,
+                    layerName,
+                    layerConfigJson,
+                    formId,
+                    collectorEditable,
+                    collectorOrder,
+                    fullOrder,
+                    minZ,
+                    maxZ,
+                    visible,
+                    restoreIndex);
+            setLayerFillBatchDeferringHeavyMapReload(true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(this, intent);
+            } else {
+                startService(intent);
+            }
+            Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
+            LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
+            HyperLog.v(Constants.TAG, "Collector composition sync: scheduled refill layer=\""
+                    + layerName + "\" remoteId=" + remoteId + " formId=" + formId);
+        });
+    }
+
+    @Override
+    public void applyCollectorLayerProjectState(
+            final NGWVectorLayer layer,
+            final int collectorOrder,
+            final long[] fullCollectorProjectRemoteIds,
+            final boolean collectorEditable) {
+        if (layer == null) {
+            return;
+        }
+        final long[] fullOrder = fullCollectorProjectRemoteIds != null
+                ? Arrays.copyOf(fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length)
+                : null;
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (layer == null || mMap == null) {
+                return;
+            }
+            LayerOriginMetadata origin = layer.getLayerOriginMetadata();
+            if (origin == null || TextUtils.isEmpty(origin.getProjectUid())) {
+                return;
+            }
+            LayerGroup parentGroup = resolveLayerParentGroup(layer);
+            if (parentGroup == null) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: no parent LayerGroup for state update "
+                        + layer.getName());
+                return;
+            }
+
+            boolean changed = false;
+            boolean moved = false;
+            if (layer.isCollectorEditable() != collectorEditable) {
+                layer.setCollectorEditable(collectorEditable);
+                changed = true;
+            }
+
+            int newOrder = collectorOrder >= 0 ? collectorOrder : origin.getCollectorOrder();
+            boolean orderChanged = newOrder >= 0 && origin.getCollectorOrder() != newOrder;
+            if (orderChanged) {
+                LayerOriginMetadata updated = LayerOriginMetadata.collectorLayer(
+                        origin.getProjectUid(),
+                        newOrder,
+                        origin.getFormId());
+                updated.setRenderMode(origin.getRenderMode());
+                layer.setLayerOriginMetadata(updated);
+                changed = true;
+            }
+
+            if (orderChanged && collectorOrder >= 0 && fullOrder != null) {
+                int oldIndex = parentGroup.getChildLayerIndex(layer);
+                parentGroup.removeLayer(layer);
+                int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
+                        parentGroup,
+                        layer.getAccountName(),
+                        fullOrder,
+                        collectorOrder);
+                parentGroup.insertLayer(insertAt, layer);
+                moved = oldIndex != insertAt;
+                changed = true;
+            }
+
+            if (changed) {
+                try {
+                    layer.save();
+                    parentGroup.save();
+                    mMap.save();
+                } catch (Exception e) {
+                    HyperLog.w(Constants.TAG, "Collector composition sync: state save failed for \""
+                            + layer.getName() + "\": " + e.getMessage(), e);
+                }
+            }
+            if (moved) {
+                requestMapReloadAfterLayerFillBatch();
+            }
+            HyperLog.v(Constants.TAG, "Collector composition sync: applied state layer=\""
+                    + layer.getName() + "\" order=" + collectorOrder
+                    + " editable=" + collectorEditable + " moved=" + moved);
+        });
+    }
+
+    private LayerGroup resolveLayerParentGroup(ILayer layer) {
+        ILayer p = layer != null ? layer.getParent() : null;
+        while (p != null) {
+            if (p instanceof LayerGroup) {
+                return (LayerGroup) p;
+            }
+            p = p.getParent();
+        }
+        return mMap instanceof LayerGroup ? (LayerGroup) mMap : null;
+    }
+
     private void clearCollectorImportFieldsLocked() {
         mCollectorRemoteIds = null;
         mCollectorNames = null;
@@ -1101,6 +1792,7 @@ public abstract class GISApplication extends Application
             long fid = formIds[i];
             if (fid != 0L) {
                 taskExtras.putLong(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, fid);
+                taskExtras.putLongArray(LayerFillService.KEY_DEFAULT_FORM_IDS, new long[]{fid});
                 Account acc = getAccount(account);
                 if (acc != null) {
                     taskExtras.putInt(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
@@ -1155,25 +1847,39 @@ public abstract class GISApplication extends Application
         final String changeTable = layer.getChangeTableName();
         if (FeatureChanges.isChanges(changeTable)) {
             SyncResult flushSr = new SyncResult();
-            boolean flushOk = layer.sendLocalChanges(flushSr);
+            boolean flushOk = false;
+            try {
+                flushOk = layer.sendLocalChanges(flushSr);
+            } catch (RuntimeException e) {
+                HyperLog.w(Constants.TAG, "NGW schema rebuild: sendLocalChanges crashed for \""
+                        + layer.getName() + "\": " + e.getMessage(), e);
+            }
             if (!flushOk) {
                 HyperLog.w(Constants.TAG, "NGW schema rebuild: sendLocalChanges reported failure for \""
                         + layer.getName() + "\"");
             }
         }
         if (FeatureChanges.isChanges(changeTable)) {
-            new Handler(Looper.getMainLooper()).post(() -> {
-                Intent alert = new Intent(MESSAGE_ALERT_INTENT);
-                alert.putExtra(MESSAGE_EXTRA,
-                        getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_has_local_changes));
-                alert.putExtra(MESSAGE_TITLE_EXTRA,
-                        getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_title));
-                alert.setPackage(getPackageName());
-                sendBroadcast(alert);
-                HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                        + "\" — skipped rebuild (pending local changes after send attempt)");
-            });
-            return;
+            LayerBackupManager.BackupResult backupResult =
+                    LayerBackupManager.backupLayerData(
+                            this,
+                            layer,
+                            LayerBackupManager.REASON_SCHEMA_REBUILD);
+            if (!backupResult.isSuccess()) {
+                postLayerBackupAlert(getString(
+                        com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_failed,
+                        layer.getName()));
+                HyperLog.w(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
+                        + "\" - skipped rebuild because backup failed: "
+                        + backupResult.getError());
+                return;
+            }
+            postLayerBackupAlert(getString(
+                    com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
+                    layer.getName()));
+            HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
+                    + "\" - backup created before forced rebuild: "
+                    + backupResult.getFile());
         }
 
         final String rebuildAccountName = layer.getAccountName();
@@ -1283,6 +1989,87 @@ public abstract class GISApplication extends Application
             LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
             HyperLog.v(Constants.TAG, "NGW schema mismatch: scheduled LayerFillService rebuild for \""
                     + layerName + "\" formId=" + rebuildFormId);
+        });
+    }
+
+    /**
+     * Collector composition sync foundation.
+     *
+     * Future project-composition synchronization should call this when a layer still exists locally
+     * but has been removed from the Collector project in Web GIS. Keep this explicit hook so that
+     * mandatory data backup stays tied to the destructive removal path.
+     */
+    @Override
+    public void scheduleCollectorLayerRemovalWithBackup(final NGWVectorLayer layer) {
+        if (layer == null || mMap == null) {
+            return;
+        }
+
+        LayerBackupManager.BackupResult backupResult =
+                LayerBackupManager.backupLayerData(
+                        this,
+                        layer,
+                        LayerBackupManager.REASON_COLLECTOR_LAYER_REMOVED);
+        if (!backupResult.isSuccess()) {
+            postLayerBackupAlert(
+                    getString(com.nextgis.maplib.R.string.collector_layer_removed_title),
+                    getString(com.nextgis.maplib.R.string.collector_layer_backup_failed,
+                            layer.getName()));
+            HyperLog.w(Constants.TAG, "Collector layer removal: backup failed for \""
+                    + layer.getName() + "\": " + backupResult.getError());
+            return;
+        }
+
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (layer == null || mMap == null) {
+                return;
+            }
+            final String layerName = layer.getName();
+            postLayerBackupAlert(
+                    getString(com.nextgis.maplib.R.string.collector_layer_removed_title),
+                    getString(com.nextgis.maplib.R.string.collector_layer_removed_from_project,
+                            layerName));
+
+            ILayer p = layer.getParent();
+            LayerGroup parentGroup = null;
+            while (p != null) {
+                if (p instanceof LayerGroup) {
+                    parentGroup = (LayerGroup) p;
+                    break;
+                }
+                p = p.getParent();
+            }
+            if (parentGroup == null && mMap instanceof LayerGroup) {
+                parentGroup = (LayerGroup) mMap;
+            }
+            if (parentGroup == null) {
+                HyperLog.w(Constants.TAG, "Collector layer removal: no parent LayerGroup for "
+                        + layerName);
+                return;
+            }
+
+            parentGroup.removeLayer(layer);
+            layer.delete(true);
+            mMap.save();
+            requestMapReloadAfterLayerFillBatch();
+            HyperLog.v(Constants.TAG, "Collector layer removal: \"" + layerName
+                    + "\" removed after backup: " + backupResult.getFile());
+        });
+    }
+
+    private void postLayerBackupAlert(String message) {
+        postLayerBackupAlert(
+                getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_title),
+                message);
+    }
+
+    private void postLayerBackupAlert(String title, String message) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            Intent alert = new Intent(MESSAGE_ALERT_INTENT);
+            alert.putExtra(MESSAGE_EXTRA, message);
+            alert.putExtra(MESSAGE_TITLE_EXTRA, title);
+            alert.setPackage(getPackageName());
+            sendBroadcast(alert);
         });
     }
 

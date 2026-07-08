@@ -65,6 +65,7 @@ import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.LayerConfigUtil;
+import com.nextgis.maplib.util.LayerFormHashUtil;
 import com.nextgis.maplib.util.ProdLogUtil;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplib.util.HttpResponse;
@@ -84,6 +85,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
@@ -93,8 +97,10 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -216,6 +222,8 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_COLLECTOR_PROJECT_UID = "collector_project_uid";
     public static final String KEY_MARK_MANUAL_NGW_ORIGIN = "mark_manual_ngw_origin";
     public static final String KEY_LAYER_ORIGIN_FORM_ID = "layer_origin_form_id";
+    /** Hash of the unpacked NGFP form payload stored after fill for future Collector form sync. */
+    public static final String KEY_LAYER_FORM_HASH = "layer_form_hash";
     /** Index in full collector project vector list (all layers, not only this download batch). */
     public static final String KEY_COLLECTOR_ORDER_INDEX = "collector_order_index";
     /** All collector vector remote ids in project order (same on each task). */
@@ -450,6 +458,9 @@ public class LayerFillService extends Service implements IProgressor {
         }
         if (from.containsKey(KEY_LAYER_ORIGIN_FORM_ID)) {
             to.putLong(KEY_LAYER_ORIGIN_FORM_ID, from.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L));
+        }
+        if (from.containsKey(KEY_LAYER_FORM_HASH)) {
+            to.putString(KEY_LAYER_FORM_HASH, from.getString(KEY_LAYER_FORM_HASH));
         }
         if (from.containsKey(KEY_COLLECTOR_LAYER_EDITABLE)) {
             to.putBoolean(KEY_COLLECTOR_LAYER_EDITABLE,
@@ -1264,8 +1275,15 @@ public class LayerFillService extends Service implements IProgressor {
                     //read meta.json
 
                     long defaultFormID = -1;
-                    if (defaultFormIDArray != null && defaultFormIDArray.length > 0)
+                    if (defaultFormIDArray != null && defaultFormIDArray.length > 0) {
                         defaultFormID = defaultFormIDArray[0];
+                    } else {
+                        long originFormId = mEnqueueBundle.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L);
+                        if (originFormId > 0L) {
+                            defaultFormID = originFormId;
+                            defaultFormIDArray = new long[]{originFormId};
+                        }
+                    }
 
                     String formPrefix =  defaultFormID + "_";
 
@@ -1278,6 +1296,15 @@ public class LayerFillService extends Service implements IProgressor {
                     String jsonText = FileUtil.readFromFile(meta);
                     JSONObject metaJson = new JSONObject(jsonText);
                     File dataFile = new File(mLayerPath, NGFP_FILE_DATA);
+                    String formHash = "";
+                    if (defaultFormID > 0L) {
+                        try {
+                            formHash = LayerFormHashUtil.md5LocalNgfpFiles(mLayerPath, defaultFormID);
+                        } catch (IOException hashEx) {
+                            HyperLog.w(Constants.TAG, "LayerFillService: NGFP form hash failed formId="
+                                    + defaultFormID + ": " + hashEx.getMessage());
+                        }
+                    }
                     Bundle extra = new Bundle();
                     extra.putInt(KEY_LAYER_GROUP_ID, mLayerGroup.getId());
                     extra.putSerializable(KEY_LAYER_PATH, mLayerPath);
@@ -1361,6 +1388,9 @@ public class LayerFillService extends Service implements IProgressor {
                         extra.putLongArray(KEY_DEFAULT_FORM_IDS, defaultFormIDArray);
                         if (!TextUtils.isEmpty(mLayerConfigJson)) {
                             extra.putString(KEY_LAYER_CONFIG_JSON, mLayerConfigJson);
+                        }
+                        if (!TextUtils.isEmpty(formHash)) {
+                            extra.putString(KEY_LAYER_FORM_HASH, formHash);
                         }
                         copyLayerOriginExtras(mEnqueueBundle, extra);
                         if (mCollectorOrderIndex >= 0 && mCollectorProjectRemoteIds != null) {
@@ -1550,14 +1580,96 @@ public class LayerFillService extends Service implements IProgressor {
         }
 
         private void rebuildNgwLayerAfterTransientFailure() {
+            /*
+             * Collector/Form sync foundation: VECTOR_LAYER_WITH_FORM unzips NGFP sidecars before
+             * this NGW fill task starts. A transient feature-download retry must clean partial layer
+             * data, but it must not silently drop the already downloaded form files.
+             */
+            Map<String, byte[]> preservedFormFiles = preserveNgfpFormFiles(mLayerPath);
             if (mLayer != null) {
                 mLayer.delete(true);
             }
             mLayerPath = mLayerGroup.createLayerStorage();
+            restoreNgfpFormFiles(mLayerPath, preservedFormFiles);
             mLayer = new NGWVectorLayerUI(mLayerGroup.getContext(), mLayerPath);
             ((NGWVectorLayerUI) mLayer).setRemoteId(mRemoteIdInit);
             ((NGWVectorLayerUI) mLayer).setAccountName(mAccountNameInit);
             initLayer();
+        }
+
+        private Map<String, byte[]> preserveNgfpFormFiles(File layerPath) {
+            Map<String, byte[]> out = new LinkedHashMap<>();
+            if (layerPath == null || !layerPath.exists()) {
+                return out;
+            }
+            File[] files = layerPath.listFiles();
+            if (files == null) {
+                return out;
+            }
+            byte[] buffer = new byte[Constants.IO_BUFFER_SIZE];
+            for (File file : files) {
+                if (file == null || !file.isFile() || !isNgfpFormSidecar(file.getName())) {
+                    continue;
+                }
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                FileInputStream in = null;
+                try {
+                    in = new FileInputStream(file);
+                    FileUtil.copyStream(in, bytes, buffer, Constants.IO_BUFFER_SIZE);
+                    out.put(file.getName(), bytes.toByteArray());
+                } catch (IOException e) {
+                    HyperLog.w(Constants.TAG, "NGW fill retry: preserve form sidecar failed "
+                            + file.getName() + ": " + e.getMessage());
+                } finally {
+                    if (in != null) {
+                        try {
+                            in.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+                    try {
+                        bytes.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+            }
+            return out;
+        }
+
+        private boolean isNgfpFormSidecar(String fileName) {
+            return !TextUtils.isEmpty(fileName)
+                    && (fileName.endsWith(FILE_FORM) || fileName.endsWith(NGFP_META));
+        }
+
+        private void restoreNgfpFormFiles(File layerPath, Map<String, byte[]> preservedFormFiles) {
+            if (layerPath == null || preservedFormFiles == null || preservedFormFiles.isEmpty()) {
+                return;
+            }
+            if (!layerPath.exists() && !layerPath.mkdirs()) {
+                HyperLog.w(Constants.TAG, "NGW fill retry: cannot create layer dir for form restore "
+                        + layerPath);
+                return;
+            }
+            for (Map.Entry<String, byte[]> entry : preservedFormFiles.entrySet()) {
+                File outFile = new File(layerPath, entry.getKey());
+                FileOutputStream out = null;
+                try {
+                    out = new FileOutputStream(outFile);
+                    out.write(entry.getValue());
+                    HyperLog.v(Constants.TAG, "NGW fill retry: restored form sidecar "
+                            + outFile.getName());
+                } catch (IOException e) {
+                    HyperLog.w(Constants.TAG, "NGW fill retry: restore form sidecar failed "
+                            + outFile.getName() + ": " + e.getMessage());
+                } finally {
+                    if (out != null) {
+                        try {
+                            out.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+                }
+            }
         }
 
         @Override
@@ -1628,9 +1740,11 @@ public class LayerFillService extends Service implements IProgressor {
 
                     ngwVectorLayer.createFromNGW(progressor);
                     String rawConfig = resolveImportedLayerConfigJson(ngwVectorLayer, mLayerConfigJson);
+                    String importedRenderMode = null;
                     if (!TextUtils.isEmpty(rawConfig)) {
                         try {
                             JSONObject cfg = parseLayerConfigObject(rawConfig);
+                            importedRenderMode = LayerConfigUtil.extractRenderMode(cfg);
                             ngwVectorLayer.fromJSON(cfg);
                             ngwVectorLayer.save();
                             mMobileLayerConfigApplied = true;
@@ -1651,7 +1765,7 @@ public class LayerFillService extends Service implements IProgressor {
                         HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " skipped no config text for "
                                 + ngwVectorLayer.getName());
                     }
-                    applyLayerOriginFromIntent(ngwVectorLayer);
+                    applyLayerOriginFromIntent(ngwVectorLayer, importedRenderMode);
                     applyCollectorEditableFromIntent(ngwVectorLayer);
                     return true;
                 } catch (IOException e) {
@@ -1700,21 +1814,37 @@ public class LayerFillService extends Service implements IProgressor {
             }
         }
 
-        private void applyLayerOriginFromIntent(NGWVectorLayer ngwVectorLayer) {
+        private void applyLayerOriginFromIntent(
+                NGWVectorLayer ngwVectorLayer,
+                String importedRenderMode) {
             if (ngwVectorLayer == null) {
                 return;
             }
+            String formHash = mEnqueueBundle.getString(KEY_LAYER_FORM_HASH);
+            if (!TextUtils.isEmpty(formHash)) {
+                ngwVectorLayer.getPreferences().edit()
+                        .putString(SettingsConstants.KEY_PREF_LAST_FORM_HASH, formHash)
+                        .apply();
+            }
+
             long formId = mEnqueueBundle.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L);
             if (formId <= 0L && defaultFormIDArray != null && defaultFormIDArray.length > 0) {
                 formId = defaultFormIDArray[0];
             }
 
             String collectorProjectUid = mEnqueueBundle.getString(KEY_COLLECTOR_PROJECT_UID);
+            LayerOriginMetadata existingOrigin = ngwVectorLayer.getLayerOriginMetadata();
+            String renderMode = importedRenderMode;
+            if (TextUtils.isEmpty(renderMode) && existingOrigin != null) {
+                renderMode = existingOrigin.getRenderMode();
+            }
+            renderMode = LayerOriginMetadata.normalizeRenderMode(renderMode);
             if (!TextUtils.isEmpty(collectorProjectUid)) {
                 ngwVectorLayer.setLayerOriginMetadata(LayerOriginMetadata.collectorLayer(
-                        collectorProjectUid, mCollectorOrderIndex, formId));
+                        collectorProjectUid, mCollectorOrderIndex, formId, renderMode));
             } else if (mEnqueueBundle.getBoolean(KEY_MARK_MANUAL_NGW_ORIGIN, false)) {
-                ngwVectorLayer.setLayerOriginMetadata(LayerOriginMetadata.manualNgwLayer(formId));
+                ngwVectorLayer.setLayerOriginMetadata(LayerOriginMetadata.manualNgwLayer(
+                        formId, renderMode));
             } else {
                 return;
             }

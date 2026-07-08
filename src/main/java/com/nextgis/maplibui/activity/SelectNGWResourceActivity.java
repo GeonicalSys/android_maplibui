@@ -68,6 +68,7 @@ import com.nextgis.maplibui.mapui.NGWRasterLayerUI;
 import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
+import com.nextgis.maplibui.util.CollectorProjectRegistry;
 import com.nextgis.maplibui.util.NGWCreateNewResourceTask;
 
 import java.lang.ref.WeakReference;
@@ -283,6 +284,19 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         }
 
         final Connections connections = mListAdapter.getConnections();
+        int selectedCollectorCount = countSelectedCollectorResources(connections, checkStates);
+        if (selectedCollectorCount > 1) {
+            Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+            HyperLog.w(TAG, "Collector import: multiple collector projects selected in one batch");
+            return false;
+        }
+        if (selectedCollectorCount == 1) {
+            CollectorResource selectedCollector = findSelectedCollectorResource(connections, checkStates);
+            if (selectedCollector == null || !prepareCollectorWorkspaceForImport(selectedCollector)) {
+                return false;
+            }
+        }
+
         final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
             if (checkState.isCheckState1()) { //create raster
@@ -492,6 +506,64 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         }
 
         mGroupLayer.save();
+        return true;
+    }
+
+    private int countSelectedCollectorResources(Connections connections, List<CheckState> checkStates) {
+        int count = 0;
+        if (connections == null || checkStates == null) {
+            return count;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private CollectorResource findSelectedCollectorResource(
+            Connections connections,
+            List<CheckState> checkStates) {
+        if (connections == null || checkStates == null) {
+            return null;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                return (CollectorResource) resource;
+            }
+        }
+        return null;
+    }
+
+    private boolean prepareCollectorWorkspaceForImport(CollectorResource collector) {
+        if (collector == null || collector.getConnection() == null) {
+            return false;
+        }
+        Connection connection = collector.getConnection();
+        CollectorProjectMetadata metadata = CollectorProjectMetadata.create(
+                connection.getName(),
+                collector.getRemoteId(),
+                collector.getName(),
+                collector.getProjectDistrict());
+        LayerGroup projectWorkspace = CollectorProjectRegistry.prepareCollectorProjectWorkspace(
+                this,
+                metadata);
+        if (projectWorkspace == null) {
+            HyperLog.e(TAG, "Collector import: failed to prepare isolated workspace remoteId="
+                    + collector.getRemoteId() + " account=" + connection.getName());
+            Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        mGroupLayer = projectWorkspace;
         return true;
     }
 
