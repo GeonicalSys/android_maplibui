@@ -42,6 +42,7 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.core.content.ContextCompat;
 import androidx.appcompat.widget.Toolbar;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -81,6 +82,7 @@ import com.nextgis.maplibui.display.RuleFeatureRendererUI;
 import com.nextgis.maplibui.display.SimpleFeatureRendererUI;
 import com.nextgis.maplibui.fragment.LayerGeneralSettingsFragment;
 import com.nextgis.maplibui.fragment.NGWSettingsFragment;
+import com.nextgis.maplibui.mapui.SyncAccountWorker;
 import com.nextgis.maplibui.service.RebuildCacheService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
@@ -506,6 +508,16 @@ public class VectorLayerSettingsActivity
                 @Override
                 public void onCheckedChanged(CompoundButton compoundButton, boolean checked) {
                     NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), checked);
+                    long interval = GISApplication.getAccountSyncTime(
+                            account, (GISApplication) getContext().getApplicationContext());
+                    AccountUtil.saveSyncPeriodForAccount(getContext(), account.name, interval);
+                    if (checked) {
+                        SyncAccountWorker.schedule(getContext(), account.name, interval);
+                    } else {
+                        SyncAccountWorker.cancel(getContext(), account.name);
+                    }
+                    Log.d("SSYNC", "VectorLayerSettings auto sync changed account=" + account.name
+                            + " enabled=" + checked + " interval=" + interval);
                     period.setEnabled(checked);
                 }
             });

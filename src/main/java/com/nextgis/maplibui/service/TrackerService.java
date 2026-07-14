@@ -227,10 +227,10 @@ public class TrackerService extends Service
             trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
             context.startService(trackerServiceIntent);
         } else if (hasUnfinishedTracks(context)) {
-            trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
-            context.startService(trackerServiceIntent);
-            trackerServiceIntent.setAction(null);
+            closeUnfinishedTracksBeforeRestart(context);
             ContextCompat.startForegroundService(context, trackerServiceIntent);
+            title = R.string.track_stop;
+            icon = R.drawable.ic_action_maps_directions_walk_rec;
         } else {
             ContextCompat.startForegroundService(context, trackerServiceIntent);
             title = R.string.track_stop;
@@ -874,6 +874,23 @@ public class TrackerService extends Service
             }
         } catch (SQLiteException ignored) {}
         return hasUnfinishedTracks;
+    }
+
+    private static void closeUnfinishedTracksBeforeRestart(Context context) {
+        try {
+            IGISApplication app = (IGISApplication) context.getApplicationContext();
+            int closed = closeTracks(context, app);
+            context.getSharedPreferences(TEMP_PREFERENCES, Context.MODE_PRIVATE)
+                    .edit()
+                    .remove(TRACK_URI)
+                    .remove(ConstantsUI.TARGET_CLASS)
+                    .apply();
+            HyperLog.v(Constants.TAG, "TrackerService closed unfinished tracks before restart count="
+                    + closed);
+        } catch (RuntimeException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.closeUnfinishedTracksBeforeRestart: "
+                    + ex.getMessage(), ex);
+        }
     }
 
     public static boolean isTrackerServiceRunning(Context context) {

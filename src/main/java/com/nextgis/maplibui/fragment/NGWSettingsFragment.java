@@ -62,6 +62,7 @@ import com.nextgis.maplibui.activity.NGPreferenceActivity;
 import com.nextgis.maplibui.activity.NGWLoginActivity;
 import com.nextgis.maplibui.activity.NGWSettingsActivity;
 import com.nextgis.maplibui.api.ILayerUI;
+import com.nextgis.maplibui.mapui.SyncAccountWorker;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.SettingsConstantsUI;
 
@@ -201,6 +202,18 @@ public class NGWSettingsFragment
             {
                 boolean isChecked = (boolean) newValue;
                 setAccountSyncEnabled(account, application.getAuthority(), isChecked);
+                if (mStyledContext.getApplicationContext() instanceof GISApplication) {
+                    GISApplication app = (GISApplication) mStyledContext.getApplicationContext();
+                    long period = GISApplication.getAccountSyncTime(account, app);
+                    AccountUtil.saveSyncPeriodForAccount(mStyledContext, account.name, period);
+                    if (isChecked) {
+                        SyncAccountWorker.schedule(mStyledContext, account.name, period);
+                    } else {
+                        SyncAccountWorker.cancel(mStyledContext, account.name);
+                    }
+                    Log.d("SSYNC", "NGWSettings auto sync changed account=" + account.name
+                            + " enabled=" + isChecked + " period=" + period);
+                }
                 return true;
             }
         });
@@ -222,7 +235,20 @@ public class NGWSettingsFragment
             Account account,
             String authority)
     {
-        return null != account && ContentResolver.getSyncAutomatically(account, authority);
+        if (account == null) {
+            return false;
+        }
+
+        boolean auto = ContentResolver.getSyncAutomatically(account, authority);
+        int syncable = ContentResolver.getIsSyncable(account, authority);
+        if (auto && syncable <= 0) {
+            ContentResolver.setIsSyncable(account, authority, 1);
+            syncable = ContentResolver.getIsSyncable(account, authority);
+            Log.d("SSYNC", "isAccountSyncEnabled repaired syncable account=" + account.name
+                    + " authority=" + authority + " syncable=" + syncable);
+        }
+
+        return auto && syncable > 0;
     }
 
 
@@ -236,7 +262,11 @@ public class NGWSettingsFragment
             return;
         }
 
+        ContentResolver.setIsSyncable(account, authority, isEnabled ? 1 : 0);
         ContentResolver.setSyncAutomatically(account, authority, isEnabled);
+        Log.d("SSYNC", "setAccountSyncEnabled account=" + account.name
+                + " authority=" + authority + " enabled=" + isEnabled
+                + " isSyncable=" + ContentResolver.getIsSyncable(account, authority));
     }
 
 
@@ -561,7 +591,8 @@ public class NGWSettingsFragment
                                 AccountUtil.isSyncActive(account, application.getAuthority());
 
                         ContentResolver.removePeriodicSync(account, application.getAuthority(), Bundle.EMPTY);
-                        ContentResolver.setSyncAutomatically(account, application.getAuthority(), false);
+                        setAccountSyncEnabled(account, application.getAuthority(), false);
+                        SyncAccountWorker.cancel(mStyledContext, account.name);
 
                         ContentResolver.cancelSync(account, application.getAuthority());
 

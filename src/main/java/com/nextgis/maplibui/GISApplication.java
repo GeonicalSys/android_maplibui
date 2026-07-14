@@ -65,6 +65,7 @@ import com.nextgis.maplib.map.NGWLookupTable;
 import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.VectorLayer;
+import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.LayerFormHashUtil;
@@ -75,6 +76,7 @@ import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
 import com.nextgis.maplibui.mapui.LayerFactoryUI;
+import com.nextgis.maplibui.mapui.SyncAccountWorker;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
@@ -281,8 +283,10 @@ public abstract class GISApplication extends Application
             edit.commit();
         }
 
+        final boolean isDefaultProcess = isDefaultProcess();
+
         //turn on periodic sync. Can be set for each layer individually, but this is simpler
-        if (mSharedPreferences.getBoolean(KEY_PREF_SYNC_PERIODICALLY, true)) {
+        if (isDefaultProcess && mSharedPreferences.getBoolean(KEY_PREF_SYNC_PERIODICALLY, true)) {
             String value = mSharedPreferences.getString(KEY_PREF_SYNC_PERIOD, Constants.DEFAULT_SYNC_PERIOD + ""); //1 hour
             long period = Long.parseLong(value);
 
@@ -294,15 +298,47 @@ public abstract class GISApplication extends Application
             SyncAdapter.setSyncPeriod(this, params, period);
         }
 
-
-        new Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                resetSyncTime();
-            }
-        }, 2000);
+        if (isDefaultProcess) {
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    resetSyncTime();
+                }
+            }, 2000);
+        }
 
         initializeMapbox();
+    }
+
+    private boolean isDefaultProcess() {
+        String processName = getCurrentProcessName();
+        return TextUtils.isEmpty(processName) || getPackageName().equals(processName);
+    }
+
+    private String getCurrentProcessName() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return Application.getProcessName();
+        }
+
+        int pid = android.os.Process.myPid();
+        android.app.ActivityManager manager =
+                (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) {
+            return null;
+        }
+
+        List<android.app.ActivityManager.RunningAppProcessInfo> processes =
+                manager.getRunningAppProcesses();
+        if (processes == null) {
+            return null;
+        }
+
+        for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
+            if (process != null && process.pid == pid) {
+                return process.processName;
+            }
+        }
+        return null;
     }
 
     private void initializeMapbox() {
@@ -517,13 +553,20 @@ public abstract class GISApplication extends Application
 
         try {
             boolean accountAdded = mAccountManager.addAccountExplicitly(account, password, userData);
-            if (accountAdded)
+            if (accountAdded) {
                 mAccountManager.setAuthToken(account, account.type, token);
+                ContentResolver.setIsSyncable(account, getAuthority(), 1);
+                Log.d("SSYNC", "GISApplication.addAccount syncable=1 account=" + account.name
+                        + " authority=" + getAuthority());
+            } else {
+                Log.d("SSYNC", "GISApplication.addAccount account not added: " + account.name);
+            }
 
             return accountAdded;
         }
         catch (SecurityException e){
             e.printStackTrace();
+            Log.e("SSYNC", "GISApplication.addAccount failed for " + name + ": " + e.getMessage(), e);
             return false;
         }
     }
@@ -2203,9 +2246,51 @@ public abstract class GISApplication extends Application
     }
 
 
+    public static long getAccountSyncTime(final Account account, final GISApplication application) {
+        long fallback = Constants.DEFAULT_SYNC_PERIOD;
+        if (application == null || account == null) {
+            Log.d("SSYNC", "getAccountSyncTime fallback=" + fallback
+                    + " account=" + (account == null ? "null" : account.name));
+            return fallback;
+        }
+
+        fallback = AccountUtil.getSyncPeriodForAccount(application, account.name, fallback);
+        List<PeriodicSync> syncs = ContentResolver.getPeriodicSyncs(account, application.getAuthority());
+        if (syncs != null && !syncs.isEmpty()) {
+            for (PeriodicSync sync : syncs) {
+                String value = sync.extras != null ? sync.extras.getString(KEY_PREF_SYNC_PERIOD) : null;
+                if (TextUtils.isEmpty(value)) {
+                    continue;
+                }
+                try {
+                    long period = Long.parseLong(value);
+                    Log.d("SSYNC", "getAccountSyncTime account=" + account.name
+                            + " period=" + period + " source=PeriodicSync extras=" + sync.extras);
+                    return period;
+                } catch (NumberFormatException e) {
+                    Log.e("SSYNC", "getAccountSyncTime bad period account=" + account.name
+                            + " value=" + value, e);
+                }
+            }
+        }
+
+        Log.d("SSYNC", "getAccountSyncTime account=" + account.name
+                + " period=" + fallback + " source=preferences/default");
+        return fallback;
+    }
+
+
     public  void setSyncPeriod(final Account account,
                                long interval,
                                Bundle bundle, boolean deleteExisting){
+        if (account == null) {
+            Log.e("SSYNC", "setSyncPeriod skipped: account is null interval=" + interval);
+            return;
+        }
+
+        ContentResolver.setIsSyncable(account, getAuthority(), 1);
+        Log.d("SSYNC", "setSyncPeriod account=" + account.name + " interval=" + interval
+                + " deleteExisting=" + deleteExisting + " extras=" + bundle);
         List<PeriodicSync> periodicSyncsList = ContentResolver.getPeriodicSyncs(account, getAuthority());
         if (deleteExisting)
             for (PeriodicSync p : periodicSyncsList) {
@@ -2221,6 +2306,15 @@ public abstract class GISApplication extends Application
                 }
             }
         ContentResolver.addPeriodicSync(account, getAuthority(), bundle, interval);
+        AccountUtil.saveSyncPeriodForAccount(this, account.name, interval);
+
+        if (ContentResolver.getSyncAutomatically(account, getAuthority())) {
+            SyncAccountWorker.schedule(this, account.name, interval);
+        } else {
+            Log.d("SSYNC", "setSyncPeriod worker not scheduled because auto sync is off account="
+                    + account.name);
+            SyncAccountWorker.cancel(this, account.name);
+        }
     }
 
 
@@ -2229,6 +2323,9 @@ public abstract class GISApplication extends Application
         AccountManager mAccountManager = AccountManager.get(this);
         for (Account account : mAccountManager.getAccountsByType(getAccountsType())) {
             Log.d("SSYNC", "Reset for : " + account.name + " account");
+            ContentResolver.setIsSyncable(account, getAuthority(), 1);
+            Log.d("SSYNC", "resetSyncTime syncable=1 account=" + account.name
+                    + " auto=" + ContentResolver.getSyncAutomatically(account, getAuthority()));
 
             // search sync settings // def if NO
             String prefValue = "" + Constants.DEFAULT_SYNC_PERIOD;
