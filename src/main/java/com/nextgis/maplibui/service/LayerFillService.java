@@ -231,6 +231,8 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_COLLECTOR_PROJECT_REMOTE_IDS = "collector_project_remote_ids";
     /** Collector project item «Редактируемый» (not layer description {@code is_editable}). */
     public static final String KEY_COLLECTOR_LAYER_EDITABLE = "collector_layer_editable";
+    /** Server data.write permission captured when a remote layer is selected or opened by URL. */
+    public static final String KEY_SERVER_WRITE_PERMITTED = "server_write_permitted";
     public static final String KEY_TMS_TYPE   = "tms_type";
     public static final String KEY_TMS_CACHE   = "tms_cache";
 
@@ -467,6 +469,10 @@ public class LayerFillService extends Service implements IProgressor {
             to.putBoolean(KEY_COLLECTOR_LAYER_EDITABLE,
                     from.getBoolean(KEY_COLLECTOR_LAYER_EDITABLE, true));
         }
+        if (from.containsKey(KEY_SERVER_WRITE_PERMITTED)) {
+            to.putBoolean(KEY_SERVER_WRITE_PERMITTED,
+                    from.getBoolean(KEY_SERVER_WRITE_PERMITTED, false));
+        }
     }
 
     private void scheduleDrainIfNeeded() {
@@ -650,33 +656,35 @@ public class LayerFillService extends Service implements IProgressor {
 
         if (result) {
             ILayer filled = task.getLayer();
-            if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
-                /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
-                final String osmPathName = "osm";
-                ILayer osm = mLayerGroup.getLayerByPathName(osmPathName);
-                int insertAt = 0;
-                if (osm != null) {
-                    int osmIdx = mLayerGroup.getChildLayerIndex(osm);
-                    insertAt = osmIdx >= 0 ? osmIdx + 1 : 0;
+            if (filled != null) {
+                if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
+                    /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
+                    final String osmPathName = "osm";
+                    ILayer osm = mLayerGroup.getLayerByPathName(osmPathName);
+                    int insertAt = 0;
+                    if (osm != null) {
+                        int osmIdx = mLayerGroup.getChildLayerIndex(osm);
+                        insertAt = osmIdx >= 0 ? osmIdx + 1 : 0;
+                    }
+                    mLayerGroup.insertLayer(insertAt, filled);
+                } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
+                        && filled instanceof NGWVectorLayer) {
+                    NGWVectorLayer nv = (NGWVectorLayer) filled;
+                    int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
+                            mLayerGroup,
+                            nv.getAccountName(),
+                            task.mCollectorProjectRemoteIds,
+                            task.mCollectorOrderIndex);
+                    mLayerGroup.insertLayer(insertAt, filled);
+                } else if (task.mLayerRestoreInsertIndex >= 0) {
+                    int insertAt = Math.min(task.mLayerRestoreInsertIndex, mLayerGroup.getLayerCount());
+                    mLayerGroup.insertLayer(insertAt, filled);
+                } else {
+                    mLayerGroup.addLayer(filled);
                 }
-                mLayerGroup.insertLayer(insertAt, filled);
-            } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
-                    && filled instanceof NGWVectorLayer) {
-                NGWVectorLayer nv = (NGWVectorLayer) filled;
-                int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
-                        mLayerGroup,
-                        nv.getAccountName(),
-                        task.mCollectorProjectRemoteIds,
-                        task.mCollectorOrderIndex);
-                mLayerGroup.insertLayer(insertAt, filled);
-            } else if (task.mLayerRestoreInsertIndex >= 0) {
-                int insertAt = Math.min(task.mLayerRestoreInsertIndex, mLayerGroup.getLayerCount());
-                mLayerGroup.insertLayer(insertAt, filled);
-            } else {
-                mLayerGroup.addLayer(filled);
+                mLayerGroup.save();
+                registerStandaloneLayerFillVerifyIfNeeded(task, filled);
             }
-            mLayerGroup.save();
-            registerStandaloneLayerFillVerifyIfNeeded(task, filled);
         } else {
             task.cancel();
         }
@@ -1774,6 +1782,7 @@ public class LayerFillService extends Service implements IProgressor {
                     }
                     applyLayerOriginFromIntent(ngwVectorLayer, importedRenderMode);
                     applyCollectorEditableFromIntent(ngwVectorLayer);
+                    applyServerWritePermissionFromIntent(ngwVectorLayer);
                     return true;
                 } catch (IOException e) {
                     if (!NetworkUtil.isTransientNetworkFailure(e) || attempt >= NGW_FILL_MAX_ATTEMPTS) {
@@ -1818,6 +1827,24 @@ public class LayerFillService extends Service implements IProgressor {
                 } catch (Exception e) {
                     Log.w(Constants.TAG, "applyCollectorEditableFromIntent save failed: " + e.getMessage());
                 }
+            }
+        }
+
+        private void applyServerWritePermissionFromIntent(NGWVectorLayer ngwVectorLayer) {
+            if (!mEnqueueBundle.containsKey(KEY_SERVER_WRITE_PERMITTED)) {
+                return;
+            }
+            boolean canWrite = mEnqueueBundle.getBoolean(KEY_SERVER_WRITE_PERMITTED, false);
+            ngwVectorLayer.setIsEditable(canWrite);
+            if (!canWrite) {
+                // Keep server-to-device refresh available but never enqueue writes to the server.
+                ngwVectorLayer.setSyncDirection(2);
+            }
+            try {
+                ngwVectorLayer.save();
+            } catch (Exception e) {
+                Log.w(Constants.TAG,
+                        "applyServerWritePermissionFromIntent save failed: " + e.getMessage());
             }
         }
 

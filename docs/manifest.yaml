@@ -11,7 +11,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     responsibility: Application-level fill, reload, sync, schema rebuild and removal orchestration.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
-    responsibility: Background NGW/Collector layer download, creation and ordered insertion.
+    responsibility: Background NGW/Collector layer download, permission application, creation and ordered insertion of non-null layers.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
+    responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
     responsibility: Persist and activate isolated Collector project workspaces.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
@@ -23,6 +25,10 @@ public_contracts:
     symbol: GISApplication implements IGISApplication
     path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     consumers: [app, maplib]
+  - id: ngw-resource-url-import
+    symbol: NGWResourceImportHelper
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
+    consumers: [app]
 settings_refs: [collector-registry, collector-workspaces, layer-backups]
 storage_contracts:
   - id: collector-registry
@@ -34,5 +40,5 @@ global_docs:
   - docs/architecture/map-rendering.md
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
-smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGRC-ORDER, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG]
+smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGRC-ORDER, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-NGW-URL-IMPORT, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG]
 upstream_hotspots: [LAYER-FILL, MAP-HOST, COLLECTOR-RESOURCE]

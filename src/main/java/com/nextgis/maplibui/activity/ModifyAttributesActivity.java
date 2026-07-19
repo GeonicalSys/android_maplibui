@@ -622,9 +622,7 @@ public class ModifyAttributesActivity
                     IControl control = field.getValue();
                     String saved = featureCursor.getString(column);
                     Object modified = control.getValue();
-                    if (modified != null)
-                        result = !modified.equals(saved);
-                    else result = saved != null;
+                    result = AttributeValueComparator.valuesDiffer(modified, saved);
                 }
 
                 if (result)

@@ -15,6 +15,7 @@ Collector workspaces и защитные backups.
 ## Основные сценарии
 
 - импорт обычных NGW и Collector resources;
+- импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline;
 - вставка NGRc/raster/vector layers в правильном порядке;
 - deferred reload карты после batch fill;
 - изолированные Collector projects и переключение composition;
@@ -28,6 +29,10 @@ Collector workspaces и защитные backups.
 - Backup failure блокирует destructive mutation.
 - Collector project UID/map path не смешиваются между workspaces.
 - `SYNC_NONE` оценивается отдельно для feature data и поддерживаемой config logic.
+- Успешная preprocessing-задача без собственного слоя не вставляет `null` в
+  `LayerGroup`; отсутствие server `data.write` оставляет pull, но запрещает edit/push.
+- Сравнение сохранённых строковых значений формы с typed controls выполняется по
+  строковому представлению, чтобы число `42` не считалось ложной правкой к `"42"`.
 
 ## Диагностика
 

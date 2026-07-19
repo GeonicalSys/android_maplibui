@@ -451,7 +451,7 @@ public class VectorLayerSettingsActivity
                             public void onClick(DialogInterface dialog, int which) {
                                 ngwLayer.setSyncType(Constants.SYNC_ALL);
                                 ngwLayer.save();
-                                direction.setEnabled(checked);
+                                direction.setEnabled(checked && ngwLayer.isEditable());
                             } };
                         DialogInterface.OnClickListener noClick = new DialogInterface.OnClickListener() {
                             @Override
@@ -470,7 +470,7 @@ public class VectorLayerSettingsActivity
                             public void onClick(DialogInterface dialog, int which) {
                                 ngwLayer.setSyncType(Constants.SYNC_NONE);
                                 ngwLayer.save();
-                                direction.setEnabled(checked);
+                                direction.setEnabled(checked && ngwLayer.isEditable());
                             } };
                         DialogInterface.OnClickListener noClick = new DialogInterface.OnClickListener() {
                             @Override
@@ -491,7 +491,11 @@ public class VectorLayerSettingsActivity
             direction.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                    ngwLayer.setSyncDirection(i + 1);
+                    if (ngwLayer.isEditable()) {
+                        ngwLayer.setSyncDirection(i + 1);
+                    } else {
+                        ngwLayer.setSyncDirection(2);
+                    }
                 }
 
                 @Override
@@ -521,6 +525,8 @@ public class VectorLayerSettingsActivity
                     period.setEnabled(checked);
                 }
             });
+
+            direction.setEnabled(enabled.isChecked() && ngwLayer.isEditable());
 
             period.setEnabled(auto.isChecked());
             String prefValue = "" + Constants.DEFAULT_SYNC_PERIOD;

@@ -49,6 +49,7 @@ import com.nextgis.maplib.datasource.ngw.Connection;
 import com.nextgis.maplib.datasource.ngw.Connections;
 import com.nextgis.maplib.datasource.ngw.INGWResource;
 import com.nextgis.maplib.datasource.ngw.LayerWithStyles;
+import com.nextgis.maplib.datasource.ngw.Resource;
 import com.nextgis.maplib.datasource.ngw.ResourceGroup;
 import com.nextgis.maplib.datasource.ngw.WebMap;
 import com.nextgis.maplib.map.CollectorProjectMetadata;
@@ -477,6 +478,12 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                     intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
                     intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
                     intent.putExtra(LayerFillService.KEY_MARK_MANUAL_NGW_ORIGIN, true);
+                    Resource remoteResource = (Resource) resource;
+                    if (remoteResource.hasDataPermissionInfo()) {
+                        intent.putExtra(
+                                LayerFillService.KEY_SERVER_WRITE_PERMITTED,
+                                remoteResource.hasDataWritePermission());
+                    }
 
                     if (layer.getFormCount() > 0) {
                         Long formId = layer.getFormId(0);
