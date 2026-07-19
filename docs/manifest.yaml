@@ -1,0 +1,38 @@
+schema_version: 1
+module_id: maplibui
+repository_id: maplibui
+maturity: maintained
+last_verified: 2026-07-19
+entrypoints:
+  - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
+  - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
+  - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
+key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
+    responsibility: Application-level fill, reload, sync, schema rebuild and removal orchestration.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
+    responsibility: Background NGW/Collector layer download, creation and ordered insertion.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
+    responsibility: Persist and activate isolated Collector project workspaces.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
+    responsibility: Export layer data before destructive rebuild or removal.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/ReorderedLayerView.java
+    responsibility: Synchronize user reorder gesture with layer model and map reload.
+public_contracts:
+  - id: gis-application
+    symbol: GISApplication implements IGISApplication
+    path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
+    consumers: [app, maplib]
+settings_refs: [collector-registry, collector-workspaces, layer-backups]
+storage_contracts:
+  - id: collector-registry
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
+  - id: layer-backups
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
+invariant_refs: [INV-LAYER-ORDER, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS]
+global_docs:
+  - docs/architecture/map-rendering.md
+  - docs/architecture/collector-projects.md
+  - docs/architecture/ngw-sync-and-storage.md
+smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGRC-ORDER, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG]
+upstream_hotspots: [LAYER-FILL, MAP-HOST, COLLECTOR-RESOURCE]

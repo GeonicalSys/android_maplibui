@@ -332,7 +332,7 @@ public class TrackerService extends Service
             NotificationHelper.showLocationInfo(this);
 
             // there are no tracks or last track correctly ended
-            if (mSharedPreferencesTemp.getString(TRACK_URI, null) == null) {
+            if (mSharedPreferencesTemp.getString(TRACK_URI, null) == null || !restoreData()) {
                 if (!startTrack()) {
                     removeNotification();
                     stopSelf();
@@ -340,8 +340,6 @@ public class TrackerService extends Service
                 }
                 mSharedPreferencesTemp.edit().putString(ConstantsUI.TARGET_CLASS, targetActivity).apply();
             } else {
-                // looks like service was killed, restore data
-                restoreData();
                 targetActivity = mSharedPreferencesTemp.getString(ConstantsUI.TARGET_CLASS, "");
             }
 
@@ -355,13 +353,28 @@ public class TrackerService extends Service
     }
 
 
-    private void restoreData() {
-        Uri mNewTrack = Uri.parse(mSharedPreferencesTemp.getString(TRACK_URI, ""));
-        mTrackId = mNewTrack.getLastPathSegment();
+    private boolean restoreData() {
+        String trackUriString = mSharedPreferencesTemp.getString(TRACK_URI, null);
+        if (TextUtils.isEmpty(trackUriString))
+            return false;
+
+        Uri mNewTrack = Uri.parse(trackUriString);
+        String trackId = mNewTrack.getLastPathSegment();
+        if (TextUtils.isEmpty(trackId) || !isUnfinishedTrack(trackId)) {
+            HyperLog.w(Constants.TAG, "TrackerService.restoreData skipped stale trackUri="
+                    + trackUriString + " trackId=" + trackId);
+            clearTempTrackState();
+            return false;
+        }
+
+        mTrackId = trackId;
         mIsRunning = true;
         mStopBroadcastSent = false;
         HyperLog.v(Constants.TAG, "TrackerService.restoreData trackId=" + mTrackId);
         addSplitter();
+        sendTrackStartBroadcast(checkIsBatteryPermOK(this));
+        ((GISApplication)getApplication()).setIsTrackInProgress(true);
+        return true;
     }
 
 
@@ -409,8 +422,12 @@ public class TrackerService extends Service
             return false;
         }
 
-        boolean batteryOK = checkIsBatteryPermOK(this);
+        sendTrackStartBroadcast(checkIsBatteryPermOK(this));
+        ((GISApplication)getApplication()).setIsTrackInProgress(true);
+        return true;
+    }
 
+    private void sendTrackStartBroadcast(boolean batteryOK) {
         Intent msg = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK);
         msg.setPackage(this.getPackageName());
         msg.putExtra(ConstantsUI.KEY_MESSAGE_TRACK, true);
@@ -419,8 +436,31 @@ public class TrackerService extends Service
         msg.putExtra(ConstantsUI.KEY_TRACK_ACTION, VALUE_TRACK_START);
         msg.setPackage(getPackageName());
         sendBroadcast(msg);
-        ((GISApplication)getApplication()).setIsTrackInProgress(true);
-        return true;
+    }
+
+    private boolean isUnfinishedTrack(String trackId) {
+        String selection = TrackLayer.FIELD_ID + " = ? AND ("
+                + TrackLayer.FIELD_END + " IS NULL OR " + TrackLayer.FIELD_END + " = '')";
+        String[] projection = new String[]{TrackLayer.FIELD_ID};
+        String[] args = new String[]{trackId};
+        Cursor data = null;
+        try {
+            data = getContentResolver().query(mContentUriTracks, projection, selection, args, null);
+            return data != null && data.moveToFirst();
+        } catch (RuntimeException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService.isUnfinishedTrack: " + ex.getMessage(), ex);
+            return false;
+        } finally {
+            if (data != null)
+                data.close();
+        }
+    }
+
+    private void clearTempTrackState() {
+        mSharedPreferencesTemp.edit()
+                .remove(TRACK_URI)
+                .remove(ConstantsUI.TARGET_CLASS)
+                .apply();
     }
 
     public static boolean checkIsBatteryPermOK(Context context){
