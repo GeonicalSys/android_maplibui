@@ -511,17 +511,8 @@ public class VectorLayerSettingsActivity
             auto.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton compoundButton, boolean checked) {
-                    NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), checked);
-                    long interval = GISApplication.getAccountSyncTime(
-                            account, (GISApplication) getContext().getApplicationContext());
-                    AccountUtil.saveSyncPeriodForAccount(getContext(), account.name, interval);
-                    if (checked) {
-                        SyncAccountWorker.schedule(getContext(), account.name, interval);
-                    } else {
-                        SyncAccountWorker.cancel(getContext(), account.name);
-                    }
-                    Log.d("SSYNC", "VectorLayerSettings auto sync changed account=" + account.name
-                            + " enabled=" + checked + " interval=" + interval);
+                    NGWSettingsFragment.setAccountSyncEnabled(
+                            getContext(), account, app.getAuthority(), checked);
                     period.setEnabled(checked);
                 }
             });

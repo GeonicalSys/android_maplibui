@@ -2,20 +2,24 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-07-19
+last_verified: 2026-07-20
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
-    responsibility: Application-level fill, reload, sync, schema rebuild and removal orchestration.
+    responsibility: Application-level map lifecycle, active-project database binding, fill, reload, sync, schema rebuild and removal orchestration.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
     responsibility: Background NGW/Collector layer download, permission application, creation and ordered insertion of non-null layers.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
-    responsibility: Persist and activate isolated Collector project workspaces.
+    responsibility: Atomically persist, recover and activate isolated Collector project workspaces while refusing cross-project switches during track recording.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorImportJournal.java
+    responsibility: Persist unfinished Collector batches for verify-and-repair after process death.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
+    responsibility: Install or recover the form and metadata sidecars as one validated transaction.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
     responsibility: Export layer data before destructive rebuild or removal.
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/ReorderedLayerView.java
@@ -29,16 +33,20 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [collector-registry, collector-workspaces, layer-backups]
+settings_refs: [collector-registry, collector-workspaces, collector-import-journal, collector-form-transaction, layer-backups]
 storage_contracts:
   - id: collector-registry
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
+  - id: collector-import-journal
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorImportJournal.java
+  - id: collector-form-transaction
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
   - id: layer-backups
     path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
-invariant_refs: [INV-LAYER-ORDER, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS]
+invariant_refs: [INV-LAYER-ORDER, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-NGRC-PRESERVE, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS]
 global_docs:
   - docs/architecture/map-rendering.md
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
-smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGRC-ORDER, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-NGW-URL-IMPORT, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG]
+smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG]
 upstream_hotspots: [LAYER-FILL, MAP-HOST, COLLECTOR-RESOURCE]

@@ -378,8 +378,10 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                     ArrayList<LayerWithStyles> toImport = new ArrayList<>();
                     for (int li = 0; li < layers.size(); li++) {
                         LayerWithStyles layer = layers.get(li);
-                        if (LayerGroup.findLayerByDisplayNameRecursive(mGroupLayer, layer.getName()) != null) {
-                            HyperLog.d(TAG, "Collector import: skip duplicate name \"" + layer.getName() + "\"");
+                        if (LayerGroup.findNgwVectorLayerByRemoteIdRecursive(
+                                mGroupLayer, layer.getRemoteId(), connection.getName()) != null) {
+                            HyperLog.d(TAG, "Collector import: skip existing remoteId="
+                                    + layer.getRemoteId() + " account=" + connection.getName());
                             continue;
                         }
                         toImport.add(layer);
@@ -420,6 +422,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                         HyperLog.e(TAG, "Collector import aborted: batch registration failed group="
                                 + mGroupLayer.getId() + " account=" + connection.getName());
                         Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+                        return false;
                     } else {
                     for (int ord = 0; ord < n; ord++) {
                         LayerWithStyles layer = toImport.get(ord);
@@ -553,6 +556,16 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
 
     private boolean prepareCollectorWorkspaceForImport(CollectorResource collector) {
         if (collector == null || collector.getConnection() == null) {
+            return false;
+        }
+        if (!collector.isSnapshotComplete()) {
+            HyperLog.e(TAG, "Collector import: incomplete project snapshot remoteId="
+                    + collector.getRemoteId() + " error=" + collector.getSnapshotError());
+            Toast.makeText(this, R.string.ngw_collector_incomplete_snapshot, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        if (collector.getLayers().isEmpty()) {
+            Toast.makeText(this, R.string.ngw_collector_no_vector_layers, Toast.LENGTH_LONG).show();
             return false;
         }
         Connection connection = collector.getConnection();

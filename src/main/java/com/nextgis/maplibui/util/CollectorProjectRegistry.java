@@ -12,6 +12,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
+import android.util.AtomicFile;
 
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
@@ -22,13 +23,18 @@ import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.GISApplication;
+import com.nextgis.maplibui.service.TrackerService;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -261,6 +267,22 @@ public final class CollectorProjectRegistry {
             if (project == null) {
                 return false;
             }
+            if (!isWorkspacePathSafe(context, project.getMapPath())) {
+                HyperLog.e(Constants.TAG,
+                        "CollectorProjectRegistry: refusing unsafe workspace path "
+                                + project.getMapPath());
+                return false;
+            }
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            String activeProjectUid = preferences.getString(
+                    SettingsConstants.KEY_PREF_ACTIVE_COLLECTOR_PROJECT_UID, null);
+            if (!projectUid.equals(activeProjectUid)
+                    && TrackerService.isTrackerServiceRunning(context)) {
+                HyperLog.w(Constants.TAG,
+                        "CollectorProjectRegistry: refusing project switch while track recording is active"
+                                + " from=" + activeProjectUid + " to=" + projectUid);
+                return false;
+            }
             File mapDir = new File(project.getMapPath());
             try {
                 FileUtil.createDir(mapDir);
@@ -269,13 +291,29 @@ public final class CollectorProjectRegistry {
                         + mapDir.getPath() + ": " + e.getMessage(), e);
                 return false;
             }
-            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-            preferences.edit()
-                    .putString(SettingsConstants.KEY_PREF_MAP_PATH, project.getMapPath())
-                    .putString(SettingsConstantsUI.KEY_PREF_MAP_NAME, project.getMapName())
-                    .putString(SettingsConstants.KEY_PREF_ACTIVE_COLLECTOR_PROJECT_UID,
-                            project.getProjectUid())
-                    .apply();
+            Context appContext = context.getApplicationContext();
+            GISApplication gisApplication = appContext instanceof GISApplication
+                    ? (GISApplication) appContext
+                    : null;
+            boolean activated;
+            if (gisApplication != null) {
+                // GISApplication#getMap() uses the same monitor. Keep preference publication and
+                // invalidation of the old map atomic so a provider/background thread cannot observe
+                // the new project identity while still receiving the previous workspace instance.
+                synchronized (gisApplication) {
+                    activated = persistActiveProjectPreferences(preferences, project);
+                    if (activated) {
+                        gisApplication.closeMapObj();
+                    }
+                }
+            } else {
+                activated = persistActiveProjectPreferences(preferences, project);
+            }
+            if (!activated) {
+                HyperLog.e(Constants.TAG,
+                        "CollectorProjectRegistry: failed to persist active workspace preferences");
+                return false;
+            }
 
             projects.remove(project);
             ProjectInfo opened = new ProjectInfo(
@@ -323,10 +361,6 @@ public final class CollectorProjectRegistry {
         if (!activateProject(context, project.getProjectUid())) {
             return null;
         }
-        if (appContext instanceof GISApplication) {
-            ((GISApplication) appContext).closeMapObj();
-        }
-
         MapBase projectMap = app.getMap();
         if (projectMap == null) {
             return null;
@@ -345,6 +379,17 @@ public final class CollectorProjectRegistry {
         HyperLog.v(Constants.TAG, "CollectorProjectRegistry: activated workspace uid="
                 + project.getProjectUid() + " mapPath=" + project.getMapPath());
         return projectMap;
+    }
+
+    private static boolean persistActiveProjectPreferences(
+            SharedPreferences preferences,
+            ProjectInfo project) {
+        return preferences.edit()
+                .putString(SettingsConstants.KEY_PREF_MAP_PATH, project.getMapPath())
+                .putString(SettingsConstantsUI.KEY_PREF_MAP_NAME, project.getMapName())
+                .putString(SettingsConstants.KEY_PREF_ACTIVE_COLLECTOR_PROJECT_UID,
+                        project.getProjectUid())
+                .commit();
     }
 
     private static ProjectInfo buildProjectInfo(
@@ -390,24 +435,46 @@ public final class CollectorProjectRegistry {
     private static ArrayList<ProjectInfo> loadProjectsLocked(Context context) {
         ArrayList<ProjectInfo> projects = new ArrayList<>();
         File registryFile = getRegistryFile(context);
-        if (registryFile == null || !registryFile.exists()) {
-            return projects;
-        }
-        try {
-            JSONObject root = new JSONObject(FileUtil.readFromFile(registryFile));
+        boolean rewriteRegistry = false;
+        if (registryFile != null && (registryFile.exists()
+                || new File(registryFile.getPath() + ".bak").exists())) {
+            try {
+            JSONObject root = new JSONObject(readAtomicFile(registryFile));
+            if (root.optInt(JSON_SCHEMA_VERSION, -1) != SCHEMA_VERSION) {
+                throw new JSONException("unsupported schema_version="
+                        + root.optInt(JSON_SCHEMA_VERSION, -1));
+            }
             JSONArray items = root.optJSONArray(JSON_PROJECTS);
             if (items == null) {
-                return projects;
+                throw new JSONException("projects array missing");
             }
             for (int i = 0; i < items.length(); i++) {
                 ProjectInfo project = ProjectInfo.fromJSON(items.optJSONObject(i));
-                if (project != null) {
+                if (project != null && isWorkspacePathSafe(context, project.getMapPath())) {
                     projects.add(project);
+                } else {
+                    rewriteRegistry = true;
                 }
             }
-        } catch (IOException | JSONException e) {
+            } catch (IOException | JSONException e) {
             HyperLog.w(Constants.TAG, "CollectorProjectRegistry: failed to read registry: "
                     + e.getMessage(), e);
+                projects.clear();
+                rewriteRegistry = true;
+            }
+        }
+
+        ArrayList<ProjectInfo> recovered = scanWorkspacesLocked(context);
+        for (ProjectInfo candidate : recovered) {
+            if (findProject(projects, candidate.getProjectUid()) == null) {
+                projects.add(candidate);
+                rewriteRegistry = true;
+                HyperLog.w(Constants.TAG, "CollectorProjectRegistry: recovered workspace uid="
+                        + candidate.getProjectUid() + " path=" + candidate.getMapPath());
+            }
+        }
+        if (rewriteRegistry && !projects.isEmpty()) {
+            saveProjectsLocked(context, projects);
         }
         return projects;
     }
@@ -439,10 +506,92 @@ public final class CollectorProjectRegistry {
                 }
             }
             root.put(JSON_PROJECTS, array);
-            FileUtil.writeToFile(registryFile, root.toString());
+            writeAtomicFile(registryFile, root.toString());
         } catch (IOException | JSONException e) {
             HyperLog.w(Constants.TAG, "CollectorProjectRegistry: failed to save registry: "
                     + e.getMessage(), e);
+        }
+    }
+
+    private static String readAtomicFile(File file) throws IOException {
+        AtomicFile atomicFile = new AtomicFile(file);
+        try (FileInputStream input = atomicFile.openRead();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) >= 0) {
+                output.write(buffer, 0, read);
+            }
+            return output.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
+    private static void writeAtomicFile(File file, String value) throws IOException {
+        AtomicFile atomicFile = new AtomicFile(file);
+        FileOutputStream output = null;
+        try {
+            output = atomicFile.startWrite();
+            output.write(value.getBytes(StandardCharsets.UTF_8));
+            output.flush();
+            output.getFD().sync();
+            atomicFile.finishWrite(output);
+        } catch (IOException | RuntimeException e) {
+            if (output != null) {
+                atomicFile.failWrite(output);
+            }
+            throw e;
+        }
+    }
+
+    private static ArrayList<ProjectInfo> scanWorkspacesLocked(Context context) {
+        ArrayList<ProjectInfo> recovered = new ArrayList<>();
+        File root = getWorkspacesRootDir(context);
+        File[] dirs = root.listFiles(File::isDirectory);
+        if (dirs == null) {
+            return recovered;
+        }
+        for (File dir : dirs) {
+            File mapFile = new File(dir, WORKSPACE_MAP_NAME + Constants.MAP_EXT);
+            if (!mapFile.isFile()) {
+                continue;
+            }
+            try {
+                JSONObject mapJson = new JSONObject(FileUtil.readFromFile(mapFile));
+                CollectorProjectMetadata metadata = CollectorProjectMetadata.fromJSON(
+                        mapJson.optJSONObject("collector_project"));
+                if (metadata == null || !metadata.isValid()) {
+                    continue;
+                }
+                long timestamp = Math.max(dir.lastModified(), mapFile.lastModified());
+                recovered.add(new ProjectInfo(
+                        metadata.getProjectUid(),
+                        metadata.getAccountName(),
+                        metadata.getProjectRemoteId(),
+                        metadata.getName(),
+                        metadata.getDistrict(),
+                        dir.getAbsolutePath(),
+                        WORKSPACE_MAP_NAME,
+                        timestamp,
+                        timestamp));
+            } catch (IOException | JSONException e) {
+                HyperLog.w(Constants.TAG,
+                        "CollectorProjectRegistry: workspace scan skipped " + mapFile.getPath()
+                                + ": " + e.getMessage());
+            }
+        }
+        return recovered;
+    }
+
+    private static boolean isWorkspacePathSafe(Context context, String path) {
+        if (context == null || TextUtils.isEmpty(path)) {
+            return false;
+        }
+        try {
+            String root = getWorkspacesRootDir(context).getCanonicalPath();
+            String candidate = new File(path).getCanonicalPath();
+            return candidate.startsWith(root + File.separator);
+        } catch (IOException e) {
+            return false;
         }
     }
 

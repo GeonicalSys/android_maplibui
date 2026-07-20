@@ -391,8 +391,10 @@ public class SelectNGWResourceDialog
                     ArrayList<LayerWithStyles> toImport = new ArrayList<>();
                     for (int li = 0; li < layers.size(); li++) {
                         LayerWithStyles layer = layers.get(li);
-                        if (LayerGroup.findLayerByDisplayNameRecursive(mGroupLayer, layer.getName()) != null) {
-                            HyperLog.d(TAG, "Collector import (dialog): skip duplicate name \"" + layer.getName() + "\"");
+                        if (LayerGroup.findNgwVectorLayerByRemoteIdRecursive(
+                                mGroupLayer, layer.getRemoteId(), connection.getName()) != null) {
+                            HyperLog.d(TAG, "Collector import (dialog): skip existing remoteId="
+                                    + layer.getRemoteId() + " account=" + connection.getName());
                             continue;
                         }
                         toImport.add(layer);
@@ -432,6 +434,9 @@ public class SelectNGWResourceDialog
                             HyperLog.e(Constants.TAG, "Collector import (dialog) aborted: batch registration failed group="
                                     + mGroupLayer.getId() + " account=" + connection.getName());
                             Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+                            setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                            setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                            return;
                         } else {
                         for (int ord = 0; ord < n; ord++) {
                             LayerWithStyles layer = toImport.get(ord);
@@ -571,6 +576,16 @@ public class SelectNGWResourceDialog
 
     private boolean prepareCollectorWorkspaceForImport(Context context, CollectorResource collector) {
         if (context == null || collector == null || collector.getConnection() == null) {
+            return false;
+        }
+        if (!collector.isSnapshotComplete()) {
+            HyperLog.e(Constants.TAG, "Collector import (dialog): incomplete project snapshot remoteId="
+                    + collector.getRemoteId() + " error=" + collector.getSnapshotError());
+            Toast.makeText(context, R.string.ngw_collector_incomplete_snapshot, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        if (collector.getLayers().isEmpty()) {
+            Toast.makeText(context, R.string.ngw_collector_no_vector_layers, Toast.LENGTH_LONG).show();
             return false;
         }
         Connection connection = collector.getConnection();

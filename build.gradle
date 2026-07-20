@@ -117,6 +117,7 @@ dependencies {
     implementation 'com.github.barsrb:hyperlog-android:master-SNAPSHOT'
 
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
 
 
     implementation 'org.maplibre.gl:android-sdk:13.0.2'

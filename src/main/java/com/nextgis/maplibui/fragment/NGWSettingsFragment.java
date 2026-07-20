@@ -201,19 +201,8 @@ public class NGWSettingsFragment
                     Object newValue)
             {
                 boolean isChecked = (boolean) newValue;
-                setAccountSyncEnabled(account, application.getAuthority(), isChecked);
-                if (mStyledContext.getApplicationContext() instanceof GISApplication) {
-                    GISApplication app = (GISApplication) mStyledContext.getApplicationContext();
-                    long period = GISApplication.getAccountSyncTime(account, app);
-                    AccountUtil.saveSyncPeriodForAccount(mStyledContext, account.name, period);
-                    if (isChecked) {
-                        SyncAccountWorker.schedule(mStyledContext, account.name, period);
-                    } else {
-                        SyncAccountWorker.cancel(mStyledContext, account.name);
-                    }
-                    Log.d("SSYNC", "NGWSettings auto sync changed account=" + account.name
-                            + " enabled=" + isChecked + " period=" + period);
-                }
+                setAccountSyncEnabled(
+                        mStyledContext, account, application.getAuthority(), isChecked);
                 return true;
             }
         });
@@ -267,6 +256,33 @@ public class NGWSettingsFragment
         Log.d("SSYNC", "setAccountSyncEnabled account=" + account.name
                 + " authority=" + authority + " enabled=" + isEnabled
                 + " isSyncable=" + ContentResolver.getIsSyncable(account, authority));
+    }
+
+    public static void setAccountSyncEnabled(
+            Context context,
+            Account account,
+            String authority,
+            boolean isEnabled) {
+        setAccountSyncEnabled(account, authority, isEnabled);
+        if (context == null || account == null) {
+            return;
+        }
+
+        Context appContext = context.getApplicationContext();
+        long period = Constants.DEFAULT_SYNC_PERIOD;
+        if (appContext instanceof GISApplication) {
+            period = GISApplication.getAccountSyncTime(account, (GISApplication) appContext);
+        } else {
+            period = AccountUtil.getSyncPeriodForAccount(context, account.name, period);
+        }
+        AccountUtil.saveSyncPeriodForAccount(context, account.name, period);
+        if (isEnabled) {
+            SyncAccountWorker.scheduleSoon(context, account.name, period);
+        } else {
+            SyncAccountWorker.cancel(context, account.name);
+        }
+        Log.d("SSYNC", "setAccountSyncEnabled scheduler account=" + account.name
+                + " enabled=" + isEnabled + " period=" + period);
     }
 
 
@@ -591,8 +607,8 @@ public class NGWSettingsFragment
                                 AccountUtil.isSyncActive(account, application.getAuthority());
 
                         ContentResolver.removePeriodicSync(account, application.getAuthority(), Bundle.EMPTY);
-                        setAccountSyncEnabled(account, application.getAuthority(), false);
-                        SyncAccountWorker.cancel(mStyledContext, account.name);
+                        setAccountSyncEnabled(
+                                mStyledContext, account, application.getAuthority(), false);
 
                         ContentResolver.cancelSync(account, application.getAuthority());
 

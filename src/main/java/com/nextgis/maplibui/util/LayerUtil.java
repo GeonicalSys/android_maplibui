@@ -98,6 +98,7 @@ public final class LayerUtil {
         File form = new File(layer.getPath(), formPrefix+ ConstantsUI.FILE_FORM);
 
         try {
+        CollectorFormFileTransaction.recover(layer.getPath());
 
         if (!form.exists()){ //try to find file
             // try to search

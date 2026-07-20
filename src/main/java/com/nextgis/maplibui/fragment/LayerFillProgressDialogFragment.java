@@ -385,10 +385,12 @@ public class LayerFillProgressDialogFragment extends Fragment {
                                     if (mobileConfigApplied) {
                                         boolean layerSyncOff = (ngwLayer.getSyncType() & Constants.SYNC_NONE) != 0;
                                         if (!layerSyncOff) {
-                                            NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), true);
+                                            NGWSettingsFragment.setAccountSyncEnabled(
+                                                    host, account, app.getAuthority(), true);
                                         }
                                     } else {
-                                        NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), true);
+                                        NGWSettingsFragment.setAccountSyncEnabled(
+                                                host, account, app.getAuthority(), true);
                                         ngwLayer.setSyncType(Constants.SYNC_ALL);
                                         ngwLayer.save();
                                     }

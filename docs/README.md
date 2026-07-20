@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-07-19
+last_verified: 2026-07-20
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -28,6 +28,8 @@ Collector workspaces и защитные backups.
 - LayerGroup index `0` — bottom; UI и MapLibre должны совпадать.
 - Backup failure блокирует destructive mutation.
 - Collector project UID/map path не смешиваются между workspaces.
+- Карта приложения переоткрывается потокобезопасно, ContentProvider следует активному workspace,
+  а project switch запрещён до остановки записываемого трека.
 - `SYNC_NONE` оценивается отдельно для feature data и поддерживаемой config logic.
 - Успешная preprocessing-задача без собственного слоя не вставляет `null` в
   `LayerGroup`; отсутствие server `data.write` оставляет pull, но запрещает edit/push.
@@ -41,6 +43,8 @@ Collector workspaces и защитные backups.
 - Неверный порядок: insertion index в model и последующий style reload.
 - Потеря слоя после composition: backup result и removal scheduling.
 - Неверный проект после restart: registry JSON, active project и map path.
+- Пустая/чужая история треков после switch: проверить active project preference, создание нового
+  `MapDrawable` и перепривязку `LayerContentProvider` к тому же workspace.
 
 ## Проверки
 

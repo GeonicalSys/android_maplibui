@@ -660,29 +660,36 @@ public class LayerFillService extends Service implements IProgressor {
                 if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
                     /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
                     final String osmPathName = "osm";
-                    ILayer osm = mLayerGroup.getLayerByPathName(osmPathName);
+                    ILayer osm = task.mLayerGroup.getLayerByPathName(osmPathName);
                     int insertAt = 0;
                     if (osm != null) {
-                        int osmIdx = mLayerGroup.getChildLayerIndex(osm);
+                        int osmIdx = task.mLayerGroup.getChildLayerIndex(osm);
                         insertAt = osmIdx >= 0 ? osmIdx + 1 : 0;
                     }
-                    mLayerGroup.insertLayer(insertAt, filled);
+                    task.mLayerGroup.insertLayer(insertAt, filled);
                 } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
                         && filled instanceof NGWVectorLayer) {
                     NGWVectorLayer nv = (NGWVectorLayer) filled;
+                    replaceExistingNgwLayerAfterSuccessfulFill(task, nv);
                     int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
-                            mLayerGroup,
+                            task.mLayerGroup,
                             nv.getAccountName(),
                             task.mCollectorProjectRemoteIds,
                             task.mCollectorOrderIndex);
-                    mLayerGroup.insertLayer(insertAt, filled);
+                    task.mLayerGroup.insertLayer(insertAt, filled);
                 } else if (task.mLayerRestoreInsertIndex >= 0) {
-                    int insertAt = Math.min(task.mLayerRestoreInsertIndex, mLayerGroup.getLayerCount());
-                    mLayerGroup.insertLayer(insertAt, filled);
+                    int insertAt = Math.min(
+                            task.mLayerRestoreInsertIndex, task.mLayerGroup.getLayerCount());
+                    if (filled instanceof NGWVectorLayer) {
+                        replaceExistingNgwLayerAfterSuccessfulFill(
+                                task, (NGWVectorLayer) filled);
+                        insertAt = Math.min(insertAt, task.mLayerGroup.getLayerCount());
+                    }
+                    task.mLayerGroup.insertLayer(insertAt, filled);
                 } else {
-                    mLayerGroup.addLayer(filled);
+                    task.mLayerGroup.addLayer(filled);
                 }
-                mLayerGroup.save();
+                task.mLayerGroup.save();
                 registerStandaloneLayerFillVerifyIfNeeded(task, filled);
             }
         } else {
@@ -709,6 +716,33 @@ public class LayerFillService extends Service implements IProgressor {
         mProgressIntent.setPackage(getPackageName());
 
         sendBroadcast(mProgressIntent);
+    }
+
+    private void replaceExistingNgwLayerAfterSuccessfulFill(
+            LayerFillTask task,
+            NGWVectorLayer replacement) {
+        int removed = 0;
+        while (true) {
+            NGWVectorLayer existing = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(
+                    task.mLayerGroup,
+                    replacement.getRemoteId(),
+                    replacement.getAccountName());
+            if (existing == null || existing == replacement) {
+                break;
+            }
+            ILayer parent = existing.getParent();
+            LayerGroup existingParent = parent instanceof LayerGroup
+                    ? (LayerGroup) parent : task.mLayerGroup;
+            existingParent.removeLayer(existing);
+            existing.delete(true);
+            existingParent.save();
+            removed++;
+        }
+        if (removed > 0) {
+            HyperLog.v(Constants.TAG, "LayerFillService: replaced " + removed
+                    + " old NGW layer(s) only after successful staged fill remoteId="
+                    + replacement.getRemoteId() + " account=" + replacement.getAccountName());
+        }
     }
 
     /**
@@ -1080,6 +1114,8 @@ public class LayerFillService extends Service implements IProgressor {
      */
 
     private abstract class LayerFillTask{
+        /** Target group captured when this task is enqueued; later tasks may target another group. */
+        protected final LayerGroup mLayerGroup;
         String mLayerName;
         File mLayerPath;
         float mMinZoom, mMaxZoom;
@@ -1097,6 +1133,7 @@ public class LayerFillService extends Service implements IProgressor {
         protected int mLayerRestoreInsertIndex = -1;
 
         LayerFillTask(Bundle bundle) {
+            mLayerGroup = LayerFillService.this.mLayerGroup;
             mEnqueueBundle = new Bundle(bundle);
             mUri = bundle.getParcelable(KEY_URI);
             mLayerName = bundle.getString(KEY_NAME);
@@ -1527,9 +1564,14 @@ public class LayerFillService extends Service implements IProgressor {
                 if (null == tmsLayer)
                     return false;
 
-                if (mIsNgrc)
+                if (mIsNgrc) {
                     tmsLayer.fillFromNgrc(mUri, progressor);
-                else
+                    tmsLayer.setNgrcImportProvenance(
+                            mLayerName, tmsLayer.getLastArchiveSha256());
+                    if (!tmsLayer.save()) {
+                        throw new IOException("Cannot save NGRC import provenance");
+                    }
+                } else
                     tmsLayer.fillFromZip(mUri, progressor);
             } catch (IOException | NGException | RuntimeException e) {
                 e.printStackTrace();

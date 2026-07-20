@@ -53,7 +53,6 @@ import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
 import com.nextgis.maplib.datasource.ngw.Connection;
 import com.nextgis.maplib.datasource.ngw.LayerWithStyles;
-import com.nextgis.maplib.datasource.ngw.SyncAdapter;
 import com.nextgis.maplib.location.GpsEventSource;
 import com.nextgis.maplib.map.LayerFactory;
 import com.nextgis.maplib.map.MLP.AuthInterceptorNG;
@@ -78,6 +77,8 @@ import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
 import com.nextgis.maplibui.mapui.LayerFactoryUI;
 import com.nextgis.maplibui.mapui.SyncAccountWorker;
 import com.nextgis.maplibui.service.LayerFillService;
+import com.nextgis.maplibui.util.CollectorFormFileTransaction;
+import com.nextgis.maplibui.util.CollectorImportJournal;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
@@ -273,6 +274,8 @@ public abstract class GISApplication extends Application
             },1000);
         }
 
+        restoreCollectorImportJournal();
+
         boolean mIsDarkTheme = ControlHelper.isDarkTheme(this);
         setTheme(getThemeId(mIsDarkTheme));
 
@@ -285,19 +288,6 @@ public abstract class GISApplication extends Application
 
         final boolean isDefaultProcess = isDefaultProcess();
 
-        //turn on periodic sync. Can be set for each layer individually, but this is simpler
-        if (isDefaultProcess && mSharedPreferences.getBoolean(KEY_PREF_SYNC_PERIODICALLY, true)) {
-            String value = mSharedPreferences.getString(KEY_PREF_SYNC_PERIOD, Constants.DEFAULT_SYNC_PERIOD + ""); //1 hour
-            long period = Long.parseLong(value);
-
-            Bundle params = new Bundle();
-            params.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, false);
-            params.putBoolean(ContentResolver.SYNC_EXTRAS_DO_NOT_RETRY, false);
-            params.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, false);
-
-            SyncAdapter.setSyncPeriod(this, params, period);
-        }
-
         if (isDefaultProcess) {
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
@@ -305,6 +295,8 @@ public abstract class GISApplication extends Application
                     resetSyncTime();
                 }
             }, 2000);
+            new Handler(Looper.getMainLooper()).postDelayed(
+                    this::resumeCollectorImportAfterProcessRestartIfNeeded, 5000);
         }
 
         initializeMapbox();
@@ -354,19 +346,19 @@ public abstract class GISApplication extends Application
             return R.style.Theme_NextGIS_AppCompat_Light;
     }
 
-    public void resetMap(){
+    public synchronized void resetMap(){
         if (null != mMap) {
             mMap = null;
             getMap();
         }
     }
 
-    public void closeMapObj(){
+    public synchronized void closeMapObj(){
         mMap = null;
     }
 
     @Override
-    public MapBase getMap()
+    public synchronized MapBase getMap()
     {
         Log.d("MMAAPP", "getMap" );
         if (null != mMap) {
@@ -838,8 +830,10 @@ public abstract class GISApplication extends Application
                     editables,
                     fullOrder);
             if (!registered) {
-                HyperLog.w(Constants.TAG, "Collector composition sync: add batch without verify"
-                        + " group=" + groupId + " count=" + ids.length);
+                HyperLog.w(Constants.TAG, "Collector composition sync: add batch aborted because"
+                        + " durable verify journal was not registered group=" + groupId
+                        + " count=" + ids.length);
+                return;
             }
 
             ArrayList<Intent> intents = new ArrayList<>();
@@ -890,9 +884,10 @@ public abstract class GISApplication extends Application
         final long oldFormId = originSnapshot != null ? originSnapshot.getFormId() : 0L;
 
         Thread worker = new Thread(() -> {
-            String appliedHash = formHash;
+            String appliedHash = "";
             File tempDir = null;
             try {
+                CollectorFormFileTransaction.recover(layerPath);
                 if (formId > 0L) {
                     Account acc = getAccount(accountName);
                     if (acc == null) {
@@ -915,26 +910,25 @@ public abstract class GISApplication extends Application
                     }
                     String downloadedHash = LayerFormHashUtil.md5NgfpZip(
                             new ByteArrayInputStream(payload));
-                    if (!TextUtils.isEmpty(formHash)
-                            && !TextUtils.isEmpty(downloadedHash)
-                            && !formHash.equals(downloadedHash)) {
-                        HyperLog.w(Constants.TAG, "Collector form sync: snapshot/download hash mismatch"
-                                + " layer=\"" + layer.getName() + "\" formId=" + formId
-                                + " snapshot=" + formHash + " downloaded=" + downloadedHash);
+                    if (TextUtils.isEmpty(downloadedHash)) {
+                        throw new IOException("Cannot hash downloaded NGFP payload");
                     }
-                    if (TextUtils.isEmpty(appliedHash)) {
-                        appliedHash = downloadedHash;
+                    if (!TextUtils.isEmpty(formHash) && !formHash.equals(downloadedHash)) {
+                        throw new IOException("Snapshot/download NGFP hash mismatch: snapshot="
+                                + formHash + " downloaded=" + downloadedHash);
                     }
                     unzipCollectorFormPayload(payload, tempDir);
                     normalizeNgfpMeta(new File(tempDir, COLLECTOR_NGFP_ZIP_META));
-                    installCollectorFormFiles(layerPath, oldFormId, formId, tempDir);
-                    if (TextUtils.isEmpty(appliedHash)) {
-                        appliedHash = LayerFormHashUtil.md5LocalNgfpFiles(layerPath, formId);
+                    String stagedHash = LayerFormHashUtil.md5NgfpFiles(
+                            new File(tempDir, ConstantsUI.FILE_FORM),
+                            new File(tempDir, COLLECTOR_NGFP_ZIP_META));
+                    if (!downloadedHash.equals(stagedHash)) {
+                        throw new IOException("Downloaded/unpacked NGFP hash mismatch: downloaded="
+                                + downloadedHash + " unpacked=" + stagedHash);
                     }
+                    installCollectorFormFiles(layerPath, oldFormId, formId, tempDir);
+                    appliedHash = downloadedHash;
                     fillMissingLookupTablesForCollectorForm(layer, formId);
-                } else {
-                    deleteAllFormSidecars(layerPath);
-                    appliedHash = "";
                 }
             } catch (Exception e) {
                 HyperLog.w(Constants.TAG, "Collector form sync failed layer=\""
@@ -965,14 +959,25 @@ public abstract class GISApplication extends Application
                     editor.remove(SettingsConstants.KEY_PREF_LAST_FORM_HASH);
                 }
                 editor.apply();
+                boolean saved = false;
                 try {
-                    layer.save();
-                    if (mMap != null) {
-                        mMap.save();
+                    saved = layer.save();
+                    if (mMap != null && !mMap.save()) {
+                        saved = false;
                     }
                 } catch (Exception e) {
                     HyperLog.w(Constants.TAG, "Collector form sync: save failed layer=\""
                             + layer.getName() + "\": " + e.getMessage(), e);
+                }
+                if (!saved) {
+                    HyperLog.w(Constants.TAG, "Collector form sync: keeping previous sidecars because"
+                            + " layer metadata was not saved layer=\"" + layer.getName() + "\"");
+                    return;
+                }
+                if (formId <= 0L) {
+                    deleteAllFormSidecars(layerPath);
+                } else if (oldFormId > 0L && oldFormId != formId) {
+                    deleteFormSidecars(layerPath, oldFormId);
                 }
                 HyperLog.v(Constants.TAG, "Collector form sync: applied layer=\""
                         + layer.getName() + "\" formId=" + formId
@@ -1042,9 +1047,9 @@ public abstract class GISApplication extends Application
         return name;
     }
 
-    private void normalizeNgfpMeta(File meta) {
-        if (meta == null || !meta.exists()) {
-            return;
+    private void normalizeNgfpMeta(File meta) throws IOException {
+        if (meta == null || !meta.isFile()) {
+            throw new IOException("NGFP archive missing meta.json");
         }
         try {
             JSONObject metaJson = new JSONObject(FileUtil.readFromFile(meta));
@@ -1053,8 +1058,7 @@ public abstract class GISApplication extends Application
                 FileUtil.writeToFile(meta, metaJson.toString());
             }
         } catch (Exception e) {
-            HyperLog.w(Constants.TAG, "Collector form sync: meta normalize failed "
-                    + meta + ": " + e.getMessage());
+            throw new IOException("Cannot normalize NGFP metadata " + meta, e);
         }
     }
 
@@ -1063,42 +1067,14 @@ public abstract class GISApplication extends Application
             long oldFormId,
             long formId,
             File tempDir) throws IOException {
-        if (oldFormId > 0L && oldFormId != formId) {
-            deleteFormSidecars(layerPath, oldFormId);
-        }
-        replaceFile(
+        // Keep oldFormId sidecars until the new origin metadata is durably saved. If the process
+        // stops before that point, the old form remains usable and the next sync retries.
+        CollectorFormFileTransaction.install(
+                layerPath,
                 new File(tempDir, ConstantsUI.FILE_FORM),
-                new File(layerPath, formId + "_" + ConstantsUI.FILE_FORM));
-        replaceFile(
                 new File(tempDir, COLLECTOR_NGFP_ZIP_META),
+                new File(layerPath, formId + "_" + ConstantsUI.FILE_FORM),
                 new File(layerPath, formId + "_" + LayerFillService.NGFP_META));
-    }
-
-    private void replaceFile(File source, File target) throws IOException {
-        if (source == null || !source.exists()) {
-            throw new IOException("Missing source " + source);
-        }
-        File parent = target.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException("Cannot create " + parent);
-        }
-        if (target.exists() && !target.delete()) {
-            throw new IOException("Cannot replace " + target);
-        }
-        if (source.renameTo(target)) {
-            return;
-        }
-        FileInputStream in = new FileInputStream(source);
-        FileOutputStream out = new FileOutputStream(target);
-        try {
-            byte[] buffer = new byte[Constants.IO_BUFFER_SIZE];
-            FileUtil.copyStream(in, out, buffer, Constants.IO_BUFFER_SIZE);
-        } finally {
-            in.close();
-            out.close();
-        }
-        //noinspection ResultOfMethodCallIgnored
-        source.delete();
     }
 
     private void deleteFormSidecars(File layerPath, long formId) {
@@ -1261,10 +1237,6 @@ public abstract class GISApplication extends Application
                 restoreIndex = parentGroup.getLayerCount();
             }
 
-            parentGroup.removeLayer(layer);
-            layer.delete(true);
-            mMap.save();
-
             boolean registered = registerCollectorImportBatch(
                     groupId,
                     accountName,
@@ -1276,10 +1248,15 @@ public abstract class GISApplication extends Application
                     new boolean[]{collectorEditable},
                     fullOrder);
             if (!registered) {
-                HyperLog.w(Constants.TAG, "Collector composition sync: refill without verify layer=\""
+                HyperLog.w(Constants.TAG, "Collector composition sync: refill registration failed;"
+                        + " preserving old layer=\""
                         + layerName + "\" remoteId=" + remoteId);
+                return;
             }
 
+            // Keep the working layer and its SQLite data in place. LayerFillService
+            // builds the replacement in a new directory and removes this layer only
+            // after the replacement has filled successfully.
             Intent intent = buildCollectorProjectLayerFillIntent(
                     groupId,
                     accountName,
@@ -1407,6 +1384,67 @@ public abstract class GISApplication extends Application
         mCollectorProjectUid = null;
         mCollectorOutcomes.clear();
         mCollectorRepairPassesRemaining = 0;
+        CollectorImportJournal.clear(this);
+    }
+
+    private boolean persistCollectorImportLocked() {
+        if (mCollectorRemoteIds == null || mCollectorRemoteIds.length == 0) {
+            CollectorImportJournal.clear(this);
+            return true;
+        }
+        CollectorImportJournal.Snapshot snapshot = new CollectorImportJournal.Snapshot();
+        snapshot.groupId = mCollectorGroupId;
+        snapshot.accountName = mCollectorAccount;
+        snapshot.projectUid = mCollectorProjectUid;
+        snapshot.remoteIds = Arrays.copyOf(mCollectorRemoteIds, mCollectorRemoteIds.length);
+        snapshot.names = Arrays.copyOf(mCollectorNames, mCollectorNames.length);
+        snapshot.configJsons = Arrays.copyOf(mCollectorConfigJsons, mCollectorConfigJsons.length);
+        snapshot.formIds = Arrays.copyOf(mCollectorFormIds, mCollectorFormIds.length);
+        snapshot.editables = mCollectorEditables != null
+                ? Arrays.copyOf(mCollectorEditables, mCollectorEditables.length) : null;
+        snapshot.fullProjectRemoteIds = mCollectorFullProjectRemoteIds != null
+                ? Arrays.copyOf(mCollectorFullProjectRemoteIds, mCollectorFullProjectRemoteIds.length)
+                : null;
+        snapshot.repairPassesRemaining = mCollectorRepairPassesRemaining;
+        boolean saved = CollectorImportJournal.save(this, snapshot);
+        if (!saved) {
+            HyperLog.e(Constants.TAG, "Collector import journal save failed");
+        }
+        return saved;
+    }
+
+    private void restoreCollectorImportJournal() {
+        CollectorImportJournal.Snapshot snapshot = CollectorImportJournal.load(this);
+        if (snapshot == null) {
+            return;
+        }
+        synchronized (mCollectorImportLock) {
+            mCollectorGroupId = snapshot.groupId;
+            mCollectorAccount = snapshot.accountName;
+            mCollectorProjectUid = snapshot.projectUid;
+            mCollectorRemoteIds = Arrays.copyOf(snapshot.remoteIds, snapshot.remoteIds.length);
+            mCollectorNames = Arrays.copyOf(snapshot.names, snapshot.names.length);
+            mCollectorConfigJsons = Arrays.copyOf(snapshot.configJsons, snapshot.configJsons.length);
+            mCollectorFormIds = Arrays.copyOf(snapshot.formIds, snapshot.formIds.length);
+            mCollectorEditables = Arrays.copyOf(snapshot.editables, snapshot.editables.length);
+            mCollectorFullProjectRemoteIds = Arrays.copyOf(
+                    snapshot.fullProjectRemoteIds, snapshot.fullProjectRemoteIds.length);
+            mCollectorRepairPassesRemaining = snapshot.repairPassesRemaining;
+            mCollectorOutcomes.clear();
+        }
+        mLayerFillDeferHeavyMapReload = true;
+        HyperLog.w(Constants.TAG, "Restored unfinished Collector import project="
+                + snapshot.projectUid + " layers=" + snapshot.remoteIds.length
+                + " repairsLeft=" + snapshot.repairPassesRemaining);
+    }
+
+    private void resumeCollectorImportAfterProcessRestartIfNeeded() {
+        if (!hasCollectorImportBatchRegistered() || isLayerFillServiceBusy()) {
+            return;
+        }
+        HyperLog.w(Constants.TAG,
+                "Resuming unfinished Collector import by verify/repair after process restart");
+        finalizeCollectorImportVerifyAndRepairIfNeeded();
     }
 
     private static int collectorProjectIndexOf(long remoteId, long[] fullProjectRemoteIds) {
@@ -1470,6 +1508,12 @@ public abstract class GISApplication extends Application
                     fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length);
             mCollectorOutcomes.clear();
             mCollectorRepairPassesRemaining = COLLECTOR_MAX_REPAIR_PASSES;
+            if (!persistCollectorImportLocked()) {
+                // Never start a batch that cannot survive process death. For a staged rebuild this
+                // also guarantees that the working old layer remains untouched.
+                clearCollectorImportFieldsLocked();
+                return false;
+            }
             return true;
         }
     }
@@ -1771,6 +1815,7 @@ public abstract class GISApplication extends Application
         }
 
         boolean abandon;
+        boolean repairJournalSaved = true;
         synchronized (mCollectorImportLock) {
             if (mCollectorRepairPassesRemaining <= 0) {
                 abandon = true;
@@ -1779,6 +1824,13 @@ public abstract class GISApplication extends Application
                 abandon = false;
                 mCollectorRepairPassesRemaining--;
                 mCollectorOutcomes.clear();
+                repairJournalSaved = persistCollectorImportLocked();
+                if (!repairJournalSaved) {
+                    // Keep the in-memory counter aligned with the last durable journal. The next
+                    // startup may safely retry verification, but this process must not start an
+                    // untracked repair wave.
+                    mCollectorRepairPassesRemaining++;
+                }
             }
         }
         if (abandon) {
@@ -1786,6 +1838,11 @@ public abstract class GISApplication extends Application
                     + COLLECTOR_MAX_REPAIR_PASSES + " repair wave(s), giving up: "
                     + TextUtils.join(", ", repaired));
             Toast.makeText(this, R.string.collector_import_repair_gave_up, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!repairJournalSaved) {
+            HyperLog.w(Constants.TAG, "Collector import repair postponed: durable journal"
+                    + " update failed; existing layers were preserved");
             return;
         }
 
@@ -1799,23 +1856,6 @@ public abstract class GISApplication extends Application
             int i = brokenIndices.get(bi);
             long rid = remoteIds[i];
             String layerName = names[i];
-            NGWVectorLayer layer = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(group, rid, account);
-            if (layer != null) {
-                ILayer parent = layer.getParent();
-                LayerGroup parentGroup = null;
-                while (parent != null) {
-                    if (parent instanceof LayerGroup) {
-                        parentGroup = (LayerGroup) parent;
-                        break;
-                    }
-                    parent = parent.getParent();
-                }
-                if (parentGroup == null) {
-                    parentGroup = group;
-                }
-                parentGroup.removeLayer(layer);
-                layer.delete(true);
-            }
 
             Bundle taskExtras = new Bundle();
             taskExtras.putBoolean(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
@@ -2327,22 +2367,9 @@ public abstract class GISApplication extends Application
             Log.d("SSYNC", "resetSyncTime syncable=1 account=" + account.name
                     + " auto=" + ContentResolver.getSyncAutomatically(account, getAuthority()));
 
-            // search sync settings // def if NO
-            String prefValue = "" + Constants.DEFAULT_SYNC_PERIOD;
-            List<PeriodicSync> syncs = ContentResolver.getPeriodicSyncs(account, getAuthority());
-            if (null != syncs && !syncs.isEmpty()) {
-                for (PeriodicSync sync : syncs) {
-                    Bundle bundle = sync.extras;
-                    String value = bundle.getString(KEY_PREF_SYNC_PERIOD);
-                    if (value != null) {
-                        Log.d("SSYNC", " prefValue=  : " + prefValue);
-                        prefValue = value;
-                        break;
-                    }
-                }
-            } else {
-                Log.d("SSYNC", "Reset for : " + account.name + " account = NO ITEMS");
-            }
+            // Preferences survive OS cleanup of PeriodicSync registrations, so read
+            // through the single canonical resolver before deleting stale entries.
+            long interval = getAccountSyncTime(account, this);
 
 
             List<PeriodicSync> syncsToDelete =
@@ -2357,10 +2384,9 @@ public abstract class GISApplication extends Application
             }
 
 
-            Log.d("SSYNC", "add again " + prefValue);
+            Log.d("SSYNC", "add again " + interval);
             Bundle bundle = new Bundle();
-            bundle.putString(KEY_PREF_SYNC_PERIOD, prefValue);
-            long interval = Long.parseLong(prefValue);
+            bundle.putString(KEY_PREF_SYNC_PERIOD, String.valueOf(interval));
             setSyncPeriod(account, interval, bundle, false);
 
         }

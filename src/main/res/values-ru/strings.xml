@@ -77,6 +77,7 @@
     <string name="ngw_collector_project">Проект Collector</string>
     <string name="ngw_collector_import">Импорт проекта</string>
     <string name="ngw_collector_no_vector_layers">Нет векторных слоёв для импорта из проекта Collector. Подробности: HyperLog или logcat (тег nextgismobile).</string>
+    <string name="ngw_collector_incomplete_snapshot">Описание проекта Collector загрузилось не полностью. Импорт отменён, чтобы не создать частичный проект. Проверьте соединение и повторите попытку.</string>
     <string name="collector_import_repair_queued">Повторная загрузка неполных слоёв коллектора: %d</string>
     <string name="collector_import_repair_gave_up">Часть слоёв коллектора так и не загрузилась после 3 попыток. Список — в HyperLog.</string>
     <string name="layer_not_editable_in_collector">Слой только для просмотра в проекте коллектора</string>
