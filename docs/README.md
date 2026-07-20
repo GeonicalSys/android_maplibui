@@ -35,6 +35,11 @@ Collector workspaces и защитные backups.
   `LayerGroup`; отсутствие server `data.write` оставляет pull, но запрещает edit/push.
 - Сравнение сохранённых строковых значений формы с typed controls выполняется по
   строковому представлению, чтобы число `42` не считалось ложной правкой к `"42"`.
+- Успешная серверная авторизация не считается добавлением Веб ГИС, пока
+  `AccountManager` не создал и не вернул variant-specific Android account; при
+  локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.
+- Mobile/Collector behavior определяется `IGISApplication.isCollectorApplication()`,
+  а не жёстким сравнением package name, чтобы suffix `.geonical`/`.debug` не менял UI сервисов.
 
 ## Диагностика
 
@@ -45,6 +50,8 @@ Collector workspaces и защитные backups.
 - Неверный проект после restart: registry JSON, active project и map path.
 - Пустая/чужая история треков после switch: проверить active project preference, создание нового
   `MapDrawable` и перепривязку `LayerContentProvider` к тому же workspace.
+- Валидный вход закрывается без аккаунта: проверить совпадение account type в
+  runtime, authenticator и sync adapter, затем сообщения `NGW account add` в HyperLog.
 
 ## Проверки
 

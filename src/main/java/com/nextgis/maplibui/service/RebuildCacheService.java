@@ -40,6 +40,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.nextgis.maplib.api.IProgressor;
+import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.Constants;
@@ -123,7 +124,7 @@ public class RebuildCacheService extends IntentService implements IProgressor
         Bitmap largeIcon = NotificationHelper.getLargeIcon(icon, getResources());
         mBuilder.setSmallIcon(icon).setLargeIcon(largeIcon);
 
-        if (getPackageName().equals("com.nextgis.mobile")) {
+        if (isMobileApplication()) {
             Intent intent = new Intent(this, RebuildCacheService.class);
             intent.setAction(ACTION_STOP);
             int flag = PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE;
@@ -239,7 +240,7 @@ public class RebuildCacheService extends IntentService implements IProgressor
                 mIsRunning = true;
                 mCurrentTasks++;
                 String notifyTitle;
-                if (getPackageName().equals("com.nextgis.mobile")) {
+                if (isMobileApplication()) {
                     notifyTitle = getString(com.nextgis.maplib.R.string.rebuild_cache);
                     notifyTitle += ": " + mCurrentTasks + "/" + mTotalTasks;
                 } else {
@@ -266,6 +267,11 @@ public class RebuildCacheService extends IntentService implements IProgressor
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    protected boolean isMobileApplication() {
+        return getApplication() instanceof IGISApplication
+                && !((IGISApplication) getApplication()).isCollectorApplication();
     }
 
 

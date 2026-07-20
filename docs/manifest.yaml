@@ -8,6 +8,10 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGWLoginActivity.java
+    responsibility: Complete Web GIS login only after Android AccountManager returns the created variant-specific account; keep recoverable local failures visible.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/service/RebuildCacheService.java
+    responsibility: Rebuild vector cache with mobile or Collector notification behavior selected by the application contract rather than package name.
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     responsibility: Application-level map lifecycle, active-project database binding, fill, reload, sync, schema rebuild and removal orchestration.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -43,10 +47,10 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
   - id: layer-backups
     path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
-invariant_refs: [INV-LAYER-ORDER, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-NGRC-PRESERVE, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS]
+invariant_refs: [INV-NGW-ACCOUNT-IDENTITY, INV-LAYER-ORDER, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-NGRC-PRESERVE, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS]
 global_docs:
   - docs/architecture/map-rendering.md
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
-smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG]
+smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG]
 upstream_hotspots: [LAYER-FILL, MAP-HOST, COLLECTOR-RESOURCE]

@@ -362,9 +362,9 @@ public class NGWLoginFragment
             boolean accountAdded = app.addAccount(accountName, mUrlText.toLowerCase(), login, password, token);
 
             if (null != mOnAddAccountListener) {
-                Account account = null;
-                if (accountAdded)
-                    account = app.getAccount(accountName);
+                // Resolve the account even after addAccountExplicitly() returned false so the
+                // activity can distinguish an existing account from a system registration error.
+                Account account = app.getAccount(accountName);
 
                 mOnAddAccountListener.onAddAccount(account, token, accountAdded);
             }

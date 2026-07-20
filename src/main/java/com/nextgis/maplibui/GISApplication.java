@@ -531,11 +531,17 @@ public abstract class GISApplication extends Application
     @Override
     public boolean addAccount(String name, String url, String login, String password, String token) {
         if(!PermissionUtil.hasPermission(this, ConstantsUI.PERMISSION_AUTHENTICATE_ACCOUNTS)){
+            HyperLog.e(Constants.TAG, "NGW account add blocked: permission "
+                    + ConstantsUI.PERMISSION_AUTHENTICATE_ACCOUNTS + " is not granted; account="
+                    + name + " type=" + getAccountsType());
             return false;
         }
 
-        if (!isAccountManagerValid() || TextUtils.isEmpty(url))
+        if (!isAccountManagerValid() || TextUtils.isEmpty(url)) {
+            HyperLog.e(Constants.TAG, "NGW account add blocked: invalid AccountManager or URL; account="
+                    + name + " type=" + getAccountsType());
             return false;
+        }
 
         final Account account = new Account(name, getAccountsType());
 
@@ -552,6 +558,8 @@ public abstract class GISApplication extends Application
                         + " authority=" + getAuthority());
             } else {
                 Log.d("SSYNC", "GISApplication.addAccount account not added: " + account.name);
+                HyperLog.e(Constants.TAG, "NGW account add rejected by AccountManager; account="
+                        + account.name + " type=" + account.type);
             }
 
             return accountAdded;
@@ -559,6 +567,8 @@ public abstract class GISApplication extends Application
         catch (SecurityException e){
             e.printStackTrace();
             Log.e("SSYNC", "GISApplication.addAccount failed for " + name + ": " + e.getMessage(), e);
+            HyperLog.e(Constants.TAG, "NGW account add security error; account=" + name
+                    + " type=" + getAccountsType(), e);
             return false;
         }
     }

@@ -48,6 +48,7 @@
     <string name="user_name_ngid">E-mail</string>
     <string name="canceled">Отменено</string>
     <string name="ngw_account_already_exists">Учетная запись уже существует</string>
+    <string name="ngw_account_add_failed">Данные Веб ГИС верны, но Android не смог добавить учётную запись. Повторите попытку.</string>
     <string name="error_login">Неправильное имя или пароль</string>
     <string name="error_webgis_not_found">Веб ГИС не найдена</string>
     <string name="ngw_layer_add">Добавить из Веб ГИС</string>

@@ -56,6 +56,7 @@
 
     <string name="ngw_layer_add">Add from Web GIS</string>
     <string name="ngw_account_already_exists">Account already exist</string>
+    <string name="ngw_account_add_failed">Web GIS credentials are valid, but Android could not add the account. Please try again.</string>
     <string name="ngw_accounts">Web GIS</string>
 
     <string name="ngw_account_add_item">Add Web GIS</string>
