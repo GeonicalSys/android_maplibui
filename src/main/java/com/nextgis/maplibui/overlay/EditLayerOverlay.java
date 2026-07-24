@@ -515,7 +515,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                         break;
                 }
 
-                hideNavigationButton();
+                // Navigation close is set by MapFragment (cancelEdits); do not hide it here.
 
                 for (EditEventListener listener : mListeners)
                     listener.onStartEditSession();
@@ -523,7 +523,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 mLayer.hideFeature(mFeature.getId());
                 break;
             case MODE_EDIT_BY_WALK:
-                hideNavigationButton();
+                // Navigation close is set by MapFragment (cancelEdits).
 
                 for (EditEventListener listener : mListeners)
                     listener.onStartEditSession();
@@ -548,7 +548,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 startGeometryByWalk();
                 break;
             case MODE_EDIT_BY_TOUCH:
-                hideNavigationButton();
+                // Navigation close is set by MapFragment (cancelEdits).
                 mBottomToolbar.setTitle(R.string.title_edit_by_touch);
                 mBottomToolbar.getMenu().clear();
                 MenuItem apply = mBottomToolbar.getMenu().add(0, 0, 0, R.string.ok);
@@ -1487,10 +1487,10 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         GeoPoint point = new GeoPoint(exactEnv.getMaxX(), exactEnv.getMinY());
         point.setCRS(GeoConstants.CRS_WEB_MERCATOR);
 
-        for (int i = 0; i < items.size(); i++) {    // FIXME hack for bad RTree cache
+        for (int i = 0; i < items.size(); i++) {    // refine RTree envelope candidates by geometry
             long featureId = items.get(i);
             GeoGeometry geometry = mLayer.getGeometryForId(featureId);
-            if (notContains(geometry, point))
+            if (notContains(geometry, point, mapEnv))
                 continue;
 
             if (geometry != null && previousFeatureId != featureId) {
@@ -1517,26 +1517,42 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     }
 
 
+    /**
+     * Refine RTree envelope hits. Returns {@code true} when the feature should be skipped.
+     * Polygons use point-in-polygon; lines/points require intersection with the tap
+     * tolerance envelope (otherwise lines are accepted for any bbox hit).
+     */
     static public boolean notContains(GeoGeometry geometry, GeoPoint point) {
+        return notContains(geometry, point, null);
+    }
+
+    static public boolean notContains(GeoGeometry geometry, GeoPoint point, GeoEnvelope tapEnv) {
+        if (geometry == null) {
+            return true;
+        }
+
         if (geometry instanceof GeoPolygon) {
-            GeoPolygon polygon = (GeoPolygon) geometry;
-            if (!polygon.contains(point))
-                return true;
+            return !((GeoPolygon) geometry).contains(point);
         }
 
         if (geometry instanceof GeoMultiPolygon) {
             GeoMultiPolygon multiPolygon = (GeoMultiPolygon) geometry;
-            boolean contains = false;
             for (int j = 0; j < multiPolygon.size(); j++) {
                 GeoPolygon geom = (GeoPolygon) multiPolygon.getGeometry(j);
                 if (geom.contains(point)) {
-                    contains = true;
-                    break;
+                    return false;
                 }
             }
-
-            return !contains;
+            return true;
         }
+
+        if (tapEnv != null && (geometry instanceof GeoLineString
+                || geometry instanceof GeoMultiLineString
+                || geometry instanceof GeoPoint
+                || geometry instanceof GeoMultiPoint)) {
+            return !geometry.intersects(tapEnv);
+        }
+
         return false;
     }
 

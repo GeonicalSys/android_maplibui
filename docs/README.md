@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-07-24
+last_verified: 2026-07-25
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -20,7 +20,12 @@ Collector workspaces и защитные backups.
 - deferred reload карты после batch fill;
 - изолированные Collector projects и переключение composition;
 - schema rebuild/removal только после успешного backup;
-- track/edit/form UI и foreground workers/services.
+- track/edit/form UI и foreground workers/services;
+- `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
+  attribute form gated by layer edit policy in `app`;
+- настройка стиля векторного слоя: простой и «По правилу», включая
+  **«Стиль для прочих (по умолчанию)»** как базу новых категорий и источник
+  незаданных опциональных параметров.
 
 ## Ограничения
 

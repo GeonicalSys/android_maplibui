@@ -403,7 +403,7 @@
     <string name="layer_opacity">Непрозрачность слоя</string>
     <string name="text_opacity">Непрозрачность подписи</string>
     <string name="rule_key_ignore_case">Игнорировать регистр в значениях правил</string>
-    <string name="rule_other_style">Стиль для прочих значений</string>
+    <string name="rule_other_style">Стиль для прочих (по умолчанию)</string>
     <string name="very_small">Очень маленький</string>
     <string name="small">Маленький</string>
     <string name="medium">Средний</string>

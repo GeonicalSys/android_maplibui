@@ -292,10 +292,15 @@ public class RuleFeatureRendererUI extends RendererUI {
 
         private void showStyleDialog(final String value) {
             try {
-                final Style style = value == null ? mStyle
-                        : mRulesList.contains(mSelectedValue)
-                                ? mStyleRule.getStyle(mSelectedValue)
-                                : mStyle.clone();
+                final Style style;
+                if (value == null) {
+                    style = mStyle;
+                } else if (mRulesList.contains(mSelectedValue)) {
+                    style = mStyleRule.getStyle(mSelectedValue);
+                } else {
+                    Style other = mStyleRule.resolveOtherStyle(mStyle);
+                    style = other != null ? other.clone() : mStyle.clone();
+                }
                 showStyleDialogForStyle(style, false);
             } catch (CloneNotSupportedException e) {
                 e.printStackTrace();

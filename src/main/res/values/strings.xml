@@ -319,7 +319,7 @@
     <string name="layer_opacity">Layer opacity</string>
     <string name="text_opacity">Label opacity</string>
     <string name="rule_key_ignore_case">Ignore case in rule values</string>
-    <string name="rule_other_style">Style for other values</string>
+    <string name="rule_other_style">Style for others (default)</string>
     <string name="layerInfo">Layer info</string>
     <string name="geom_type">Geometry type</string>
     <string name="feature_count">Features: %1$d (%2$s)</string>

@@ -30,8 +30,8 @@ key_components:
     responsibility: Install or recover the form and metadata sidecars as one validated transaction.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
     responsibility: Export layer data before destructive rebuild or removal.
-  - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/ReorderedLayerView.java
-    responsibility: Synchronize user reorder gesture with layer model and map reload.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
+    responsibility: Rule-based style editor UI; other/default style naming and cloning new categories from other.
 public_contracts:
   - id: gis-application
     symbol: GISApplication implements IGISApplication

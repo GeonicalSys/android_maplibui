@@ -88,8 +88,9 @@ public class BottomToolbar
             width = getContext().getResources().getDisplayMetrics().widthPixels;
         }
 
-        // View-only selection bar: info + layer edit — always show both action icons.
-        if (menu.size() <= 2) {
+        // Lean bars (select_action_view: info+edit; attributes_editable: form+prev+next):
+        // force ALWAYS so width math does not drop an icon on narrow screens.
+        if (menu.size() <= 3) {
             for (int i = 0; i < menu.size(); i++) {
                 MenuItemCompat.setShowAsAction(menu.getItem(i), MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
             }
