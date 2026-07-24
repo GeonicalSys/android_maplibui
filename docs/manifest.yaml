@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-07-20
+last_verified: 2026-07-24
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -15,11 +15,15 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     responsibility: Application-level map lifecycle, active-project database binding, fill, reload, sync, schema rebuild and removal orchestration.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
-    responsibility: Background NGW/Collector layer download, permission application, creation and ordered insertion of non-null layers.
+    responsibility: Background NGW/Collector layer download, Collector-item edit policy application, creation and ordered insertion of non-null layers below the top tracks layer.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
     responsibility: Atomically persist, recover and activate isolated Collector project workspaces while refusing cross-project switches during track recording.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectImportHelper.java
+    responsibility: Keep Activity and Dialog initial Collector imports identical across vector and supported raster-style items.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorRasterLayerHelper.java
+    responsibility: Create and update authenticated project-managed read-only raster layers for already-supported QGIS style resources.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorImportJournal.java
     responsibility: Persist unfinished Collector batches for verify-and-repair after process death.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
@@ -47,7 +51,7 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
   - id: layer-backups
     path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
-invariant_refs: [INV-NGW-ACCOUNT-IDENTITY, INV-LAYER-ORDER, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-NGRC-PRESERVE, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS]
+invariant_refs: [INV-NGW-ACCOUNT-IDENTITY, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-NGRC-PRESERVE, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS]
 global_docs:
   - docs/architecture/map-rendering.md
   - docs/architecture/collector-projects.md

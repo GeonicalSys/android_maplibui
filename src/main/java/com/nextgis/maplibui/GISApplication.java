@@ -51,6 +51,7 @@ import android.net.Uri;
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
+import com.nextgis.maplib.datasource.ngw.CollectorProjectItem;
 import com.nextgis.maplib.datasource.ngw.Connection;
 import com.nextgis.maplib.datasource.ngw.LayerWithStyles;
 import com.nextgis.maplib.location.GpsEventSource;
@@ -61,6 +62,7 @@ import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.map.MaplibreMapInteraction;
 import com.nextgis.maplib.map.NGWLookupTable;
+import com.nextgis.maplib.map.NGWRasterLayer;
 import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.VectorLayer;
@@ -79,6 +81,7 @@ import com.nextgis.maplibui.mapui.SyncAccountWorker;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CollectorFormFileTransaction;
 import com.nextgis.maplibui.util.CollectorImportJournal;
+import com.nextgis.maplibui.util.CollectorRasterLayerHelper;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
@@ -172,7 +175,7 @@ public abstract class GISApplication extends Application
     private long[] mCollectorFormIds;
     /** Per-layer collector «Редактируемый» flags aligned with {@link #mCollectorRemoteIds}. */
     private boolean[] mCollectorEditables;
-    /** All vector layer remote ids in collector project list order (includes layers not in this download batch). */
+    /** All supported vector/style ids in project order (includes items outside this vector batch). */
     private long[] mCollectorFullProjectRemoteIds;
     private final Map<Long, Boolean> mCollectorOutcomes = new ConcurrentHashMap<>();
 
@@ -1370,6 +1373,166 @@ public abstract class GISApplication extends Application
             HyperLog.v(Constants.TAG, "Collector composition sync: applied state layer=\""
                     + layer.getName() + "\" order=" + collectorOrder
                     + " editable=" + collectorEditable + " moved=" + moved);
+        });
+    }
+
+    @Override
+    public void addCollectorRasterStyleLayers(
+            int groupId,
+            String accountName,
+            String collectorProjectUid,
+            CollectorProjectItem[] items,
+            int[] collectorOrders,
+            long[] fullCollectorProjectRemoteIds) {
+        if (groupId == Constants.NOT_FOUND
+                || TextUtils.isEmpty(accountName)
+                || TextUtils.isEmpty(collectorProjectUid)
+                || items == null
+                || collectorOrders == null
+                || items.length == 0
+                || items.length != collectorOrders.length) {
+            HyperLog.w(Constants.TAG, "Collector composition sync: invalid raster-style batch");
+            return;
+        }
+        final CollectorProjectItem[] itemCopy = Arrays.copyOf(items, items.length);
+        final int[] orderCopy = Arrays.copyOf(collectorOrders, collectorOrders.length);
+        final long[] fullOrder = fullCollectorProjectRemoteIds != null
+                ? Arrays.copyOf(
+                        fullCollectorProjectRemoteIds,
+                        fullCollectorProjectRemoteIds.length)
+                : null;
+
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (mMap == null) {
+                return;
+            }
+            ILayer groupLayer = mMap.getLayerById(groupId);
+            if (!(groupLayer instanceof LayerGroup)) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: raster group missing id="
+                        + groupId);
+                return;
+            }
+            Account account = getAccount(accountName);
+            if (account == null) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: raster account missing "
+                        + accountName);
+                return;
+            }
+            String serverUrl = getAccountUrl(account);
+            LayerGroup group = (LayerGroup) groupLayer;
+            ArrayList<NGWRasterLayer> addedLayers = new ArrayList<>();
+            for (int i = 0; i < itemCopy.length; i++) {
+                NGWRasterLayer added = CollectorRasterLayerHelper.addStyleLayer(
+                        group,
+                        serverUrl,
+                        accountName,
+                        collectorProjectUid,
+                        itemCopy[i],
+                        orderCopy[i],
+                        fullOrder);
+                if (added != null) {
+                    addedLayers.add(added);
+                }
+            }
+            if (addedLayers.isEmpty()) {
+                return;
+            }
+            try {
+                if (!group.save() || !mMap.save()) {
+                    throw new IllegalStateException("map save returned false");
+                }
+            } catch (RuntimeException e) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: raster batch save failed: "
+                        + e.getMessage(), e);
+                for (NGWRasterLayer layer : addedLayers) {
+                    group.removeLayer(layer);
+                    layer.delete(true);
+                }
+                try {
+                    group.save();
+                    mMap.save();
+                } catch (RuntimeException ignored) {
+                }
+                return;
+            }
+            requestMapReloadAfterLayerFillBatch();
+            HyperLog.v(Constants.TAG, "Collector composition sync: added raster styles="
+                    + addedLayers.size() + " group=" + groupId);
+        });
+    }
+
+    @Override
+    public void applyCollectorRasterStyleProjectState(
+            final NGWRasterLayer layer,
+            final CollectorProjectItem item,
+            final int collectorOrder,
+            final long[] fullCollectorProjectRemoteIds) {
+        if (layer == null || item == null || !item.isRasterStyle()) {
+            return;
+        }
+        final long[] fullOrder = fullCollectorProjectRemoteIds != null
+                ? Arrays.copyOf(
+                        fullCollectorProjectRemoteIds,
+                        fullCollectorProjectRemoteIds.length)
+                : null;
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (mMap == null) {
+                return;
+            }
+            LayerGroup parentGroup = resolveLayerParentGroup(layer);
+            if (parentGroup == null) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: no parent group for raster "
+                        + layer.getName());
+                return;
+            }
+            if (!CollectorRasterLayerHelper.applyStyleState(
+                    parentGroup, layer, item, collectorOrder, fullOrder)) {
+                return;
+            }
+            try {
+                layer.save();
+                parentGroup.save();
+                mMap.save();
+            } catch (RuntimeException e) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: raster state save failed for "
+                        + layer.getName() + ": " + e.getMessage(), e);
+            }
+            requestMapReloadAfterLayerFillBatch();
+        });
+    }
+
+    @Override
+    public void removeCollectorRasterStyleLayer(final NGWRasterLayer layer) {
+        if (layer == null || mMap == null) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (mMap == null) {
+                return;
+            }
+            LayerOriginMetadata origin = layer.getLayerOriginMetadata();
+            if (origin == null || !origin.isManagedByProject()) {
+                return;
+            }
+            LayerGroup parentGroup = resolveLayerParentGroup(layer);
+            if (parentGroup == null) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: no parent group for raster removal "
+                        + layer.getName());
+                return;
+            }
+            String layerName = layer.getName();
+            parentGroup.removeLayer(layer);
+            layer.delete(true);
+            try {
+                parentGroup.save();
+                mMap.save();
+            } catch (RuntimeException e) {
+                HyperLog.w(Constants.TAG, "Collector composition sync: raster removal save failed for "
+                        + layerName + ": " + e.getMessage(), e);
+            }
+            requestMapReloadAfterLayerFillBatch();
+            HyperLog.v(Constants.TAG, "Collector composition sync: removed raster style \""
+                    + layerName + "\"");
         });
     }
 

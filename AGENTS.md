@@ -12,3 +12,9 @@ reorder, sync UI, Collector registry/workspaces, backups и lifecycle services.
 `LayerFillService`, `GISApplication`, `CollectorProjectRegistry` или
 `ReorderedLayerView` требует проверки layer order, project isolation и
 deferred reload. Обновляй local pack и central docs по DoD.
+
+Оба экрана начального Collector-импорта обязаны использовать общий
+`CollectorProjectImportHelper`; raster-style creation для initial import и
+composition sync проходит через `CollectorRasterLayerHelper`. Не дублируй эту
+логику обратно в Activity/Dialog: vector и штатные QGIS style items должны
+получать один смешанный project order, а style layer всегда остаётся read-only.

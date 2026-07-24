@@ -59,7 +59,6 @@ import com.nextgis.maplib.map.CollectorProjectMetadata;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWRasterLayer;
-import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.activity.NGWLoginActivity;
@@ -68,6 +67,7 @@ import com.nextgis.maplibui.mapui.NGWRasterLayerUI;
 import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
+import com.nextgis.maplibui.util.CollectorProjectImportHelper;
 import com.nextgis.maplibui.util.CollectorProjectRegistry;
 
 import java.util.ArrayList;
@@ -355,133 +355,26 @@ public class SelectNGWResourceDialog
             if (checkState.isCheckState2()) { //create vector or collector import
                 INGWResource resource = connections.getResourceById(checkState.getId());
                 if (resource instanceof CollectorResource) {
-                    CollectorResource collector = (CollectorResource) resource;
-                    List<LayerWithStyles> layers = collector.getLayers();
-                    if (layers.isEmpty()) {
-                        Toast.makeText(context, R.string.ngw_collector_no_vector_layers, Toast.LENGTH_LONG).show();
-                        HyperLog.w(Constants.TAG, "Collector import (dialog): 0 layers remoteId="
-                                + collector.getRemoteId());
+                    CollectorProjectImportHelper.Result result =
+                            CollectorProjectImportHelper.appendImportTasks(
+                                    context,
+                                    mGroupLayer,
+                                    (CollectorResource) resource,
+                                    vectorFillBatch);
+                    if (result == CollectorProjectImportHelper.Result.NO_SUPPORTED_ITEMS) {
+                        Toast.makeText(
+                                context,
+                                R.string.ngw_collector_no_supported_layers,
+                                Toast.LENGTH_LONG).show();
                         setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
                         setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
                         return;
                     }
-                    Connection connection = collector.getConnection();
-                    String projectDistrict = collector.getProjectDistrict();
-                    String collectorProjectUid = CollectorProjectMetadata.buildProjectUid(
-                            connection.getName(), collector.getRemoteId());
-                    // Collector architecture foundation: persist project identity now so future
-                    // composition/form/tile sync can work without re-importing local layer data.
-                    mGroupLayer.setCollectorProjectMetadata(CollectorProjectMetadata.create(
-                            connection.getName(), collector.getRemoteId(),
-                            collector.getName(), projectDistrict));
-                    mGroupLayer.save();
-                    if (!TextUtils.isEmpty(projectDistrict)) {
-                        mGroupLayer.setCollectorDistrict(projectDistrict);
-                        mGroupLayer.save();
-                        HyperLog.d(Constants.TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " import (dialog) collector=\""
-                                + collector.getName() + "\" remoteId=" + collector.getRemoteId()
-                                + " district=" + projectDistrict);
-                    } else {
-                        mGroupLayer.setCollectorDistrict(null);
-                        mGroupLayer.save();
-                        HyperLog.d(Constants.TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " import (dialog) collector=\""
-                                + collector.getName() + "\" remoteId=" + collector.getRemoteId()
-                                + " no resmeta district; collector_district cleared");
-                    }
-                    ArrayList<LayerWithStyles> toImport = new ArrayList<>();
-                    for (int li = 0; li < layers.size(); li++) {
-                        LayerWithStyles layer = layers.get(li);
-                        if (LayerGroup.findNgwVectorLayerByRemoteIdRecursive(
-                                mGroupLayer, layer.getRemoteId(), connection.getName()) != null) {
-                            HyperLog.d(TAG, "Collector import (dialog): skip existing remoteId="
-                                    + layer.getRemoteId() + " account=" + connection.getName());
-                            continue;
-                        }
-                        toImport.add(layer);
-                    }
-                    if (!toImport.isEmpty()) {
-                        long[] fullProjectOrder = new long[layers.size()];
-                        for (int pi = 0; pi < layers.size(); pi++) {
-                            fullProjectOrder[pi] = layers.get(pi).getRemoteId();
-                        }
-                        int n = toImport.size();
-                        long[] ids = new long[n];
-                        String[] nms = new String[n];
-                        String[] cfgs = new String[n];
-                        long[] fids = new long[n];
-                        boolean[] collectorEditables = new boolean[n];
-                        for (int ord = 0; ord < n; ord++) {
-                            LayerWithStyles layer = toImport.get(ord);
-                            ids[ord] = layer.getRemoteId();
-                            nms[ord] = layer.getName();
-                            String desc = layer.getDescription();
-                            cfgs[ord] = (desc != null && !desc.isEmpty()) ? desc : null;
-                            collectorEditables[ord] = layer.isCollectorEditable();
-                            long formId = 0L;
-                            if (layer.getFormCount() > 0) {
-                                Long fid = layer.getFormId(0);
-                                if (fid != null) {
-                                    formId = fid;
-                                }
-                            }
-                            fids[ord] = formId;
-                        }
-                        boolean batchRegistered = ((IGISApplication) context.getApplicationContext()).registerCollectorImportBatch(
-                                mGroupLayer.getId(), connection.getName(), collectorProjectUid, ids, nms, cfgs, fids,
-                                collectorEditables, fullProjectOrder);
-                        if (!batchRegistered) {
-                            // No registered batch => no verify/repair; do not run a partial collector import.
-                            HyperLog.e(Constants.TAG, "Collector import (dialog) aborted: batch registration failed group="
-                                    + mGroupLayer.getId() + " account=" + connection.getName());
-                            Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
-                            setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
-                            setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
-                            return;
-                        } else {
-                        for (int ord = 0; ord < n; ord++) {
-                            LayerWithStyles layer = toImport.get(ord);
-                            int projectIndex = -1;
-                            long layerRid = layer.getRemoteId();
-                            for (int pi = 0; pi < layers.size(); pi++) {
-                                if (layers.get(pi).getRemoteId() == layerRid) {
-                                    projectIndex = pi;
-                                    break;
-                                }
-                            }
-                            Intent intent = new Intent(context, LayerFillService.class);
-                            intent.setAction(LayerFillService.ACTION_ADD_TASK);
-                            intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
-                            intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
-                            intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
-                            intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
-                            intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
-                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
-                            if (!TextUtils.isEmpty(collectorProjectUid)) {
-                                intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_UID, collectorProjectUid);
-                            }
-                            String desc = layer.getDescription();
-                            if (desc != null && !desc.isEmpty()) {
-                                intent.putExtra(LayerFillService.KEY_LAYER_CONFIG_JSON, desc);
-                            }
-                            long formId = 0L;
-                            if (layer.getFormCount() > 0 && layer.getFormId(0) != null) {
-                                formId = layer.getFormId(0);
-                                intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
-                                intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS,
-                                        new long[]{formId});
-                                String path = NGWUtil.getFormUrl(connection.getURL(), formId);
-                                intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
-                                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
-                            }
-                            intent.putExtra(LayerFillService.KEY_COLLECTOR_TRACKING_REMOTE_ID, layer.getRemoteId());
-                            if (projectIndex >= 0) {
-                                intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX, projectIndex);
-                                intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_REMOTE_IDS, fullProjectOrder);
-                            }
-                            intent.putExtra(LayerFillService.KEY_COLLECTOR_LAYER_EDITABLE, layer.isCollectorEditable());
-                            vectorFillBatch.add(intent);
-                        }
-                        }
+                    if (result == CollectorProjectImportHelper.Result.FAILED) {
+                        Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                        return;
                     }
                 } else if (resource instanceof LayerWithStyles) {
                     LayerWithStyles layer = (LayerWithStyles) resource;
@@ -584,8 +477,11 @@ public class SelectNGWResourceDialog
             Toast.makeText(context, R.string.ngw_collector_incomplete_snapshot, Toast.LENGTH_LONG).show();
             return false;
         }
-        if (collector.getLayers().isEmpty()) {
-            Toast.makeText(context, R.string.ngw_collector_no_vector_layers, Toast.LENGTH_LONG).show();
+        if (collector.getProjectItems().isEmpty()) {
+            Toast.makeText(
+                    context,
+                    R.string.ngw_collector_no_supported_layers,
+                    Toast.LENGTH_LONG).show();
             return false;
         }
         Connection connection = collector.getConnection();

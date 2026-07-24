@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-07-20
+last_verified: 2026-07-24
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -14,7 +14,7 @@ Collector workspaces и защитные backups.
 
 ## Основные сценарии
 
-- импорт обычных NGW и Collector resources;
+- импорт обычных NGW и Collector vector/style resources;
 - импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline;
 - вставка NGRc/raster/vector layers в правильном порядке;
 - deferred reload карты после batch fill;
@@ -26,6 +26,11 @@ Collector workspaces и защитные backups.
 
 - Нет compile dependency на `app`.
 - LayerGroup index `0` — bottom; UI и MapLibre должны совпадать.
+- Collector fill вставляет project-managed слои ниже «Мои треки» и применяет
+  editable-флаг элемента проекта отдельно от общего mobile config.
+- Activity и Dialog используют единый `CollectorProjectImportHelper`; initial
+  import и composition sync создают штатные QGIS styles только через
+  `CollectorRasterLayerHelper`, в общем порядке с vectors и всегда read-only.
 - Backup failure блокирует destructive mutation.
 - Collector project UID/map path не смешиваются между workspaces.
 - Карта приложения переоткрывается потокобезопасно, ContentProvider следует активному workspace,
@@ -46,6 +51,8 @@ Collector workspaces и защитные backups.
 - Долгий/зависший fill: `LayerFillService`, notification/foreground lifecycle,
   SQLite transaction и deferred map reload.
 - Неверный порядок: insertion index в model и последующий style reload.
+- «Нет редактируемых слоёв»: проверить Collector item `editable`,
+  `managed_by_project` и исходящее направление sync.
 - Потеря слоя после composition: backup result и removal scheduling.
 - Неверный проект после restart: registry JSON, active project и map path.
 - Пустая/чужая история треков после switch: проверить active project preference, создание нового
