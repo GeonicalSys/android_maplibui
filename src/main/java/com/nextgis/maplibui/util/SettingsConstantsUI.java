@@ -23,6 +23,8 @@
 
 package com.nextgis.maplibui.util;
 
+import com.nextgis.maplib.util.SettingsConstants;
+
 public interface SettingsConstantsUI
 {
     String DEFAUL_BORDERS_WAS_APPLY = "default_borders_was_apply";
@@ -49,7 +51,9 @@ public interface SettingsConstantsUI
     String KEY_PREF_RESET_SETTINGS       = "reset_settings";
     String KEY_PREF_RESTORE_LAYERS       = "restore_layers";
     String KEY_PREF_MAP_BG               = "map_bg";
-    String KEY_PREF_LAYER_LABEL          = "layer_label";
+    /** @deprecated Use VectorLayer feature-label accessors. */
+    @Deprecated
+    String KEY_PREF_LAYER_LABEL          = SettingsConstants.KEY_PREF_LAYER_LABEL;
     String KEY_PREF_SHOW_GEO_DIALOG      = "show_geo_dialog";
 
     String KEY_PREF_PHOTO_OVERLAY_ENABLED   = "photo_overlay_enabled";
@@ -57,6 +61,8 @@ public interface SettingsConstantsUI
     String KEY_PREF_PHOTO_OVERLAY_SHOW_TIME  = "photo_overlay_show_time";
 
     String KEY_PREF_OFFLINE_SYNC_ON     = "offline_sync_on";
+    /** Max size of LayerBackups/ directory in gigabytes (ListPreference string value). */
+    String KEY_PREF_LAYER_BACKUP_MAX_GB = "layer_backup_max_gb";
 
 
     String OSM_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";

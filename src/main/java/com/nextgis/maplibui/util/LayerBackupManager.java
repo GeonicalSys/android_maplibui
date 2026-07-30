@@ -11,9 +11,11 @@
 package com.nextgis.maplibui.util;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
+import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Base64;
 
@@ -22,9 +24,13 @@ import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.MapContentProviderHelper;
 import com.nextgis.maplib.map.NGWVectorLayer;
+import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.FeatureAttachments;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.MapUtil;
+import com.nextgis.maplib.util.NGWUtil;
+import com.nextgis.maplib.util.NetworkUtil;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -32,32 +38,48 @@ import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
- * Stores raw editable layer data before automatic layer reload/removal.
+ * Stores raw editable layer data before destructive sync/UI mutations.
  *
- * Collector sync foundation: this class deliberately backs up data tables and attachment files
- * only. Layer config and ngfp forms are excluded, because future Collector composition/form sync
- * should refresh those from Web GIS while preserving locally collected data for administrator
- * recovery.
+ * Backs up data tables and attachment files only. Layer config and ngfp forms are excluded so
+ * Collector composition/form sync can refresh those from Web GIS while preserving locally
+ * collected data for administrator recovery.
  */
 public final class LayerBackupManager {
     public static final String BACKUP_DIR_NAME = "LayerBackups";
     public static final String REASON_SCHEMA_REBUILD = "schema_rebuild_after_failed_send";
     public static final String REASON_COLLECTOR_LAYER_REMOVED = "collector_layer_removed";
+    public static final String REASON_SYNC_REMOTE_APPLY = "sync_remote_apply";
+    public static final String REASON_MANUAL_LAYER_DELETE = "manual_layer_delete";
+    public static final String REASON_MANUAL_FEATURE_DELETE = "manual_feature_delete";
+
+    public static final int DEFAULT_BACKUP_MAX_GB = 5;
+    public static final long BYTES_PER_GB = 1024L * 1024L * 1024L;
 
     private static final String SHARE_DIR_NAME = "shared_layer_backups";
     private static final String SHARE_FILE_NAME = "ng-layer-backups.zip";
+    private static final int FORMAT_VERSION = 2;
 
     private LayerBackupManager() {
     }
@@ -88,12 +110,19 @@ public final class LayerBackupManager {
                 return BackupResult.failure("Map database is not available");
             }
             SQLiteDatabase db = map.getDatabase(true);
-            JSONObject manifest = buildManifest(layer, reason, timestamp);
+            JSONObject manifest = buildManifest(layer, reason, timestamp, null);
             writeJsonEntry(zos, "manifest.json", manifest);
-            writeTableDump(zos, db, layer.getPath().getName(), "tables/features.json");
-            writeTableDump(zos, db, layer.getChangeTableName(), "tables/changes.json");
-            writeTableDump(zos, db, layer.getAttachmentsTableName(), "tables/attachments.json");
-            writeLayerAttachmentFiles(zos, layer.getPath());
+            writeTableDump(zos, db, layer.getPath().getName(), "tables/features.json",
+                    null, null);
+            writeTableDump(zos, db, layer.getChangeTableName(), "tables/changes.json",
+                    null, null);
+            writeTableDump(zos, db, layer.getAttachmentsTableName(), "tables/attachments.json",
+                    null, null);
+            String attachError = writeAttachmentFilesWithDownload(
+                    context, zos, layer, null);
+            if (attachError != null) {
+                throw new IOException(attachError);
+            }
         } catch (IOException | JSONException | SQLiteException | ClassCastException e) {
             HyperLog.w(Constants.TAG, "LayerBackupManager.backupLayerData: "
                     + e.getMessage(), e);
@@ -104,7 +133,72 @@ public final class LayerBackupManager {
             return BackupResult.failure(e.getMessage());
         }
 
+        enforceBackupQuota(context, getMaxBackupBytes(context), backupFile);
         HyperLog.v(Constants.TAG, "Layer backup created: " + backupFile.getAbsolutePath());
+        return BackupResult.success(backupFile);
+    }
+
+    /**
+     * Backup selected feature rows (geometry/attributes), related change/attachment table rows,
+     * and attachment files. Empty id collection is a no-op success.
+     */
+    public static BackupResult backupFeatures(
+            Context context,
+            NGWVectorLayer layer,
+            Collection<Long> featureIds,
+            String reason) {
+        if (context == null || layer == null || layer.getPath() == null) {
+            return BackupResult.failure("Invalid feature backup request");
+        }
+        Set<Long> ids = normalizeFeatureIds(featureIds);
+        if (ids.isEmpty()) {
+            return BackupResult.success(null);
+        }
+
+        File backupRoot = getBackupRoot(context);
+        if (!ensureDirectory(backupRoot)) {
+            return BackupResult.failure("Cannot create backup directory: " + backupRoot);
+        }
+
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
+                .format(new Date());
+        String fileName = timestamp + "_rid" + layer.getRemoteId() + "_"
+                + safeFileName(layer.getName()) + "_" + safeFileName(reason)
+                + "_n" + ids.size() + ".zip";
+        File backupFile = new File(backupRoot, fileName);
+
+        try (ZipOutputStream zos = new ZipOutputStream(
+                new BufferedOutputStream(new FileOutputStream(backupFile, false)))) {
+            MapContentProviderHelper map = (MapContentProviderHelper) MapBase.getInstance();
+            if (map == null) {
+                return BackupResult.failure("Map database is not available");
+            }
+            SQLiteDatabase db = map.getDatabase(true);
+            JSONObject manifest = buildManifest(layer, reason, timestamp, ids);
+            writeJsonEntry(zos, "manifest.json", manifest);
+            writeTableDump(zos, db, layer.getPath().getName(), "tables/features.json",
+                    Constants.FIELD_ID, ids);
+            writeTableDump(zos, db, layer.getChangeTableName(), "tables/changes.json",
+                    Constants.FIELD_FEATURE_ID, ids);
+            writeTableDump(zos, db, layer.getAttachmentsTableName(), "tables/attachments.json",
+                    Constants.FIELD_FEATURE_ID, ids);
+            String attachError = writeAttachmentFilesWithDownload(
+                    context, zos, layer, ids);
+            if (attachError != null) {
+                throw new IOException(attachError);
+            }
+        } catch (IOException | JSONException | SQLiteException | ClassCastException e) {
+            HyperLog.w(Constants.TAG, "LayerBackupManager.backupFeatures: "
+                    + e.getMessage(), e);
+            if (backupFile.exists()) {
+                backupFile.delete();
+            }
+            return BackupResult.failure(e.getMessage());
+        }
+
+        enforceBackupQuota(context, getMaxBackupBytes(context), backupFile);
+        HyperLog.v(Constants.TAG, "Feature backup created: " + backupFile.getAbsolutePath()
+                + " ids=" + ids.size());
         return BackupResult.success(backupFile);
     }
 
@@ -119,9 +213,113 @@ public final class LayerBackupManager {
         return new File(base, BACKUP_DIR_NAME);
     }
 
+    public static long getMaxBackupBytes(Context context) {
+        return getMaxBackupGb(context) * BYTES_PER_GB;
+    }
+
+    public static int getMaxBackupGb(Context context) {
+        if (context == null) {
+            return DEFAULT_BACKUP_MAX_GB;
+        }
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        String raw = prefs.getString(
+                SettingsConstantsUI.KEY_PREF_LAYER_BACKUP_MAX_GB,
+                String.valueOf(DEFAULT_BACKUP_MAX_GB));
+        try {
+            int gb = Integer.parseInt(raw);
+            if (gb > 0) {
+                return gb;
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        return DEFAULT_BACKUP_MAX_GB;
+    }
+
+    /**
+     * Delete oldest ZIP archives in {@link #BACKUP_DIR_NAME} until total size is within
+     * {@code maxBytes}. Never deletes {@code protectFile} while older archives remain.
+     *
+     * @return number of deleted files
+     */
+    public static int enforceBackupQuota(Context context, long maxBytes, File protectFile) {
+        if (context == null) {
+            return 0;
+        }
+        return enforceBackupQuotaOnRoot(getBackupRoot(context), maxBytes, protectFile);
+    }
+
+    /**
+     * Package-visible for unit tests.
+     */
+    static int enforceBackupQuotaOnRoot(File root, long maxBytes, File protectFile) {
+        if (root == null || maxBytes <= 0L || !root.isDirectory()) {
+            return 0;
+        }
+
+        long size = FileUtil.getDirectorySize(root);
+        if (size <= maxBytes) {
+            return 0;
+        }
+
+        File[] children = root.listFiles();
+        if (children == null || children.length == 0) {
+            return 0;
+        }
+
+        List<File> zips = new ArrayList<>();
+        for (File child : children) {
+            if (child != null && child.isFile() && child.getName().endsWith(".zip")) {
+                zips.add(child);
+            }
+        }
+        Collections.sort(zips, new Comparator<File>() {
+            @Override
+            public int compare(File a, File b) {
+                long diff = a.lastModified() - b.lastModified();
+                if (diff < 0L) {
+                    return -1;
+                }
+                if (diff > 0L) {
+                    return 1;
+                }
+                return a.getName().compareTo(b.getName());
+            }
+        });
+
+        int deleted = 0;
+        for (File zip : zips) {
+            if (size <= maxBytes) {
+                break;
+            }
+            if (protectFile != null && zip.getAbsolutePath().equals(protectFile.getAbsolutePath())) {
+                continue;
+            }
+            long fileSize = zip.length();
+            if (zip.delete()) {
+                size -= fileSize;
+                deleted++;
+                try {
+                    HyperLog.v(Constants.TAG, "LayerBackupManager: quota deleted oldest "
+                            + zip.getName());
+                } catch (RuntimeException ignored) {
+                    // HyperLog may be uninitialized in unit tests.
+                }
+            }
+        }
+        return deleted;
+    }
+
     public static boolean hasBackups(Context context) {
         File root = getBackupRoot(context);
         return root.exists() && FileUtil.getDirectorySize(root) > 0L;
+    }
+
+    public static long getBackupDirectorySize(Context context) {
+        File root = getBackupRoot(context);
+        if (!root.exists()) {
+            return 0L;
+        }
+        return FileUtil.getDirectorySize(root);
     }
 
     public static boolean clearBackups(Context context) {
@@ -152,13 +350,27 @@ public final class LayerBackupManager {
         return archive;
     }
 
+    private static Set<Long> normalizeFeatureIds(Collection<Long> featureIds) {
+        Set<Long> ids = new LinkedHashSet<>();
+        if (featureIds == null) {
+            return ids;
+        }
+        for (Long id : featureIds) {
+            if (id != null && id != Constants.NOT_FOUND) {
+                ids.add(id);
+            }
+        }
+        return ids;
+    }
+
     private static JSONObject buildManifest(
             NGWVectorLayer layer,
             String reason,
-            String timestamp) throws JSONException {
+            String timestamp,
+            Set<Long> featureIds) throws JSONException {
         JSONObject manifest = new JSONObject();
         manifest.put("format", "nextgis-mobile-layer-data-backup");
-        manifest.put("format_version", 1);
+        manifest.put("format_version", FORMAT_VERSION);
         manifest.put("created_at_local", timestamp);
         manifest.put("reason", reason);
         manifest.put("layer_name", layer.getName());
@@ -169,6 +381,17 @@ public final class LayerBackupManager {
         manifest.put("features_table", layer.getPath().getName());
         manifest.put("changes_table", layer.getChangeTableName());
         manifest.put("attachments_table", layer.getAttachmentsTableName());
+        if (featureIds != null) {
+            JSONArray ids = new JSONArray();
+            for (Long id : featureIds) {
+                ids.put(id);
+            }
+            manifest.put("feature_ids", ids);
+            manifest.put("feature_count", featureIds.size());
+            manifest.put("selective", true);
+        } else {
+            manifest.put("selective", false);
+        }
 
         LayerOriginMetadata origin = layer.getLayerOriginMetadata();
         if (origin != null) {
@@ -181,7 +404,9 @@ public final class LayerBackupManager {
             ZipOutputStream zos,
             SQLiteDatabase db,
             String tableName,
-            String entryName) throws IOException, JSONException {
+            String entryName,
+            String idColumn,
+            Set<Long> featureIds) throws IOException, JSONException {
         JSONObject dump = new JSONObject();
         dump.put("table", tableName);
         if (TextUtils.isEmpty(tableName) || !tableExists(db, tableName)) {
@@ -194,8 +419,23 @@ public final class LayerBackupManager {
 
         JSONArray columns = new JSONArray();
         JSONArray rows = new JSONArray();
-        try (Cursor cursor = db.rawQuery(
-                "SELECT * FROM " + quoteIdentifier(tableName), null)) {
+        String sql = "SELECT * FROM " + quoteIdentifier(tableName);
+        String[] args = null;
+        if (featureIds != null && !featureIds.isEmpty() && !TextUtils.isEmpty(idColumn)) {
+            StringBuilder in = new StringBuilder();
+            List<String> argList = new ArrayList<>(featureIds.size());
+            for (Long id : featureIds) {
+                if (in.length() > 0) {
+                    in.append(',');
+                }
+                in.append('?');
+                argList.add(String.valueOf(id));
+            }
+            sql += " WHERE " + quoteIdentifier(idColumn) + " IN (" + in + ")";
+            args = argList.toArray(new String[0]);
+        }
+
+        try (Cursor cursor = db.rawQuery(sql, args)) {
             String[] names = cursor.getColumnNames();
             for (String name : names) {
                 columns.put(name);
@@ -253,17 +493,256 @@ public final class LayerBackupManager {
         zos.closeEntry();
     }
 
-    private static void writeLayerAttachmentFiles(
+    /**
+     * Write local attachment files and download any online-only attaches missing on disk.
+     *
+     * @return null on success, or a human-readable failure reason
+     */
+    private static String writeAttachmentFilesWithDownload(
+            Context context,
             ZipOutputStream zos,
-            File layerPath) throws IOException {
+            NGWVectorLayer layer,
+            Set<Long> featureIds) {
+        Map<String, RequiredAttach> required = collectRequiredAttaches(layer, featureIds);
+        Set<String> written = new LinkedHashSet<>();
+
+        // 1) Local folders first (includes META and attach files).
+        try {
+            writeLocalAttachmentFiles(zos, layer.getPath(), featureIds, written);
+        } catch (IOException e) {
+            return "Failed to pack local attachment files: " + e.getMessage();
+        }
+
+        // 2) Download missing required attach payloads from NGW.
+        for (RequiredAttach attach : required.values()) {
+            if (written.contains(attach.key())) {
+                continue;
+            }
+            File local = new File(layer.getPath(),
+                    attach.featureId + File.separator + attach.attachId);
+            if (local.isFile() && local.length() > 0L) {
+                try {
+                    zipFileOrDirectory(local,
+                            "attachments/" + attach.featureId + "/" + attach.attachId, zos);
+                    written.add(attach.key());
+                    continue;
+                } catch (IOException e) {
+                    return "Failed to pack local attachment feature=" + attach.featureId
+                            + " attach=" + attach.attachId + ": " + e.getMessage();
+                }
+            }
+
+            String downloadError = downloadAttachIntoZip(context, zos, layer, attach);
+            if (downloadError != null) {
+                return downloadError;
+            }
+            written.add(attach.key());
+        }
+
+        for (RequiredAttach attach : required.values()) {
+            if (!written.contains(attach.key())) {
+                return "Could not save attachment file (feature " + attach.featureId
+                        + ", attach " + attach.attachId + "): file missing locally and download failed";
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, RequiredAttach> collectRequiredAttaches(
+            NGWVectorLayer layer,
+            Set<Long> featureIds) {
+        Map<String, RequiredAttach> required = new LinkedHashMap<>();
+
+        // Online metadata rows.
+        String tableName = layer.getAttachmentsTableName();
+        if (!TextUtils.isEmpty(tableName)) {
+            try {
+                FeatureAttachments.checkTable(tableName);
+                String selection = null;
+                if (featureIds != null && !featureIds.isEmpty()) {
+                    StringBuilder in = new StringBuilder();
+                    for (Long id : featureIds) {
+                        if (in.length() > 0) {
+                            in.append(',');
+                        }
+                        in.append(id);
+                    }
+                    selection = Constants.FIELD_FEATURE_ID + " IN (" + in + ")";
+                }
+                try (Cursor cursor = FeatureAttachments.query(
+                        tableName,
+                        new String[]{
+                                Constants.FIELD_FEATURE_ID,
+                                Constants.FIELD_ATTACH_ID,
+                                Constants.FIELD_ATTACH_DISPLAYNAME
+                        },
+                        selection,
+                        null,
+                        null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        do {
+                            long featureId = cursor.getLong(0);
+                            long attachId = cursor.getLong(1);
+                            if (attachId == Constants.NOT_FOUND) {
+                                continue;
+                            }
+                            String displayName = cursor.getString(2);
+                            RequiredAttach item = new RequiredAttach(featureId, attachId, displayName);
+                            required.put(item.key(), item);
+                        } while (cursor.moveToNext());
+                    }
+                }
+            } catch (RuntimeException e) {
+                try {
+                    HyperLog.w(Constants.TAG, "LayerBackupManager: attachments table query failed: "
+                            + e.getMessage(), e);
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
+
+        // Local numeric attach files not yet (or never) in FeatureAttachments.
+        File layerPath = layer.getPath();
+        File[] children = layerPath == null ? null : layerPath.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                if (!child.isDirectory() || !isLong(child.getName())) {
+                    continue;
+                }
+                long featureId;
+                try {
+                    featureId = Long.parseLong(child.getName());
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+                if (featureIds != null && !featureIds.contains(featureId)) {
+                    continue;
+                }
+                File[] files = child.listFiles();
+                if (files == null) {
+                    continue;
+                }
+                for (File file : files) {
+                    if (!file.isFile() || !isLong(file.getName())) {
+                        continue;
+                    }
+                    long attachId = Long.parseLong(file.getName());
+                    RequiredAttach item = new RequiredAttach(featureId, attachId, null);
+                    if (!required.containsKey(item.key())) {
+                        required.put(item.key(), item);
+                    }
+                }
+            }
+        }
+        return required;
+    }
+
+    private static void writeLocalAttachmentFiles(
+            ZipOutputStream zos,
+            File layerPath,
+            Set<Long> featureIds,
+            Set<String> writtenAttachKeys) throws IOException {
         File[] children = layerPath.listFiles();
         if (children == null) {
             return;
         }
         for (File child : children) {
-            if (child.isDirectory() && isLong(child.getName())) {
-                zipFileOrDirectory(child, "attachments/" + child.getName(), zos);
+            if (!child.isDirectory() || !isLong(child.getName())) {
+                continue;
             }
+            long featureId;
+            try {
+                featureId = Long.parseLong(child.getName());
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+            if (featureIds != null && !featureIds.contains(featureId)) {
+                continue;
+            }
+            zipFileOrDirectory(child, "attachments/" + child.getName(), zos);
+            File[] files = child.listFiles();
+            if (files == null) {
+                continue;
+            }
+            for (File file : files) {
+                if (file.isFile() && isLong(file.getName())) {
+                    writtenAttachKeys.add(featureId + "/" + file.getName());
+                }
+            }
+        }
+    }
+
+    private static String downloadAttachIntoZip(
+            Context context,
+            ZipOutputStream zos,
+            NGWVectorLayer layer,
+            RequiredAttach attach) {
+        AccountUtil.AccountData accountData;
+        try {
+            accountData = AccountUtil.getAccountData(context, layer.getAccountName());
+        } catch (IllegalStateException e) {
+            return "Could not save attachment file (feature " + attach.featureId
+                    + ", attach " + attach.attachId + "): account unavailable ("
+                    + e.getMessage() + ")";
+        }
+        if (accountData == null || TextUtils.isEmpty(accountData.url)) {
+            return "Could not save attachment file (feature " + attach.featureId
+                    + ", attach " + attach.attachId + "): account URL missing";
+        }
+
+        String url = NGWUtil.getFeatureAttachmentUrl(
+                accountData.url, layer.getRemoteId(), attach.featureId)
+                + attach.attachId + "/image";
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try {
+            NetworkUtil.getStream(url, accountData.login, accountData.password, buffer);
+        } catch (IOException e) {
+            return "Could not save attachment file (feature " + attach.featureId
+                    + ", attach " + attach.attachId + "): download failed ("
+                    + e.getMessage() + ")";
+        }
+        byte[] bytes = buffer.toByteArray();
+        if (bytes.length == 0) {
+            return "Could not save attachment file (feature " + attach.featureId
+                    + ", attach " + attach.attachId + "): empty download";
+        }
+
+        String entryName = "attachments/" + attach.featureId + "/" + attach.attachId;
+        if (!TextUtils.isEmpty(attach.displayName)) {
+            // Keep id as filename for restore compatibility; store original name as sibling meta only
+            // via attachments.json. Entry uses server attach id.
+            entryName = "attachments/" + attach.featureId + "/" + attach.attachId;
+        }
+        try {
+            zos.putNextEntry(new ZipEntry(entryName));
+            zos.write(bytes);
+            zos.closeEntry();
+        } catch (IOException e) {
+            return "Could not save attachment file (feature " + attach.featureId
+                    + ", attach " + attach.attachId + "): zip write failed ("
+                    + e.getMessage() + ")";
+        }
+        try {
+            HyperLog.v(Constants.TAG, "LayerBackupManager: downloaded attach into backup "
+                    + entryName + " bytes=" + bytes.length);
+        } catch (RuntimeException ignored) {
+        }
+        return null;
+    }
+
+    private static final class RequiredAttach {
+        final long featureId;
+        final long attachId;
+        final String displayName;
+
+        RequiredAttach(long featureId, long attachId, String displayName) {
+            this.featureId = featureId;
+            this.attachId = attachId;
+            this.displayName = displayName;
+        }
+
+        String key() {
+            return featureId + "/" + attachId;
         }
     }
 

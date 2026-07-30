@@ -97,6 +97,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -674,8 +675,10 @@ public abstract class GISApplication extends Application
 
     @Override
     public void requestMapReloadAfterLayerFillBatch() {
+        // A full MapLibre rebuild is asynchronous. Keep this process flag set until the map host
+        // reports that the style actually finished and all visible layer sources exist.
+        mPendingMapReloadAfterLayerFill = true;
         if (mMap == null) {
-            mPendingMapReloadAfterLayerFill = true;
             return;
         }
         // Always resolve fragment on main: LayerFillService calls this from a worker thread; reading
@@ -683,14 +686,12 @@ public abstract class GISApplication extends Application
         new Handler(Looper.getMainLooper()).post(() -> {
             MaplibreMapInteraction host = mMap != null ? mMap.mapContext.get() : null;
             if (host == null) {
-                mPendingMapReloadAfterLayerFill = true;
                 HyperLog.d(Constants.TAG, "requestMapReloadAfterLayerFillBatch: map fragment null on main, pending");
                 return;
             }
-            if (host.reloadMapStyleAndLayersAfterLayerFillBatch()) {
-                mPendingMapReloadAfterLayerFill = false;
-            } else {
-                mPendingMapReloadAfterLayerFill = true;
+            if (!host.reloadMapStyleAndLayersAfterLayerFillBatch()) {
+                HyperLog.d(Constants.TAG,
+                        "requestMapReloadAfterLayerFillBatch: full reload not started, pending");
             }
         });
     }
@@ -700,8 +701,9 @@ public abstract class GISApplication extends Application
         if (mapFragment == null || !mPendingMapReloadAfterLayerFill) {
             return;
         }
-        if (mapFragment.reloadMapStyleAndLayersAfterLayerFillBatch()) {
-            mPendingMapReloadAfterLayerFill = false;
+        if (!mapFragment.reloadMapStyleAndLayersAfterLayerFillBatch()) {
+            HyperLog.d(Constants.TAG,
+                    "flushPendingMapReloadAfterLayerFillIfNeeded: full reload not started, pending");
         }
     }
 
@@ -1201,25 +1203,16 @@ public abstract class GISApplication extends Application
             }
         }
         if (FeatureChanges.isChanges(changeTable)) {
-            LayerBackupManager.BackupResult backupResult =
-                    LayerBackupManager.backupLayerData(
-                            this,
-                            layer,
-                            LayerBackupManager.REASON_SCHEMA_REBUILD);
-            if (!backupResult.isSuccess()) {
-                postLayerBackupAlert(getString(
-                        com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_failed,
-                        layer.getName()));
+            if (!backupEditableLayerData(layer, LayerBackupManager.REASON_SCHEMA_REBUILD)) {
                 HyperLog.w(Constants.TAG, "Collector composition sync: skipped refill for \""
-                        + layer.getName() + "\" because backup failed: "
-                        + backupResult.getError());
+                        + layer.getName() + "\" because backup gate blocked");
                 return;
             }
             postLayerBackupAlert(getString(
                     com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
                     layer.getName()));
             HyperLog.v(Constants.TAG, "Collector composition sync: backup created before refill for \""
-                    + layer.getName() + "\": " + backupResult.getFile());
+                    + layer.getName() + "\"");
         }
 
         final String layerName = layer.getName();
@@ -2116,26 +2109,16 @@ public abstract class GISApplication extends Application
             }
         }
         if (FeatureChanges.isChanges(changeTable)) {
-            LayerBackupManager.BackupResult backupResult =
-                    LayerBackupManager.backupLayerData(
-                            this,
-                            layer,
-                            LayerBackupManager.REASON_SCHEMA_REBUILD);
-            if (!backupResult.isSuccess()) {
-                postLayerBackupAlert(getString(
-                        com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_failed,
-                        layer.getName()));
+            if (!backupEditableLayerData(layer, LayerBackupManager.REASON_SCHEMA_REBUILD)) {
                 HyperLog.w(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                        + "\" - skipped rebuild because backup failed: "
-                        + backupResult.getError());
+                        + "\" - skipped rebuild because backup gate blocked");
                 return;
             }
             postLayerBackupAlert(getString(
                     com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
                     layer.getName()));
             HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                    + "\" - backup created before forced rebuild: "
-                    + backupResult.getFile());
+                    + "\" - backup created before forced rebuild");
         }
 
         final String rebuildAccountName = layer.getAccountName();
@@ -2261,18 +2244,9 @@ public abstract class GISApplication extends Application
             return;
         }
 
-        LayerBackupManager.BackupResult backupResult =
-                LayerBackupManager.backupLayerData(
-                        this,
-                        layer,
-                        LayerBackupManager.REASON_COLLECTOR_LAYER_REMOVED);
-        if (!backupResult.isSuccess()) {
-            postLayerBackupAlert(
-                    getString(com.nextgis.maplib.R.string.collector_layer_removed_title),
-                    getString(com.nextgis.maplib.R.string.collector_layer_backup_failed,
-                            layer.getName()));
-            HyperLog.w(Constants.TAG, "Collector layer removal: backup failed for \""
-                    + layer.getName() + "\": " + backupResult.getError());
+        if (!backupEditableLayerData(layer, LayerBackupManager.REASON_COLLECTOR_LAYER_REMOVED)) {
+            HyperLog.w(Constants.TAG, "Collector layer removal: backup gate blocked for \""
+                    + layer.getName() + "\"");
             return;
         }
 
@@ -2309,8 +2283,96 @@ public abstract class GISApplication extends Application
             mMap.save();
             requestMapReloadAfterLayerFillBatch();
             HyperLog.v(Constants.TAG, "Collector layer removal: \"" + layerName
-                    + "\" removed after backup: " + backupResult.getFile());
+                    + "\" removed after backup");
         });
+    }
+
+    @Override
+    public boolean backupEditableLayerFeatures(
+            NGWVectorLayer layer,
+            Collection<Long> featureIds,
+            String reason) {
+        if (layer == null) {
+            return false;
+        }
+        if (!layer.isEditingAllowed()) {
+            return true;
+        }
+        if (featureIds == null || featureIds.isEmpty()) {
+            return true;
+        }
+
+        LayerBackupManager.BackupResult backupResult =
+                LayerBackupManager.backupFeatures(this, layer, featureIds, reason);
+        if (!backupResult.isSuccess()) {
+            String detail = TextUtils.isEmpty(backupResult.getError())
+                    ? getString(com.nextgis.maplib.R.string.layer_feature_backup_failed,
+                            layer.getName())
+                    : getString(
+                            com.nextgis.maplib.R.string.layer_backup_feature_delete_cancelled_detail,
+                            layer.getName(),
+                            backupResult.getError());
+            String title = isManualDeleteReason(reason)
+                    ? getString(com.nextgis.maplib.R.string.layer_backup_delete_cancelled_title)
+                    : getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_title);
+            postLayerBackupAlert(title, detail);
+            HyperLog.w(Constants.TAG, "Feature backup failed for \"" + layer.getName()
+                    + "\" reason=" + reason + ": " + backupResult.getError());
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean backupEditableLayerData(NGWVectorLayer layer, String reason) {
+        if (layer == null) {
+            return false;
+        }
+        if (!layer.isEditingAllowed()) {
+            return true;
+        }
+
+        LayerBackupManager.BackupResult backupResult =
+                LayerBackupManager.backupLayerData(this, layer, reason);
+        if (!backupResult.isSuccess()) {
+            String title;
+            String message;
+            if (isManualDeleteReason(reason)
+                    || LayerBackupManager.REASON_COLLECTOR_LAYER_REMOVED.equals(reason)) {
+                title = isManualDeleteReason(reason)
+                        ? getString(com.nextgis.maplib.R.string.layer_backup_delete_cancelled_title)
+                        : getString(com.nextgis.maplib.R.string.collector_layer_removed_title);
+                message = TextUtils.isEmpty(backupResult.getError())
+                        ? (LayerBackupManager.REASON_COLLECTOR_LAYER_REMOVED.equals(reason)
+                                ? getString(com.nextgis.maplib.R.string.collector_layer_backup_failed,
+                                        layer.getName())
+                                : getString(com.nextgis.maplib.R.string.layer_data_backup_failed,
+                                        layer.getName()))
+                        : getString(
+                                com.nextgis.maplib.R.string.layer_backup_delete_cancelled_detail,
+                                layer.getName(),
+                                backupResult.getError());
+            } else {
+                title = getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_title);
+                message = TextUtils.isEmpty(backupResult.getError())
+                        ? getString(com.nextgis.maplib.R.string.layer_data_backup_failed,
+                                layer.getName())
+                        : getString(
+                                com.nextgis.maplib.R.string.layer_backup_delete_cancelled_detail,
+                                layer.getName(),
+                                backupResult.getError());
+            }
+            postLayerBackupAlert(title, message);
+            HyperLog.w(Constants.TAG, "Layer backup failed for \"" + layer.getName()
+                    + "\" reason=" + reason + ": " + backupResult.getError());
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isManualDeleteReason(String reason) {
+        return LayerBackupManager.REASON_MANUAL_LAYER_DELETE.equals(reason)
+                || LayerBackupManager.REASON_MANUAL_FEATURE_DELETE.equals(reason);
     }
 
     private void postLayerBackupAlert(String message) {

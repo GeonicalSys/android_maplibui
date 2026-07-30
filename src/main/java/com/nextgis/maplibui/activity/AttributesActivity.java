@@ -195,7 +195,13 @@ public class AttributesActivity extends NGActivity {
                                     if (event == DISMISS_EVENT_MANUAL)
                                         return;
                                     if (event != DISMISS_EVENT_ACTION) {
-                                        mLayer.deleteAddChanges(selectedFeatureId);
+                                        int deleted = mLayer.deleteAddChanges(selectedFeatureId);
+                                        if (deleted <= 0) {
+                                            if (mToolbar != null) {
+                                                mToolbar.setVisibility(View.VISIBLE);
+                                            }
+                                            return;
+                                        }
 
                                         ((GISApplication) getApplication()).deleteFeature(selectedFeatureId, mLayerId);
                                         ///mMapRef.get()!!.map!!.deleteFeature(selectedFeatureId, layer.id)
@@ -458,12 +464,12 @@ public class AttributesActivity extends NGActivity {
                                 selectedFeatureId = fid;
                                 final String featureName = String.format(getString(R.string.feature_n), selectedFeatureId);
                                 mToolbar.setTitle(featureName);
-                                String labelField = mLayer.getPreferences().getString(SettingsConstantsUI.KEY_PREF_LAYER_LABEL, FIELD_ID);
+                                String labelField = mLayer.getFeatureLabelField();
                                 if (!labelField.equals(FIELD_ID)) {
                                     final Feature feature = mLayer.getFeature(selectedFeatureId);
                                     if (feature != null) {
                                         mToolbar.setSubtitle(featureName);
-                                        final String featureNameTitle = feature.getFieldValueAsString(labelField);
+                                        final String featureNameTitle = mLayer.getFeatureLabel(feature);
                                         mToolbar.setTitle(featureNameTitle);
                                     }
                                 }

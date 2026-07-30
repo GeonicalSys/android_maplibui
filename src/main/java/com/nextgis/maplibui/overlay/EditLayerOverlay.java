@@ -846,6 +846,9 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         Intent trackerService = new Intent(mContext.get(), WalkEditService.class);
         trackerService.setAction(WalkEditService.ACTION_START);
         trackerService.putExtra(ConstantsUI.KEY_LAYER_ID, mLayer.getId());
+        trackerService.putExtra(ConstantsUI.KEY_FEATURE_ID, mFeature != null ? mFeature.getId() : Constants.NOT_FOUND);
+        trackerService.putExtra(WalkEditService.KEY_RING_INDEX,
+                mSelectedItem != null ? mSelectedItem.getSelectedRingId() : 0);
         trackerService.putExtra(ConstantsUI.KEY_GEOMETRY, geometry);
         Context ctx = mContext.get();
         String targetActivity = "";
@@ -863,9 +866,8 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         syncWalkGeometryToMaplibreUi(true);
 
         mWalkStopTailCommitActive = true;
-        Intent trackerService = new Intent(mContext.get(), WalkEditService.class);
-        trackerService.setAction(WalkEditService.ACTION_STOP);
-        mContext.get().stopService(trackerService);
+        // Explicit stop: clear durable draft so watchdog does not offer Continue after Save/Cancel.
+        WalkEditService.stopAndClearDraft(mContext.get());
 
         /*
          * MapFragment.saveEdits() calls updateHistoryByWalkEnd() immediately after this method; that reads

@@ -103,6 +103,7 @@ import com.nextgis.maplibui.formcontrol.AutoTextEdit;
 import com.nextgis.maplibui.formcontrol.Sign;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
+import com.nextgis.maplibui.util.FeatureFormDraftStore;
 import com.nextgis.maplibui.util.NotificationHelper;
 import com.nextgis.maplibui.util.PhotoOverlayData;
 import com.nextgis.maplibui.util.PhotoOverlayUtil;
@@ -171,6 +172,11 @@ public class ModifyAttributesActivity
     protected boolean mIsViewOnly;
     protected SoundPool mSoundPool;
     private int mBeepId;
+    /**
+     * Save/Discard is terminal for the current form.  Activity.finish() invokes onPause(), so
+     * without this guard a successfully cleared draft can be written again immediately.
+     */
+    private volatile boolean mFormDraftFinalized;
 
     MessageReceiver messageReceiver;
     public WeakReference<PhotoPicker> photoPickerWeakReference = new WeakReference<>(null);
@@ -365,11 +371,42 @@ public class ModifyAttributesActivity
                 mIsViewOnly = extras.getBoolean(KEY_VIEW_ONLY, false);
                 mIsGeometryChanged = extras.getBoolean(KEY_GEOMETRY_CHANGED, true);
                 mGeometry = (GeoGeometry) extras.getSerializable(KEY_GEOMETRY);
+
+                Bundle controlsState = savedState;
+                boolean applyDraft = extras.getBoolean(FeatureFormDraftStore.KEY_APPLY_FORM_DRAFT, false);
+                FeatureFormDraftStore.Snapshot draft = null;
+                if (applyDraft) {
+                    draft = FeatureFormDraftStore.load(this);
+                    if (draft != null && draft.layerId == layerId && draft.featureId == mFeatureId) {
+                        controlsState = FeatureFormDraftStore.controlStateToBundle(draft);
+                        if (draft.geometryWkt != null) {
+                            GeoGeometry fromDraft = FeatureFormDraftStore.geometryFromSnapshot(draft);
+                            if (fromDraft != null) {
+                                mGeometry = fromDraft;
+                                mIsGeometryChanged = draft.geometryChanged;
+                            }
+                        }
+                    } else {
+                        draft = null;
+                    }
+                }
+
                 LinearLayout layout = findViewById(R.id.controls_list);
-                fillControls(layout, savedState);
+                fillControls(layout, controlsState);
+                if (draft != null && draft.photoPaths != null && !draft.photoPaths.isEmpty()) {
+                    applyDraftPhotos(draft.photoPaths);
+                }
             } else {
                 Toast.makeText(this, R.string.error_layer_not_inited, Toast.LENGTH_SHORT).show();
                 finish();
+            }
+        }
+    }
+
+    private void applyDraftPhotos(List<String> photoPaths) {
+        for (Map.Entry<String, IControl> field : mFields.entrySet()) {
+            if (field.getValue() instanceof PhotoGallery) {
+                ((PhotoGallery) field.getValue()).restorePendingPhotoPaths(photoPaths);
             }
         }
     }
@@ -507,7 +544,93 @@ public class ModifyAttributesActivity
             messageReceiver = null;
         }
 
+        persistFormDraftIfNeeded();
         super.onPause();
+    }
+
+    /** Durable crash draft: only when the user has unsaved edits. */
+    protected void persistFormDraftIfNeeded() {
+        if (mFormDraftFinalized || mIsViewOnly || mLayer == null || mFields == null || !hasEdits()) {
+            return;
+        }
+        FeatureFormDraftStore.Snapshot snapshot = new FeatureFormDraftStore.Snapshot();
+        snapshot.layerId = mLayer.getId();
+        snapshot.featureId = mFeatureId;
+        snapshot.geometryChanged = mIsGeometryChanged;
+        GeoGeometry draftGeometry = getGeometryForDraft();
+        if (draftGeometry != null) {
+            snapshot.geometryWkt = draftGeometry.toWKT(true);
+        }
+        Intent intent = getIntent();
+        if (intent != null) {
+            if (intent.hasExtra(ConstantsUI.KEY_FORM_PATH)) {
+                Object form = intent.getSerializableExtra(ConstantsUI.KEY_FORM_PATH);
+                if (form instanceof File) {
+                    snapshot.formPath = ((File) form).getAbsolutePath();
+                }
+            }
+            if (intent.hasExtra(ConstantsUI.KEY_META_PATH)) {
+                Object meta = intent.getSerializableExtra(ConstantsUI.KEY_META_PATH);
+                if (meta instanceof File) {
+                    snapshot.metaPath = ((File) meta).getAbsolutePath();
+                }
+            }
+        }
+        Bundle controlState = new Bundle();
+        LinearLayout controlLayout = findViewById(R.id.controls_list);
+        if (controlLayout != null) {
+            for (int i = 0; i < controlLayout.getChildCount(); i++) {
+                if (controlLayout.getChildAt(i) instanceof IControl) {
+                    ((IControl) controlLayout.getChildAt(i)).saveState(controlState);
+                }
+            }
+        }
+        FeatureFormDraftStore.putControlStateFromBundle(snapshot, controlState);
+        snapshot.photoPaths = new ArrayList<>();
+        for (Map.Entry<String, IControl> field : mFields.entrySet()) {
+            if (field.getValue() instanceof PhotoGallery) {
+                for (AttachInfo info : ((PhotoGallery) field.getValue()).getNewAttaches()) {
+                    if (info != null && info.oldAttachString != null) {
+                        snapshot.photoPaths.add(info.oldAttachString);
+                    }
+                }
+            }
+        }
+        FeatureFormDraftStore.save(this, snapshot);
+    }
+
+    /**
+     * A new point form can derive geometry from the last location only at Save time.  Persist the
+     * same point in the crash journal so recovery does not silently move it to a later GPS fix.
+     */
+    private GeoGeometry getGeometryForDraft() {
+        if (mGeometry != null) {
+            return mGeometry;
+        }
+        if (mFeatureId != NOT_FOUND || mLocation == null || mLayer == null) {
+            return null;
+        }
+
+        GeoPoint point = new GeoPoint(mLocation.getLongitude(), mLocation.getLatitude());
+        point.setCRS(GeoConstants.CRS_WGS84);
+        if (!point.project(GeoConstants.CRS_WEB_MERCATOR)) {
+            return null;
+        }
+
+        if (mLayer.getGeometryType() == GeoConstants.GTPoint) {
+            return point;
+        }
+        if (mLayer.getGeometryType() == GeoConstants.GTMultiPoint) {
+            GeoMultiPoint multiPoint = new GeoMultiPoint();
+            multiPoint.add(point);
+            return multiPoint;
+        }
+        return null;
+    }
+
+    protected void clearFormDraft() {
+        mFormDraftFinalized = true;
+        FeatureFormDraftStore.clear(this);
     }
 
 
@@ -560,7 +683,7 @@ public class ModifyAttributesActivity
                     .setNegativeButton(R.string.discard, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-
+                            clearFormDraft();
                             finish();
                         }
                     })
@@ -765,7 +888,8 @@ public class ModifyAttributesActivity
         }
 
         boolean error;
-        if (mFeatureId == NOT_FOUND) {
+        boolean wasNewFeature = mFeatureId == NOT_FOUND;
+        if (wasNewFeature) {
             // we need to get proper mFeatureId for new features first
             Uri result = null;
             try {
@@ -812,9 +936,14 @@ public class ModifyAttributesActivity
         putSign();
         Intent data = new Intent();
         data.putExtra(ConstantsUI.KEY_FEATURE_ID, mFeatureId);
+        data.putExtra(ConstantsUI.KEY_LAYER_ID, mLayer.getId());
+        data.putExtra(ConstantsUI.KEY_WAS_NEW_FEATURE, wasNewFeature);
         if (geoGeometry != null && geoGeometry instanceof GeoPoint)
             data.putExtra(KEY_ADDED_POINT, new double[]{ ((GeoPoint)geoGeometry).getX(), ((GeoPoint)geoGeometry).getY() });
+        HyperLog.v(Constants.TAG, "FormSave result ready layer=" + mLayer.getId()
+                + " feature=" + mFeatureId + " wasNew=" + wasNewFeature);
         setResult(RESULT_OK, data);
+        clearFormDraft();
         return !error;
     }
 

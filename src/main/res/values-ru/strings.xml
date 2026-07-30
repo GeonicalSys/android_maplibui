@@ -180,6 +180,8 @@
     <string name="attributes_next">Следующий</string>
     <string name="attributes_prev">Предыдущий</string>
     <string name="not_enough_points">Недостаточно точек</string>
+    <string name="multipolygon_repaired">Геометрия мультиполигона исправлена. Частей: %1$d</string>
+    <string name="multipolygon_repair_failed">Не удалось исправить геометрию мультиполигона. Вернитесь к редактированию геометрии.</string>
     <string name="error_change_feature">Ошибка изменения записи</string>
     <string name="move_point_to_center">Точка в центр экрана</string>
     <string name="mainSettings">Основные настройки</string>
@@ -234,6 +236,16 @@
     <string name="tracks_running">Записывается трек</string>
     <string name="tracks_title">Трек %s</string>
     <string name="walkedit_title">Ввод обходом %s</string>
+    <string name="walkedit_interrupted_title">Запись обходом прервалась</string>
+    <string name="walkedit_interrupted_message">Запись геометрии обходом была прервана. Продолжить с сохранённого черновика или отбросить его?</string>
+    <string name="walkedit_continue">Продолжить</string>
+    <string name="geometry_edit_interrupted_title">Редактирование геометрии прервано</string>
+    <string name="geometry_edit_interrupted_message">Найден незавершённый черновик геометрии. Продолжить редактирование или отбросить его?</string>
+    <string name="geometry_edit_continue">Продолжить</string>
+    <string name="geometry_edit_restore_error">Не удалось открыть черновик геометрии. Он сохранён до следующего запуска.</string>
+    <string name="form_draft_title">Черновик формы</string>
+    <string name="form_draft_message">Найдена незавершённая форма атрибутов. Продолжить редактирование или отбросить черновик?</string>
+    <string name="form_draft_continue">Продолжить</string>
     <string name="tracks_stop">Стоп</string>
     <string name="tracks_open">Открыть</string>
     <string name="download_tiles_finished">Завершена загрузка тайлов</string>

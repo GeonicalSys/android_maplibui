@@ -203,6 +203,8 @@
     <string name="attributes_next">Next</string>
     <string name="attributes_prev">Previous</string>
     <string name="not_enough_points">Not enough points</string>
+    <string name="multipolygon_repaired">Multi-polygon geometry corrected. Polygon parts: %1$d</string>
+    <string name="multipolygon_repair_failed">Could not correct the multi-polygon geometry. Return to geometry editing.</string>
     <string name="error_change_feature">Change feature failed</string>
     <string name="move_point_to_center">Point to display center</string>
     <string name="mainSettings">Main settings</string>
@@ -257,6 +259,16 @@
     <string name="tracks_running">Track is recording now</string>
     <string name="tracks_title">Track %s</string>
     <string name="walkedit_title">Walk edit %s</string>
+    <string name="walkedit_interrupted_title">Walk recording interrupted</string>
+    <string name="walkedit_interrupted_message">Recording by walk was interrupted. Continue from the saved draft or discard it?</string>
+    <string name="walkedit_continue">Continue</string>
+    <string name="geometry_edit_interrupted_title">Geometry editing interrupted</string>
+    <string name="geometry_edit_interrupted_message">An unfinished geometry draft was found. Continue editing or discard it?</string>
+    <string name="geometry_edit_continue">Continue</string>
+    <string name="geometry_edit_restore_error">Could not reopen the geometry draft. It was kept for the next launch.</string>
+    <string name="form_draft_title">Unsaved form draft</string>
+    <string name="form_draft_message">An unfinished attribute form was found. Continue editing or discard the draft?</string>
+    <string name="form_draft_continue">Continue</string>
     <string name="tracks_stop">Stop</string>
     <string name="tracks_open">Open</string>
     <string name="download_tiles_finished">Tiles download finished</string>

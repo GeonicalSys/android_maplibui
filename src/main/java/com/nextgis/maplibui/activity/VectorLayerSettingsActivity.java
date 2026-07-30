@@ -304,8 +304,11 @@ public class VectorLayerSettingsActivity
                 @Override
                 public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                     String fieldName = mFieldNames.get(position);
-                    mVectorLayer.getPreferences().edit().putString(SettingsConstantsUI.KEY_PREF_LAYER_LABEL, fieldName).apply();
-                    Toast.makeText(getContext(), String.format(getString(R.string.label_field_toast), fieldName), Toast.LENGTH_SHORT).show();
+                    if (mVectorLayer.setFeatureLabelField(fieldName)) {
+                        Toast.makeText(getContext(), String.format(getString(R.string.label_field_toast), fieldName), Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(getContext(), R.string.error_on_save, Toast.LENGTH_LONG).show();
+                    }
                 }
             });
 
@@ -315,11 +318,12 @@ public class VectorLayerSettingsActivity
         private void fillFields() {
             mFieldNames = new ArrayList<>();
             mFieldAliases = new ArrayList<>();
+            mDefault = 0;
             mFieldNames.add(FIELD_ID);
             mFieldAliases.add(FIELD_ID + " - " + LayerUtil.typeToString(getContext(), GeoConstants.FTInteger));
 
             int fieldsCount = mVectorLayer.getFields().size();
-            String labelField = mVectorLayer.getPreferences().getString(SettingsConstantsUI.KEY_PREF_LAYER_LABEL, Constants.FIELD_ID);
+            String labelField = mVectorLayer.getFeatureLabelField();
 
             for (int i = 0; i < fieldsCount; i++) {
                 Field field = mVectorLayer.getFields().get(i);

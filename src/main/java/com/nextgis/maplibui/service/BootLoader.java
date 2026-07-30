@@ -13,7 +13,7 @@
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser Public License for more details.
+ * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
@@ -24,12 +24,11 @@ package com.nextgis.maplibui.service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
-import androidx.core.content.ContextCompat;
 
-import com.nextgis.maplib.util.SettingsConstants;
-
+/**
+ * After reboot, resume track recording when the durable recording flag is set.
+ * Never silently stop recording via ACTION_STOP — finish is only via the menu.
+ */
 public class BootLoader extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -39,15 +38,6 @@ public class BootLoader extends BroadcastReceiver {
     }
 
     public static void checkTrackerService(Context context) {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean restoreTrack = preferences.getBoolean(SettingsConstants.KEY_PREF_TRACK_RESTORE, false);
-
-        if (TrackerService.hasUnfinishedTracks(context)) {
-            Intent trackerService = new Intent(context, TrackerService.class);
-            if (!restoreTrack)
-                trackerService.setAction(TrackerService.ACTION_STOP);
-
-            ContextCompat.startForegroundService(context, trackerService);
-        }
+        TrackerService.ensureRecordingRunningIfEnabled(context);
     }
 }

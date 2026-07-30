@@ -52,6 +52,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.preference.PreferenceManager;
 import android.provider.Settings;
 
 import androidx.annotation.NonNull;
@@ -71,6 +72,7 @@ import com.nextgis.maplib.map.TrackLayer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.HttpResponse;
+import com.nextgis.maplib.util.LocationProviderArbiter;
 import com.nextgis.maplib.util.LocationTrackFilter;
 import com.nextgis.maplib.util.LocationUtil;
 import com.nextgis.maplib.util.MapUtil;
@@ -141,6 +143,7 @@ public class TrackerService extends Service
     int counter = 0;
 
     private LocationTrackFilter mTrackLocationFilter;
+    private LocationProviderArbiter mTrackProviderArbiter;
     private Location mLastTrackLocationRaw;
     private Location mLastInsertedTrackLocation;
     private boolean mStopBroadcastSent;
@@ -170,6 +173,7 @@ public class TrackerService extends Service
         mPoint = new GeoPoint();
         mValues = new ContentValues();
         mTrackLocationFilter = new LocationTrackFilter();
+        mTrackProviderArbiter = new LocationProviderArbiter();
 
         String name = getPackageName() + "_preferences";
         mSharedPreferences = getSharedPreferences(name, MODE_MULTI_PROCESS);
@@ -223,20 +227,81 @@ public class TrackerService extends Service
         trackerServiceIntent.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
 
         int title = R.string.track_start, icon = R.drawable.ic_action_maps_directions_walk;
-        if (isTrackerServiceRunning(context)) {
-            trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
-            context.startService(trackerServiceIntent);
+        if (isTrackRecordingEnabled(context)) {
+            /*
+             * The durable user intent is authoritative.  The service may be temporarily dead
+             * after a crash or because permission was revoked; pressing the menu's Stop item
+             * must still stop, not accidentally start a new track.
+             */
+            setTrackRecordingEnabled(context, false);
+            if (isTrackerServiceRunning(context)) {
+                trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
+                context.startService(trackerServiceIntent);
+            } else if (hasUnfinishedTracks(context)) {
+                closeUnfinishedTracksBeforeRestart(context);
+            }
         } else if (hasUnfinishedTracks(context)) {
+            // Crash recovery path: keep points, close unfinished session, start a new track.
             closeUnfinishedTracksBeforeRestart(context);
+            setTrackRecordingEnabled(context, true);
             ContextCompat.startForegroundService(context, trackerServiceIntent);
             title = R.string.track_stop;
             icon = R.drawable.ic_action_maps_directions_walk_rec;
         } else {
+            setTrackRecordingEnabled(context, true);
             ContextCompat.startForegroundService(context, trackerServiceIntent);
             title = R.string.track_stop;
             icon = R.drawable.ic_action_maps_directions_walk_rec;
         }
         return new Pair<>(icon, title);
+    }
+
+    /**
+     * Whether the user has an active track-recording session that must survive crashes/reboots
+     * until they explicitly finish recording from the menu.
+     */
+    public static boolean isTrackRecordingEnabled(Context context) {
+        return PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, false);
+    }
+
+    public static void setTrackRecordingEnabled(Context context, boolean enabled) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+                .edit()
+                .putBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, enabled)
+                .commit();
+    }
+
+    /**
+     * Start foreground track recording if the durable recording flag is set and the service is
+     * not already running. Used after reboot and cold app start. Closing unfinished tracks and
+     * opening a new track id is allowed; points already in SQLite are preserved.
+     */
+    public static void ensureRecordingRunningIfEnabled(Context context) {
+        if (context == null) {
+            return;
+        }
+        // Migrate pre-flag sessions: unfinished open track implies recording was on.
+        if (!isTrackRecordingEnabled(context) && hasUnfinishedTracks(context)) {
+            setTrackRecordingEnabled(context, true);
+        }
+        if (!isTrackRecordingEnabled(context)) {
+            return;
+        }
+        if (isTrackerServiceRunning(context)) {
+            return;
+        }
+        if (!PermissionUtil.hasLocationPermissions(context)) {
+            HyperLog.w(Constants.TAG, "TrackerService.ensureRecordingRunningIfEnabled: no location permission");
+            return;
+        }
+        if (hasUnfinishedTracks(context)) {
+            closeUnfinishedTracksBeforeRestart(context);
+        }
+        Intent trackerService = new Intent(context, TrackerService.class);
+        trackerService.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
+        ContextCompat.startForegroundService(context, trackerService);
+        HyperLog.v(Constants.TAG, "TrackerService.ensureRecordingRunningIfEnabled: started");
     }
 
 
@@ -370,6 +435,7 @@ public class TrackerService extends Service
         mTrackId = trackId;
         mIsRunning = true;
         mStopBroadcastSent = false;
+        setTrackRecordingEnabled(this, true);
         HyperLog.v(Constants.TAG, "TrackerService.restoreData trackId=" + mTrackId);
         addSplitter();
         sendTrackStartBroadcast(checkIsBatteryPermOK(this));
@@ -380,6 +446,7 @@ public class TrackerService extends Service
 
     private boolean startTrack() {
         mTrackLocationFilter.reset();
+        mTrackProviderArbiter.reset();
         mLastTrackLocationRaw = null;
         mLastInsertedTrackLocation = null;
         mStopBroadcastSent = false;
@@ -406,7 +473,8 @@ public class TrackerService extends Service
             if (null != newTrack) {
                 // save vars
                 mTrackId = newTrack.getLastPathSegment();
-                mSharedPreferencesTemp.edit().putString(TRACK_URI, newTrack.toString()).apply();
+                mSharedPreferencesTemp.edit().putString(TRACK_URI, newTrack.toString()).commit();
+                setTrackRecordingEnabled(this, true);
                 HyperLog.v(Constants.TAG, "TrackerService.startTrack trackId=" + mTrackId
                         + " name=" + mTrackName);
             } else {
@@ -500,6 +568,13 @@ public class TrackerService extends Service
                 + " insertFail=" + mInsertFailCount
                 + " flushed=" + flushed
                 + " closingSnap=" + closingSnap
+                + " filterInput=" + mTrackLocationFilter.getInputFixCount()
+                + " filterPassed=" + mTrackLocationFilter.getPassedInputFixCount()
+                + " filterDropped=" + mTrackLocationFilter.getDroppedInputFixCount()
+                + " filterChordDropped=" + mTrackLocationFilter.getChordDroppedFixCount()
+                + " filterBuffered=" + mTrackLocationFilter.getBufferedFixCount()
+                + " filterGaps=" + mTrackLocationFilter.getGapSegmentCount()
+                + " networkSuppressed=" + mTrackProviderArbiter.getSuppressedNetworkFixCount()
                 + " closedTracks=" + closed);
 
         if (!mStopBroadcastSent) {
@@ -513,6 +588,12 @@ public class TrackerService extends Service
 
         ((GISApplication)getApplication()).setIsTrackInProgress(false);
         mTrackId = null;
+
+        // Only explicit menu finish clears the durable recording flag.
+        // onDestroy / crash / reboot must leave it set so recording auto-resumes.
+        if (ACTION_STOP.equals(reason)) {
+            setTrackRecordingEnabled(this, false);
+        }
     }
 
 
@@ -621,7 +702,7 @@ public class TrackerService extends Service
 
     // intent to open on notification click
     private void initTargetIntent(String targetActivity) {
-        Intent intentActivity = new Intent();
+        Intent intentActivity = getPackageManager().getLaunchIntentForPackage(getPackageName());
 
         if (!TextUtils.isEmpty(targetActivity)) {
             Class<?> targetClass = null;
@@ -632,11 +713,15 @@ public class TrackerService extends Service
                 e.printStackTrace();
             }
 
-            if (targetClass != null) {
+            if (targetClass != null && Activity.class.isAssignableFrom(targetClass)) {
                 intentActivity = new Intent(this, targetClass);
             }
         }
 
+        if (intentActivity == null) {
+            mOpenActivity = null;
+            return;
+        }
         intentActivity.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int flag = PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE;
         mOpenActivity = PendingIntent.getActivity(this, 0, intentActivity, flag);
@@ -683,10 +768,20 @@ public class TrackerService extends Service
                     + location.getProvider());
             return;
         }
+        if (!mTrackProviderArbiter.shouldProcess(location)) {
+            mBufferedOrDroppedFixCount++;
+            HyperLog.d(Constants.TAG,
+                    "TrackerService.onLocationChanged suppressed network fix after usable GPS");
+            return;
+        }
 
         mLastTrackLocationRaw = new Location(location);
 
+        long passedBefore = mTrackLocationFilter.getPassedInputFixCount();
         List<Location> toSave = mTrackLocationFilter.onLocation(location);
+        if (mTrackLocationFilter.getPassedInputFixCount() > passedBefore) {
+            mTrackProviderArbiter.onAccepted(location);
+        }
         if (toSave.isEmpty()) {
             mBufferedOrDroppedFixCount++;
             return;
@@ -760,8 +855,9 @@ public class TrackerService extends Service
     }
 
     private boolean isProviderAllowedForTrack(String provider) {
-        return LocationUtil.isProviderEnabled(this, provider, true)
-                || LocationUtil.isProviderEnabled(this, provider, false);
+        // Track recording has its own source preference. The former OR with the map-location
+        // preference silently re-enabled providers explicitly disabled for tracks.
+        return LocationUtil.isProviderEnabled(this, provider, true);
     }
 
     private void requestTrackLocationUpdates(String provider, long minTime, float minDistance) {

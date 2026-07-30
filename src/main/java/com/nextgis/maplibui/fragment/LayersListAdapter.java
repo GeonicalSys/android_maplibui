@@ -44,6 +44,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.nextgis.maplib.api.ILayer;
+import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.MapEventListener;
 import com.nextgis.maplib.datasource.GeoEnvelope;
 import com.nextgis.maplib.datasource.GeoPoint;
@@ -52,6 +53,7 @@ import com.nextgis.maplib.map.LocalTMSLayer;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.map.NGWLookupTable;
 import com.nextgis.maplib.map.NGWRasterLayer;
+import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.map.RemoteTMSLayer;
 import com.nextgis.maplib.map.Table;
 import com.nextgis.maplib.map.TrackLayer;
@@ -67,6 +69,7 @@ import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.mapui.RemoteTMSLayerUI;
 import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ControlHelper;
+import com.nextgis.maplibui.util.LayerBackupManager;
 import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.UiUtil;
 
@@ -406,6 +409,17 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                    @Override
                    public void onClick(DialogInterface dialogInterface, int i) {
+                       if (layer instanceof NGWVectorLayer) {
+                           android.content.Context appCtx =
+                                   mActivity.get().getApplicationContext();
+                           if (!(appCtx instanceof IGISApplication)
+                                   || !((IGISApplication) appCtx).backupEditableLayerData(
+                                           (NGWVectorLayer) layer,
+                                           LayerBackupManager.REASON_MANUAL_LAYER_DELETE)) {
+                               return;
+                           }
+                       }
+
                        final int position = mMap.removeLayer(layer);
                        final View root = mActivity.get().getWindow().getDecorView().getRootView();
                        if (root == null) {
