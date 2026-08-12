@@ -45,6 +45,8 @@ import android.widget.SimpleCursorAdapter;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.appcompat.widget.SwitchCompat;
+
 import com.nextgis.maplib.datasource.Field;
 import com.nextgis.maplib.display.FieldStyleRule;
 import com.nextgis.maplib.display.RuleFeatureRenderer;
@@ -116,11 +118,16 @@ public class RuleFeatureRendererUI extends RendererUI {
                 return v;
             }
 
+            SwitchCompat ignoreCaseSwitch = v.findViewById(R.id.rule_key_ignore_case);
+            if (ignoreCaseSwitch != null) {
+                ignoreCaseSwitch.setChecked(mStyleRule.isKeyIgnoreCase());
+            }
+
             Button defaultStyle = (Button) v.findViewById(R.id.default_style);
             defaultStyle.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    showStyleDialog(null);
+                    showOtherStyleDialog();
                 }
             });
 
@@ -138,6 +145,17 @@ public class RuleFeatureRendererUI extends RendererUI {
                     showStyleDialog(mSelectedValue);
                 }
             });
+
+            if (ignoreCaseSwitch != null) {
+                ignoreCaseSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    mStyleRule.setKeyIgnoreCase(isChecked);
+                    mStyleRule.renormalizeRuleKeys();
+                    mRulesList.clear();
+                    mRulesList.addAll(mStyleRule.getStyleRules().keySet());
+                    mRulesAdapter.notifyDataSetChanged();
+                    setListViewHeightBasedOnChildren();
+                });
+            }
 
             int id = -1;
             String key = mStyleRule.getKey();
@@ -258,26 +276,58 @@ public class RuleFeatureRendererUI extends RendererUI {
             mStyleRule.setKey(mSelectedField);
         }
 
+        private void showOtherStyleDialog() {
+            try {
+                Style other = mStyleRule.getOtherStyle();
+                if (other == null) {
+                    other = mStyle.clone();
+                } else {
+                    other = other.clone();
+                }
+                showStyleDialogForStyle(other, true);
+            } catch (CloneNotSupportedException e) {
+                e.printStackTrace();
+            }
+        }
+
         private void showStyleDialog(final String value) {
             try {
-                final Style style = value == null ? mStyle : mRulesList.contains(mSelectedValue) ? mStyleRule.getStyle(mSelectedValue) : mStyle.clone();
+                final Style style;
+                if (value == null) {
+                    style = mStyle;
+                } else if (mRulesList.contains(mSelectedValue)) {
+                    style = mStyleRule.getStyle(mSelectedValue);
+                } else {
+                    Style other = mStyleRule.resolveOtherStyle(mStyle);
+                    style = other != null ? other.clone() : mStyle.clone();
+                }
+                showStyleDialogForStyle(style, false);
+            } catch (CloneNotSupportedException e) {
+                e.printStackTrace();
+            }
+        }
 
+        private void showStyleDialogForStyle(final Style style, final boolean saveAsOtherStyle) {
+            try {
                 FragmentManager fm = getActivity().getSupportFragmentManager();
-                final StyleFragment styleFragment = new StyleFragment(value != null);
+                final StyleFragment styleFragment = new StyleFragment();
                 styleFragment.setLayer(mLayer);
                 styleFragment.setStyle(style);
-                styleFragment.setTitle(com.nextgis.maplib.R.string.style);
+                styleFragment.setTitle(saveAsOtherStyle
+                        ? R.string.rule_other_style
+                        : com.nextgis.maplib.R.string.style);
                 styleFragment.setPositiveText(android.R.string.ok);
                 styleFragment.setOnPositiveClickedListener(new StyledDialogFragment.OnPositiveClickedListener() {
                     @Override
                     public void onPositiveClicked() {
-                        if (value != null) {
+                        if (saveAsOtherStyle) {
+                            mStyleRule.setOtherStyle(style);
+                        } else if (mSelectedValue != null) {
                             if (!mRulesList.contains(mSelectedValue)) {
                                 mRulesList.add(mSelectedValue);
                                 mRulesAdapter.notifyDataSetChanged();
                                 setListViewHeightBasedOnChildren();
                             }
-
                             mStyleRule.setStyle(mSelectedValue, style);
                         }
 
@@ -298,7 +348,7 @@ public class RuleFeatureRendererUI extends RendererUI {
                                 ? R.style.Theme_NextGIS_AppCompat_Dark
                                 : R.style.Theme_NextGIS_AppCompat_Light);
                 styleFragment.show(fm, STYLE_DIALOG_FRAGMENT);
-            } catch (CloneNotSupportedException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }

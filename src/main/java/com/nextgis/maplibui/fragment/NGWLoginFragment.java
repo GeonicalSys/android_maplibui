@@ -46,6 +46,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.material.textfield.TextInputLayout;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.ngw.TokenContainer;
 import com.nextgis.maplib.util.Constants;
@@ -65,9 +66,11 @@ public class NGWLoginFragment
 {
     private static final String PASSWORD_HINT = "••••••••••";
     protected static final String ENDING = ".nextgis.com";
+    protected static final String ENDING_RU = ".nextgis.ru";
     protected static final String DEFAULT_ACCOUNT = "administrator";
 
     protected EditText mURL, mLogin, mPassword;
+    TextInputLayout passwordLayout;
     protected Button   mSignInButton, mGuestButton;
     protected TextView mLoginTitle, mManual, mTip;
     protected TextView ngwFromMyNextgis;
@@ -139,6 +142,7 @@ public class NGWLoginFragment
         final View view = inflater.inflate(R.layout.fragment_ngw_login, container, false);
         mURL = view.findViewById(R.id.url);
         mLogin = view.findViewById(R.id.login);
+        passwordLayout = view.findViewById(R.id.password_layout);
         mPassword = view.findViewById(R.id.password);
         mSignInButton = view.findViewById(R.id.signin);
 
@@ -166,11 +170,12 @@ public class NGWLoginFragment
             mLogin.setText(mLoginText);
             mLogin.setEnabled(mChangeAccountLogin);
             mLoginTitle.setVisibility(View.GONE);
-            mPassword.setHint(PASSWORD_HINT);
+            passwordLayout.setHintEnabled(true);
             mPassword.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override
                 public void onFocusChange(View view, boolean hasFocus) {
-                    mPassword.setHint(hasFocus ? null : PASSWORD_HINT);
+                    //mPassword.setHint(hasFocus ? null : PASSWORD_HINT);
+                    // no need - interface collision
                 }
             });
 
@@ -357,9 +362,9 @@ public class NGWLoginFragment
             boolean accountAdded = app.addAccount(accountName, mUrlText.toLowerCase(), login, password, token);
 
             if (null != mOnAddAccountListener) {
-                Account account = null;
-                if (accountAdded)
-                    account = app.getAccount(accountName);
+                // Resolve the account even after addAccountExplicitly() returned false so the
+                // activity can distinguish an existing account from a system registration error.
+                Account account = app.getAccount(accountName);
 
                 mOnAddAccountListener.onAddAccount(account, token, accountAdded);
             }

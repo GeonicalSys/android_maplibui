@@ -124,6 +124,22 @@
                 tools:ignore="UnusedAttribute"/>
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/layer_opacity_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:text="@string/layer_opacity"
+            android:textAppearance="?android:attr/textAppearanceMedium"/>
+
+        <SeekBar
+            android:id="@+id/layer_opacity_seek"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="5dp"
+            android:layout_marginRight="5dp"
+            android:max="255"/>
+
         <Button
             android:id="@+id/delete_features"
             style="@style/Widget.AppCompat.Button.Colored"

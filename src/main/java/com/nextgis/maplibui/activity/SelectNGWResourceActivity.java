@@ -22,13 +22,16 @@
 package com.nextgis.maplibui.activity;
 
 import android.accounts.AccountManager;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.ContextCompat;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -41,18 +44,23 @@ import android.widget.Toast;
 
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
+import com.nextgis.maplib.datasource.ngw.CollectorResource;
 import com.nextgis.maplib.datasource.ngw.Connection;
 import com.nextgis.maplib.datasource.ngw.Connections;
 import com.nextgis.maplib.datasource.ngw.INGWResource;
 import com.nextgis.maplib.datasource.ngw.LayerWithStyles;
+import com.nextgis.maplib.datasource.ngw.Resource;
 import com.nextgis.maplib.datasource.ngw.ResourceGroup;
 import com.nextgis.maplib.datasource.ngw.WebMap;
+import com.nextgis.maplib.map.CollectorProjectMetadata;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWRasterLayer;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.NGWUtil;
+
+import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.dialog.NGWResourcesListAdapter;
 import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
@@ -60,12 +68,19 @@ import com.nextgis.maplibui.mapui.NGWRasterLayerUI;
 import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
+import com.nextgis.maplibui.util.CollectorProjectImportHelper;
+import com.nextgis.maplibui.util.CollectorProjectRegistry;
 import com.nextgis.maplibui.util.NGWCreateNewResourceTask;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import static com.nextgis.maplib.datasource.ngw.Connection.NGWResourceTypeVectorLayer;
 import static com.nextgis.maplib.util.Constants.NOT_FOUND;
 import static com.nextgis.maplib.util.Constants.TAG;
 import static com.nextgis.maplib.util.GeoConstants.TMSTYPE_OSM;
@@ -81,6 +96,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
     public final static String KEY_GROUP_ID    = "group_id";
     public final static String KEY_PUSH_ID     = "local_id";
     protected final static String KEY_STATES   = "states";
+    public final static String KEY_SKIPSUBLOAD = "skipsubload";
 
     protected VectorLayer mLayer;
     protected LayerGroup mGroupLayer;
@@ -92,6 +108,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
     protected Button mButton;
 
     protected int mTypeMask, mTask, mPushId;
+    boolean skipSubLoad = false;
 
     private AlertDialog mNewGroupDialog;
 
@@ -108,7 +125,10 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
 
         mToolbar = findViewById(R.id.main_toolbar);
         mButton = findViewById(R.id.button1);
+
         mButton.setOnClickListener(this);
+        mButton.setEnabled(false);
+
 
         mListAdapter = new NGWResourcesListAdapter(this);
         mListAdapter.setShowAccounts(false);
@@ -121,15 +141,13 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         if (mTask == TYPE_ADD) {
             mTypeMask = Connection.NGWResourceTypePostgisLayer |
                     Connection.NGWResourceTypeVectorLayer | Connection.NGWResourceTypeRasterLayer |
-                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap
-                    //| Connection.NGWResourceTypeCollector
-            ;
+                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap |
+                    Connection.NGWResourceTypeCollector;
         } else {
             mTypeMask = Connection.NGWResourceTypeResourceGroup | Connection.NGWResourceTypePostgisLayer |
                     Connection.NGWResourceTypeVectorLayer | Connection.NGWResourceTypeRasterLayer |
-                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap
-                    //| Connection.NGWResourceTypeCollector
-            ;
+                    Connection.NGWResourceTypeWMSClient | Connection.NGWResourceTypeWebMap |
+                    Connection.NGWResourceTypeCollector;
         }
 
         int id = mPushId = NOT_FOUND;
@@ -139,11 +157,12 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 bundle = getIntent().getExtras();
 
         if (bundle != null) {
+            skipSubLoad =   bundle.getBoolean(KEY_SKIPSUBLOAD, false);
             mTask = bundle.getInt(KEY_TASK);
             id = bundle.getInt(KEY_GROUP_ID, id);
             mPushId = bundle.getInt(KEY_PUSH_ID, mPushId);
             mTypeMask = bundle.getInt(KEY_MASK, mTypeMask);
-            mListAdapter.setConnections((Connections) bundle.getParcelable(KEY_CONNECTIONS));
+            mListAdapter.setConnections((Connections) bundle.getParcelable(KEY_CONNECTIONS), skipSubLoad);
             mListAdapter.setCurrentResourceId(bundle.getInt(KEY_RESOURCE_ID));
 
             ArrayList<CheckState> states = bundle.getParcelableArrayList(KEY_STATES);
@@ -186,6 +205,20 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         return true;
     }
 
+    public void enableButton(){
+        if (mButton != null) {
+            mButton.setEnabled(true);
+            mButton.setBackground(getDrawable(R.drawable.dark_button));
+        }
+    }
+
+    public void disableButton(){
+        if (mButton != null) {
+            mButton.setEnabled(false);
+            mButton.setBackground(getDrawable(R.drawable.grey_button));
+        }
+    }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int i = item.getItemId();
@@ -210,7 +243,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                     long id = getRemoteResourceId();
                     final Connection connection = getConnection();
                     if (connection != null && id != NOT_FOUND) {
-                        new NGWCreateNewResourceTask(getApplicationContext(), connection, id).setName(text.toString()).
+                        new NGWCreateNewResourceTask(getApplicationContext(), connection, id, skipSubLoad).setName(text.toString()).
                                 executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
                         mListAdapter.refresh();
                     }
@@ -252,6 +285,20 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         }
 
         final Connections connections = mListAdapter.getConnections();
+        int selectedCollectorCount = countSelectedCollectorResources(connections, checkStates);
+        if (selectedCollectorCount > 1) {
+            Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+            HyperLog.w(TAG, "Collector import: multiple collector projects selected in one batch");
+            return false;
+        }
+        if (selectedCollectorCount == 1) {
+            CollectorResource selectedCollector = findSelectedCollectorResource(connections, checkStates);
+            if (selectedCollector == null || !prepareCollectorWorkspaceForImport(selectedCollector)) {
+                return false;
+            }
+        }
+
+        final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
             if (checkState.isCheckState1()) { //create raster
                 final INGWResource resource = connections.getResourceById(checkState.getId());
@@ -294,36 +341,146 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 }
             }
 
-            if (checkState.isCheckState2()) { //create vector
+            if (checkState.isCheckState2()) { //create vector or collector import
                 final INGWResource resource = connections.getResourceById(checkState.getId());
-                if (resource instanceof LayerWithStyles) {
+                if (resource instanceof CollectorResource) {
+                    CollectorProjectImportHelper.Result result =
+                            CollectorProjectImportHelper.appendImportTasks(
+                                    this,
+                                    mGroupLayer,
+                                    (CollectorResource) resource,
+                                    vectorFillBatch);
+                    if (result == CollectorProjectImportHelper.Result.NO_SUPPORTED_ITEMS) {
+                        Toast.makeText(
+                                this,
+                                R.string.ngw_collector_no_supported_layers,
+                                Toast.LENGTH_LONG).show();
+                        return false;
+                    }
+                    if (result == CollectorProjectImportHelper.Result.FAILED) {
+                        Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+                        return false;
+                    }
+                } else if (resource instanceof LayerWithStyles) {
                     final LayerWithStyles layer = (LayerWithStyles) resource;
                     // get connection for url
                     final Connection connection = layer.getConnection();
                     // create or connect to fill layer with features
                     Intent intent = new Intent(this, LayerFillService.class);
                     intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                    intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
                     intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
                     intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
                     intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
                     intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
                     intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
-
-                    if (layer.getFormCount() > 0) {
-                        String path = NGWUtil.getFormUrl(connection.getURL(), layer.getFormId(0));
-                        intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
-                        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                    intent.putExtra(LayerFillService.KEY_MARK_MANUAL_NGW_ORIGIN, true);
+                    Resource remoteResource = (Resource) resource;
+                    if (remoteResource.hasDataPermissionInfo()) {
+                        intent.putExtra(
+                                LayerFillService.KEY_SERVER_WRITE_PERMITTED,
+                                remoteResource.hasDataWritePermission());
                     }
 
-                    LayerFillProgressDialogFragment.startFill(intent);
+                    if (layer.getFormCount() > 0) {
+                        Long formId = layer.getFormId(0);
+                        if (formId != null && formId > 0L) {
+                            intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
+                            String path = NGWUtil.getFormUrl(connection.getURL(), formId);
+                            intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
+                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                        }
+                    }
+
+                    vectorFillBatch.add(intent);
                 }
             }
 
-//            if (checkState.isCheckState3()) { //create form
-//            }
+        }
+
+        if (!vectorFillBatch.isEmpty()) {
+            Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
+            if (fillHost == null) {
+                fillHost = this;
+            }
+            // Single FGS start for the whole batch (one stopSelf() at drain end) avoids the
+            // foreground-service lifecycle race of N separate startService deliveries.
+            LayerFillService.startFillBatch(fillHost, vectorFillBatch);
+            LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
         }
 
         mGroupLayer.save();
+        return true;
+    }
+
+    private int countSelectedCollectorResources(Connections connections, List<CheckState> checkStates) {
+        int count = 0;
+        if (connections == null || checkStates == null) {
+            return count;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private CollectorResource findSelectedCollectorResource(
+            Connections connections,
+            List<CheckState> checkStates) {
+        if (connections == null || checkStates == null) {
+            return null;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                return (CollectorResource) resource;
+            }
+        }
+        return null;
+    }
+
+    private boolean prepareCollectorWorkspaceForImport(CollectorResource collector) {
+        if (collector == null || collector.getConnection() == null) {
+            return false;
+        }
+        if (!collector.isSnapshotComplete()) {
+            HyperLog.e(TAG, "Collector import: incomplete project snapshot remoteId="
+                    + collector.getRemoteId() + " error=" + collector.getSnapshotError());
+            Toast.makeText(this, R.string.ngw_collector_incomplete_snapshot, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        if (collector.getProjectItems().isEmpty()) {
+            Toast.makeText(
+                    this,
+                    R.string.ngw_collector_no_supported_layers,
+                    Toast.LENGTH_LONG).show();
+            return false;
+        }
+        Connection connection = collector.getConnection();
+        CollectorProjectMetadata metadata = CollectorProjectMetadata.create(
+                connection.getName(),
+                collector.getRemoteId(),
+                collector.getName(),
+                collector.getProjectDistrict());
+        LayerGroup projectWorkspace = CollectorProjectRegistry.prepareCollectorProjectWorkspace(
+                this,
+                metadata);
+        if (projectWorkspace == null) {
+            HyperLog.e(TAG, "Collector import: failed to prepare isolated workspace remoteId="
+                    + collector.getRemoteId() + " account=" + connection.getName());
+            Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        mGroupLayer = projectWorkspace;
         return true;
     }
 
@@ -341,13 +498,65 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                     long id = getRemoteResourceId();
                     final Connection connection = getConnection();
                     if (connection != null && mLayer != null && id != NOT_FOUND) {
-                        new NGWCreateNewResourceTask(getApplicationContext(), connection, id).setLayer(mLayer)
+
+                        List<String> names = new ArrayList<>();
+//                        for (i = 0; i < connection.getChildrenCount(); i++ ){
+//                            if (connection.getChild(i).getType()== NGWResourceTypeVectorLayer)
+//                                names.add(connection.getChild(i).getName());
+//                        }
+
+
+                        if (mListAdapter.getCurrentResource()!= null)
+                            for (i = 0; i < mListAdapter.getCurrentResource().getChildrenCount(); i++ ){
+                                if (mListAdapter.getCurrentResource().getChild(i).getType()== NGWResourceTypeVectorLayer)
+                                    names.add(mListAdapter.getCurrentResource().getChild(i).getName());
+                            }
+
+                        String nameToSend = getUniqueName(mLayer.getName(), names);
+
+                        if (!nameToSend.equals(mLayer.getName())){
+                            mLayer.setName(nameToSend);
+                            mLayer.save();
+                        }
+//
+                        new NGWCreateNewResourceTask(getApplicationContext(), connection, id, true).setLayer(mLayer)
                                 .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
                         finish();
                     }
                     break;
             }
         }
+    }
+
+    private static final Pattern PATTERN = Pattern.compile("^(.*) \\((\\d+)\\)$");
+
+    public static String getUniqueName(String originalName, List<String> existingNames) {
+        Set<String> existing = new HashSet<>(existingNames);
+
+        String baseName = originalName;
+        int counter = 0;
+
+        // check ' (number)' at end of original name
+        Matcher matcher = PATTERN.matcher(originalName);
+        if (matcher.matches()) {
+            baseName = matcher.group(1);
+            counter = Integer.parseInt(matcher.group(2));
+        }
+
+        String newName = originalName;
+
+        // if not contains - return original
+        if (!existing.contains(newName)) {
+            return newName;
+        }
+
+        // increment counter while new name exists
+        while (existing.contains(newName)) {
+            counter++;
+            newName = baseName + " (" + counter + ")";
+        }
+
+        return newName;
     }
 
     public Connection getConnection() {

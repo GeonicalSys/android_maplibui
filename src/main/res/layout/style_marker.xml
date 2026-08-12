@@ -37,20 +37,130 @@
         android:layout_height="wrap_content"
         android:inputType="number" />
 
-<!--    <TextView-->
-<!--        android:layout_width='match_parent'-->
-<!--        android:layout_height='wrap_content'-->
-<!--        android:layout_marginTop="8dp"-->
-<!--        android:gravity="center_vertical"-->
-<!--        android:text="@string/type"-->
-<!--        android:textAppearance='?android:attr/textAppearanceMedium' />-->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/circle_blur"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
 
-<!--    <Spinner-->
-<!--        android:id="@+id/type"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        android:entries="@array/marker_type"-->
-<!--        android:padding="5dp" />-->
+    <Spinner
+        android:id="@+id/circle_blur"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/blur_presets"
+        android:padding="5dp" />
+
+    <include layout="@layout/style_geometry_scale" />
+
+    <TextView
+        android:layout_width='match_parent'
+        android:layout_height='wrap_content'
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:text="@string/type"
+        android:textAppearance='?android:attr/textAppearanceMedium' />
+
+    <Spinner
+        android:id="@+id/type"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/marker_type"
+        android:padding="5dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/marker_icon_image"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <Spinner
+        android:id="@+id/marker_icon_image"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="5dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/marker_icon_size"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <EditText
+        android:id="@+id/marker_icon_size"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/marker_icon_size_hint"
+        android:inputType="numberDecimal" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/marker_icon_rotate"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <EditText
+        android:id="@+id/marker_icon_rotate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="numberDecimal|numberSigned" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/marker_icon_offset"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/marker_icon_offset_x"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:inputType="numberDecimal|numberSigned" />
+
+        <EditText
+            android:id="@+id/marker_icon_offset_y"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:inputType="numberDecimal|numberSigned" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/marker_icon_anchor"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <Spinner
+        android:id="@+id/marker_icon_anchor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/marker_icon_anchors"
+        android:padding="5dp" />
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/marker_icon_allow_overlap"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/marker_icon_allow_overlap" />
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/marker_icon_ignore_placement"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/marker_icon_ignore_placement" />
 
     <TextView
         android:layout_width="match_parent"
@@ -120,6 +230,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:inputType="number" />
+
+    <include layout="@layout/style_opacity" />
 
     <include layout="@layout/style_text" />
 </LinearLayout>

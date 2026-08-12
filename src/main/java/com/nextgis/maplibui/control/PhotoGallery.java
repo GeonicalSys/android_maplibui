@@ -114,7 +114,8 @@ public class PhotoGallery extends PhotoPicker implements IFormControl {
             IGISApplication app = (IGISApplication) ((Activity) getContext()).getApplication();
             getOfflineAttaches(app, mLayer, mFeatureId, mAttaches, true, mComment);
 
-            Map<String, AttachInfo> onlineAttachesCache =getOnlineAttaches(app, mLayer, mFeatureId);
+            Map<String, AttachInfo> onlineAttachesCache = getOnlineAttaches(app, mLayer, mFeatureId);
+            excludeOfflineAttachIds(mAttaches, onlineAttachesCache);
             onlineAttaches.clear();
             onlineAttaches.putAll(onlineAttachesCache);
         }
@@ -161,6 +162,24 @@ public class PhotoGallery extends PhotoPicker implements IFormControl {
         // get attaches from webpart - ask from db
         //todo
 
+    }
+
+    /**
+     * Avoid showing the same attachment twice when it exists both as a local file and as an
+     * online FeatureAttachments row (after push keeps the local file and registers online meta).
+     */
+    public static void excludeOfflineAttachIds(
+            List<AttachInfo> offlineAttaches,
+            Map<String, AttachInfo> onlineAttaches) {
+        if (offlineAttaches == null || onlineAttaches == null || onlineAttaches.isEmpty()) {
+            return;
+        }
+        for (AttachInfo offline : offlineAttaches) {
+            if (offline == null || offline.attachId == null) {
+                continue;
+            }
+            onlineAttaches.remove(offline.attachId);
+        }
     }
 
     // get attaches already On WebGIS
@@ -333,6 +352,39 @@ public class PhotoGallery extends PhotoPicker implements IFormControl {
                 result.add(image);
         }
         return result;
+    }
+
+    /**
+     * Re-apply pending local photo paths after crash-draft restore (does not insert into layer).
+     */
+    public void restorePendingPhotoPaths(List<String> paths) {
+        if (paths == null || paths.isEmpty() || mAdapter == null)
+            return;
+        ArrayList<AttachInfo> currentImages = new ArrayList<>(mAdapter.getImagesPathOrUri());
+        ArrayList<AttachInfo> pendingImages = new ArrayList<>();
+        for (String path : paths) {
+            if (path == null || path.length() == 0)
+                continue;
+            boolean exist = false;
+            for (AttachInfo image : currentImages) {
+                if (image != null && path.equals(image.oldAttachString)) {
+                    exist = true;
+                    break;
+                }
+            }
+            if (!exist) {
+                AttachInfo pending = new AttachInfo(false, path, "-1");
+                pendingImages.add(pending);
+                currentImages.add(pending);
+            }
+        }
+        /*
+         * Do not route crash recovery through onRestoreInstanceState(): PhotoGallery suppresses
+         * the parent's attached_images restore once existing items are present to avoid
+         * configuration-change duplicates.  Crash recovery has already de-duplicated paths, so
+         * append only the missing AttachInfo objects directly.
+         */
+        restoreImages(pendingImages, null);
     }
 
     public List<Integer> getDeletedAttaches() {

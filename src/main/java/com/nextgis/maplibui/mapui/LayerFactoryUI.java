@@ -83,14 +83,15 @@ public class LayerFactoryUI
                 startNGWResourceActivity(context, (Connection) connections.getChild(0), layerGroup);
             } else {
                 NGActivity fragmentActivity = (NGActivity) context;
-                final SelectNGWResourceDialog newFragment = new SelectNGWResourceDialog();
+                final SelectNGWResourceDialog newFragment = new SelectNGWResourceDialog(false);
                 newFragment.setLayerGroup(layerGroup)
                         .setTypeMask(
                                 Connection.NGWResourceTypePostgisLayer |
                                         Connection.NGWResourceTypeVectorLayer |
                                         Connection.NGWResourceTypeRasterLayer |
                                         Connection.NGWResourceTypeWMSClient |
-                                        Connection.NGWResourceTypeWebMap)
+                                        Connection.NGWResourceTypeWebMap |
+                                        Connection.NGWResourceTypeCollector)
                         .setConnectionListener(new NGWResourcesListAdapter.OnConnectionListener() {
                             @Override
                             public void onConnectionSelected(Connection connection) {
@@ -118,6 +119,13 @@ public class LayerFactoryUI
         intent.putExtra(SelectNGWResourceActivity.KEY_CONNECTIONS, connections);
         intent.putExtra(SelectNGWResourceActivity.KEY_RESOURCE_ID, connections.getChild(0).getId());
         intent.putExtra(SelectNGWResourceActivity.KEY_GROUP_ID, layerGroup.getId());
+        intent.putExtra(SelectNGWResourceActivity.KEY_MASK,
+                Connection.NGWResourceTypePostgisLayer |
+                        Connection.NGWResourceTypeVectorLayer |
+                        Connection.NGWResourceTypeRasterLayer |
+                        Connection.NGWResourceTypeWMSClient |
+                        Connection.NGWResourceTypeWebMap |
+                        Connection.NGWResourceTypeCollector);
         context.startActivity(intent);
     }
 
@@ -210,6 +218,7 @@ public class LayerFactoryUI
             NGActivity fragmentActivity = (NGActivity) context;
             CreateLocalLayerDialog newFragment = new CreateLocalLayerDialog();
             newFragment.setLayerGroup(groupLayer)
+                    .setNGFPopenForm()
                     .setLayerType(LayerFillService.VECTOR_LAYER_WITH_FORM)
                     .setUri(uri)
                     .setLayerName(layerName)

@@ -42,6 +42,7 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.core.content.ContextCompat;
 import androidx.appcompat.widget.Toolbar;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -69,6 +70,7 @@ import com.nextgis.maplib.display.SimpleFeatureRenderer;
 import com.nextgis.maplib.display.Style;
 import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.map.VectorLayer;
+import com.nextgis.maplib.map.VectorLayerRenderCache;
 import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.GeoConstants;
@@ -80,6 +82,7 @@ import com.nextgis.maplibui.display.RuleFeatureRendererUI;
 import com.nextgis.maplibui.display.SimpleFeatureRendererUI;
 import com.nextgis.maplibui.fragment.LayerGeneralSettingsFragment;
 import com.nextgis.maplibui.fragment.NGWSettingsFragment;
+import com.nextgis.maplibui.mapui.SyncAccountWorker;
 import com.nextgis.maplibui.service.RebuildCacheService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
@@ -117,6 +120,7 @@ public class VectorLayerSettingsActivity
             mVectorLayer = (VectorLayer) mLayer;
             mLayerMinZoom = mVectorLayer.getMinZoom();
             mLayerMaxZoom = mVectorLayer.getMaxZoom();
+            mLayerOpacity = mVectorLayer.getLayerOpacity();
             mRenderer = mVectorLayer.getRenderer();
             mToolbar = findViewById(R.id.main_toolbar);
             setSubtitle();
@@ -178,12 +182,20 @@ public class VectorLayerSettingsActivity
             return;
 
         mVectorLayer.setName(mLayerName);
+        int prevOpacity = mVectorLayer.getLayerOpacity();
+        boolean changes = mRenderer != mVectorLayer.getRenderer()
+                || mLayerMaxZoom != mVectorLayer.getMaxZoom()
+                || mLayerMinZoom != mVectorLayer.getMinZoom()
+                || mLayerOpacity != prevOpacity;
         mVectorLayer.setMinZoom(mLayerMinZoom);
         mVectorLayer.setMaxZoom(mLayerMaxZoom);
-        boolean changes = mRenderer != mVectorLayer.getRenderer() || mLayerMaxZoom != mVectorLayer.getMaxZoom() || mLayerMinZoom != mVectorLayer.getMinZoom();
+        mVectorLayer.setLayerOpacity(mLayerOpacity);
+        VectorLayerRenderCache.invalidateOnStyleChange(mVectorLayer);
         mVectorLayer.save();
-        if (changes)
+        mVectorLayer.notifyLayerChanged();
+        if (changes) {
             mMap.setDirty(true);
+        }
     }
 
     public static class StyleFragment extends Fragment {
@@ -292,8 +304,11 @@ public class VectorLayerSettingsActivity
                 @Override
                 public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                     String fieldName = mFieldNames.get(position);
-                    mVectorLayer.getPreferences().edit().putString(SettingsConstantsUI.KEY_PREF_LAYER_LABEL, fieldName).apply();
-                    Toast.makeText(getContext(), String.format(getString(R.string.label_field_toast), fieldName), Toast.LENGTH_SHORT).show();
+                    if (mVectorLayer.setFeatureLabelField(fieldName)) {
+                        Toast.makeText(getContext(), String.format(getString(R.string.label_field_toast), fieldName), Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(getContext(), R.string.error_on_save, Toast.LENGTH_LONG).show();
+                    }
                 }
             });
 
@@ -303,11 +318,12 @@ public class VectorLayerSettingsActivity
         private void fillFields() {
             mFieldNames = new ArrayList<>();
             mFieldAliases = new ArrayList<>();
+            mDefault = 0;
             mFieldNames.add(FIELD_ID);
             mFieldAliases.add(FIELD_ID + " - " + LayerUtil.typeToString(getContext(), GeoConstants.FTInteger));
 
             int fieldsCount = mVectorLayer.getFields().size();
-            String labelField = mVectorLayer.getPreferences().getString(SettingsConstantsUI.KEY_PREF_LAYER_LABEL, Constants.FIELD_ID);
+            String labelField = mVectorLayer.getFeatureLabelField();
 
             for (int i = 0; i < fieldsCount; i++) {
                 Field field = mVectorLayer.getFields().get(i);
@@ -439,7 +455,7 @@ public class VectorLayerSettingsActivity
                             public void onClick(DialogInterface dialog, int which) {
                                 ngwLayer.setSyncType(Constants.SYNC_ALL);
                                 ngwLayer.save();
-                                direction.setEnabled(checked);
+                                direction.setEnabled(checked && ngwLayer.isEditable());
                             } };
                         DialogInterface.OnClickListener noClick = new DialogInterface.OnClickListener() {
                             @Override
@@ -458,7 +474,7 @@ public class VectorLayerSettingsActivity
                             public void onClick(DialogInterface dialog, int which) {
                                 ngwLayer.setSyncType(Constants.SYNC_NONE);
                                 ngwLayer.save();
-                                direction.setEnabled(checked);
+                                direction.setEnabled(checked && ngwLayer.isEditable());
                             } };
                         DialogInterface.OnClickListener noClick = new DialogInterface.OnClickListener() {
                             @Override
@@ -479,7 +495,11 @@ public class VectorLayerSettingsActivity
             direction.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                    ngwLayer.setSyncDirection(i + 1);
+                    if (ngwLayer.isEditable()) {
+                        ngwLayer.setSyncDirection(i + 1);
+                    } else {
+                        ngwLayer.setSyncDirection(2);
+                    }
                 }
 
                 @Override
@@ -495,10 +515,13 @@ public class VectorLayerSettingsActivity
             auto.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton compoundButton, boolean checked) {
-                    NGWSettingsFragment.setAccountSyncEnabled(account, app.getAuthority(), checked);
+                    NGWSettingsFragment.setAccountSyncEnabled(
+                            getContext(), account, app.getAuthority(), checked);
                     period.setEnabled(checked);
                 }
             });
+
+            direction.setEnabled(enabled.isChecked() && ngwLayer.isEditable());
 
             period.setEnabled(auto.isChecked());
             String prefValue = "" + Constants.DEFAULT_SYNC_PERIOD;
@@ -539,7 +562,7 @@ public class VectorLayerSettingsActivity
                     if (interval == NOT_FOUND) {
                         ContentResolver.removePeriodicSync(account, app.getAuthority(), bundle);
                     } else {
-                        ((GISApplication)getContext().getApplicationContext()).setSyncPeriod(account,interval,bundle);
+                        ((GISApplication)getContext().getApplicationContext()).setSyncPeriod(account,interval,bundle, true);
 
                         // no need -
                         //ContentResolver.addPeriodicSync(account, app.getAuthority(), bundle, interval);

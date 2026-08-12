@@ -22,25 +22,27 @@
 
 package com.nextgis.maplibui.service;
 
-import static android.app.PendingIntent.FLAG_IMMUTABLE;
-
 import android.accounts.Account;
 import android.accounts.AccountsException;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.database.sqlite.SQLiteException;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
+import android.text.Html;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
@@ -52,6 +54,7 @@ import com.nextgis.maplib.datasource.Field;
 import com.nextgis.maplib.datasource.GeoGeometryFactory;
 import com.nextgis.maplib.map.Layer;
 import com.nextgis.maplib.map.LayerGroup;
+import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWLookupTable;
 import com.nextgis.maplib.map.NGWVectorLayer;
@@ -61,6 +64,11 @@ import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
+import com.nextgis.maplib.util.LayerConfigUtil;
+import com.nextgis.maplib.util.LayerFormHashUtil;
+import com.nextgis.maplib.util.ProdLogUtil;
+import com.nextgis.maplib.util.SettingsConstants;
+import com.nextgis.maplib.util.HttpResponse;
 import com.nextgis.maplib.util.GeoJSONUtil;
 import com.nextgis.maplib.util.NGException;
 import com.nextgis.maplib.util.NGWUtil;
@@ -71,12 +79,15 @@ import com.nextgis.maplibui.mapui.NGWVectorLayerUI;
 import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.LayerUtil;
-import com.nextgis.maplibui.util.NotificationHelper;
+import com.hypertrack.hyperlog.HyperLog;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
@@ -85,8 +96,15 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -99,12 +117,20 @@ import static com.nextgis.maplib.util.Constants.MESSAGE_TITLE_EXTRA;
 import static com.nextgis.maplib.util.NetworkUtil.configureSSLdefault;
 import static com.nextgis.maplib.util.NetworkUtil.getUserAgent;
 import static com.nextgis.maplibui.util.ConstantsUI.FILE_FORM;
-import static com.nextgis.maplibui.util.NotificationHelper.createBuilder;
 
 /**
  * Service for filling layers with data
  */
 public class LayerFillService extends Service implements IProgressor {
+    /** Substring to search in Logcat together with tag {@code nextgismobile}. */
+    public static final String LOG_LAYER_CONFIG = "NGWLayerConfig";
+
+    /**
+     * Low-importance channel for mandatory {@link #startForeground(int, android.app.Notification)} only;
+     * progress is shown in-app, not in the status bar.
+     */
+    private static final String LAYER_FILL_FGS_CHANNEL_ID = "layer_fill_fgs_min";
+
     protected NotificationManager mNotifyManager;
     protected List<LayerFillTask> mQueue;
     protected static final int FILL_NOTIFICATION_ID = 9;
@@ -118,6 +144,18 @@ public class LayerFillService extends Service implements IProgressor {
 
     public static final String ACTION_STOP = "com.nextgis.maplibui.FILL_LAYER_STOP";
     public static final String ACTION_ADD_TASK = "com.nextgis.maplibui.ADD_FILL_LAYER_TASK";
+    /**
+     * One {@link #startForegroundService} for the whole import/fill batch (collector or standalone),
+     * so a single FGS start is paired with the single stopSelf() at drain end. Previously each task
+     * was a separate startService delivery, which raced with stopSelf and could trip the
+     * foreground-service lifecycle (ForegroundServiceDidNotStopInTimeException).
+     */
+    public static final String ACTION_ADD_BATCH = "com.nextgis.maplibui.ADD_FILL_BATCH";
+    /**
+     * One {@link #startForegroundService} for many repair tasks (avoids FGS race when finalize posts
+     * multiple starts before the worker observes the queue).
+     */
+    public static final String ACTION_ADD_REPAIR_BATCH = "com.nextgis.maplibui.ADD_FILL_REPAIR_BATCH";
     public static final String ACTION_SHOW = "com.nextgis.maplibui.SHOW_PROGRESS_DIALOG";
     public static final String ACTION_UPDATE = "com.nextgis.maplibui.UPDATE_FILL_LAYER_PROGRESS";
     public static final String KEY_STATUS = "status";
@@ -125,27 +163,83 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_TOTAL = "count";
     public static final String KEY_TITLE = "title";
     public static final String KEY_MESSAGE = "message";
+    /** Snapshot for {@link #ACTION_SHOW} / reopening progress UI while fill is running. */
+    public static final String KEY_INDETERMINATE = "indeterminate";
     public static final String IS_POINTS = "is_points";
     public static final String KEY_CANCELLED = "cancel";
     public static final String KEY_RESULT = "result";
     public static final String KEY_SYNC = "sync";
+    /** True when mobile/NGW layer JSON (description) was applied via {@link NGWVectorLayer#fromJSON}; do not force {@code SYNC_ALL} in UI. */
+    public static final String KEY_MOBILE_LAYER_CONFIG_APPLIED = "mobile_layer_config_applied";
     public static final String KEY_URI = "uri";
     public static final String KEY_DEFAULT_FORM_IDS = "default_form_ids"; // id of form to donwload
     public static final String KEY_START_LAYER_FILL = "start_layer_fill";
     public static final String KEY_PATH = "path";
     public static final String KEY_LAYER_PATH = "layer_path";
+    public static final String KEY_IS_NGFP_OPEN = "isNgfpOpen";
     public static final String KEY_MIN_ZOOM = "min_zoom";
     public static final String KEY_MAX_ZOOM = "max_zoom";
     public static final String KEY_VISIBLE = "visible";
     public static final String KEY_REMOTE_ID = "remote_id";
+    /**
+     * Map {@link com.nextgis.maplib.api.ILayer#getId()} after a successful local vector fill; used for post-drain verify/repair.
+     */
+    public static final String KEY_STANDALONE_VERIFY_LAYER_ID = "standalone_verify_layer_id";
     public static final String KEY_LOOKUP_ID = "lookup_id";
     public static final String KEY_ACCOUNT = "account";
     public static final String KEY_NAME = "name";
     public static final String KEY_INPUT_TYPE = "input_type";
     public static final String KEY_DELETE_SRC_FILE = "delete_source_file";
     public static final String KEY_LAYER_GROUP_ID = "layer_group_id";
+    /**
+     * When true on an {@link #ACTION_ADD_TASK} intent, heavy MapLibre reload after each layer is
+     * deferred until the fill queue drains (see {@link IGISApplication#requestMapReloadAfterLayerFillBatch()}).
+     */
+    public static final String KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY = "defer_map_reload_until_queue_empty";
+    /**
+     * After a destructive rebuild (e.g. NGW schema mismatch), insert the filled layer at this index in the
+     * target {@link #KEY_LAYER_GROUP_ID} group instead of appending. Captured before the old layer is removed.
+     */
+    public static final String KEY_LAYER_RESTORE_INSERT_INDEX = "layer_restore_insert_index";
+    /**
+     * On {@link #STATUS_STOP}: do not dismiss blocking progress UI yet; collector verify/repair may enqueue more tasks.
+     */
+    public static final String KEY_KEEP_PROGRESS_UI_BLOCKING = "keep_progress_ui_blocking";
+    /**
+     * On {@link #STATUS_STOP}: session fully finished (queue drained and finalize ran); dismiss blocking UI without per-layer toast.
+     */
+    public static final String KEY_COLLECTOR_SESSION_UI_COMPLETE = "collector_session_ui_complete";
+    public static final String KEY_SUPPRESS_STOP_TOAST = "suppress_stop_toast";
+    /** Full layer config.json text (e.g. from NGW resource description) applied after NGW fill. */
+    public static final String KEY_LAYER_CONFIG_JSON = "layer_config_json";
+
+    /** Collector layer id for batch verification (stable across UnzipForm → NGW fill when meta overrides resource id). */
+    public static final String KEY_COLLECTOR_TRACKING_REMOTE_ID = "collector_tracking_remote_id";
+    /*
+     * Collector architecture foundation extras.
+     * They may look unused until composition/form/tile sync is implemented, but they are persisted
+     * into NGWVectorLayer.layer_origin so future updates can avoid re-importing heavy local data.
+     */
+    public static final String KEY_COLLECTOR_PROJECT_UID = "collector_project_uid";
+    public static final String KEY_MARK_MANUAL_NGW_ORIGIN = "mark_manual_ngw_origin";
+    public static final String KEY_LAYER_ORIGIN_FORM_ID = "layer_origin_form_id";
+    /** Hash of the unpacked NGFP form payload stored after fill for future Collector form sync. */
+    public static final String KEY_LAYER_FORM_HASH = "layer_form_hash";
+    /** Index in full collector project vector list (all layers, not only this download batch). */
+    public static final String KEY_COLLECTOR_ORDER_INDEX = "collector_order_index";
+    /** All collector vector remote ids in project order (same on each task). */
+    public static final String KEY_COLLECTOR_PROJECT_REMOTE_IDS = "collector_project_remote_ids";
+    /** Collector project item «Редактируемый» (not layer description {@code is_editable}). */
+    public static final String KEY_COLLECTOR_LAYER_EDITABLE = "collector_layer_editable";
+    /** Server data.write permission captured when a remote layer is selected or opened by URL. */
+    public static final String KEY_SERVER_WRITE_PERMITTED = "server_write_permitted";
     public static final String KEY_TMS_TYPE   = "tms_type";
     public static final String KEY_TMS_CACHE   = "tms_cache";
+
+    /** {@link ArrayList}{@code <}{@link Bundle}{@code >} — each bundle matches {@link #ACTION_ADD_TASK} extras for one task. */
+    public static final String KEY_REPAIR_BATCH_EXTRAS = "repair_batch_extras";
+    /** {@link ArrayList}{@code <}{@link Bundle}{@code >} for {@link #ACTION_ADD_BATCH} — one bundle per task. */
+    public static final String KEY_BATCH_EXTRAS = "fill_batch_extras";
 
     public static final String NGFP_META = "ngfp_meta.json";
     protected final static String NGFP_FILE_META = "meta.json";
@@ -165,124 +259,724 @@ public class LayerFillService extends Service implements IProgressor {
     protected boolean isPointz = false;
     protected boolean mIndeterminate;
     protected boolean mIsCanceled;
-    protected boolean mIsRunning;
     protected Handler mHandler;
     protected Intent mProgressIntent;
 
     protected static final String BUNDLE_MSG_KEY = "error_message";
 
+    private final Object mQueueLock = new Object();
+    private ExecutorService mWorkerExecutor;
+    private volatile boolean mDrainRunning;
+
+    /**
+     * Set in {@link #onCreate}, cleared in {@link #onDestroy} when still this instance — used to enqueue repair
+     * synchronously from {@link IGISApplication#finalizeCollectorImportVerifyAndRepairIfNeeded()} without a second FGS start.
+     */
+    private static volatile LayerFillService sActiveInstance;
+    /** Keeps CPU running while the screen is off so HTTP download + SQLite fill are not stalled by device sleep. */
+    private PowerManager.WakeLock mFillWakeLock;
+
+    private void acquireFillWakeLock() {
+        synchronized (mQueueLock) {
+            if (mFillWakeLock != null && mFillWakeLock.isHeld()) {
+                return;
+            }
+        }
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm == null) {
+            return;
+        }
+        PowerManager.WakeLock lock = pm.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK, "nextgis:LayerFillService");
+        lock.setReferenceCounted(false);
+        lock.acquire();
+        synchronized (mQueueLock) {
+            mFillWakeLock = lock;
+        }
+    }
+
+    private void releaseFillWakeLock() {
+        PowerManager.WakeLock lock;
+        synchronized (mQueueLock) {
+            lock = mFillWakeLock;
+            mFillWakeLock = null;
+        }
+        if (lock != null && lock.isHeld()) {
+            try {
+                lock.release();
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
+    private void enqueueToQueue(LayerFillTask task) {
+        synchronized (mQueueLock) {
+            mQueue.add(task);
+        }
+    }
+
+    /**
+     * Enqueue a single fill task from the same extras shape as {@link #ACTION_ADD_TASK}.
+     *
+     * @return {@code false} only if {@link UnzipForm} construction failed (legacy: {@code START_NOT_STICKY}, no drain).
+     */
+    /**
+     * Enqueue repair tasks built during finalize while the drain worker awaits the main-thread latch.
+     * Must run on the main thread; see {@link #tryEnqueueRepairBatchOnActiveInstance}.
+     */
+    public static boolean tryEnqueueRepairBatchOnActiveInstance(
+            Context appContext, ArrayList<Bundle> repairBundles, boolean deferMapReload) {
+        if (repairBundles == null || repairBundles.isEmpty()) {
+            return false;
+        }
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            HyperLog.w(Constants.TAG, "tryEnqueueRepairBatchOnActiveInstance: not on main thread");
+            return false;
+        }
+        LayerFillService svc = sActiveInstance;
+        if (svc == null) {
+            return false;
+        }
+        synchronized (svc.mQueueLock) {
+            if (svc.mIsCanceled) {
+                return false;
+            }
+        }
+        if (svc.mWorkerExecutor == null || svc.mWorkerExecutor.isShutdown()) {
+            return false;
+        }
+        IGISApplication app = (IGISApplication) appContext.getApplicationContext();
+        if (deferMapReload) {
+            app.setLayerFillBatchDeferringHeavyMapReload(true);
+        }
+        boolean anyEnqueued = false;
+        for (Bundle b : repairBundles) {
+            if (svc.enqueueOneTaskFromExtras(b)) {
+                anyEnqueued = true;
+            }
+        }
+        if (!anyEnqueued) {
+            return false;
+        }
+        svc.startForegroundWithSessionAwareNotification();
+        /* Do not call scheduleDrainIfNeeded(): the drain worker is blocked in finalize await and will
+         * re-check mQueue and submit exactly one continuation of drainLoop (see finally after await). */
+        return true;
+    }
+
+    /**
+     * Start the whole import/fill batch with a SINGLE {@link #startForegroundService}, instead of one
+     * startForegroundService + N-1 startService deliveries. One FGS start paired with the single
+     * stopSelf() at drain end avoids the foreground-service lifecycle race.
+     *
+     * @param taskIntents per-task intents (only their extras are used; action/component ignored).
+     */
+    public static void startFillBatch(Context context, ArrayList<Intent> taskIntents) {
+        if (context == null || taskIntents == null || taskIntents.isEmpty()) {
+            return;
+        }
+        ArrayList<Bundle> batch = new ArrayList<>(taskIntents.size());
+        boolean deferMapReload = false;
+        for (Intent it : taskIntents) {
+            if (it == null) {
+                continue;
+            }
+            Bundle extras = it.getExtras();
+            if (extras != null) {
+                batch.add(extras);
+                if (extras.getBoolean(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                    deferMapReload = true;
+                }
+            }
+        }
+        if (batch.isEmpty()) {
+            return;
+        }
+        Intent batchIntent = new Intent(context, LayerFillService.class);
+        batchIntent.setAction(ACTION_ADD_BATCH);
+        if (deferMapReload) {
+            batchIntent.putExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+        }
+        batchIntent.putParcelableArrayListExtra(KEY_BATCH_EXTRAS, batch);
+        ContextCompat.startForegroundService(context, batchIntent);
+    }
+
+    private boolean enqueueOneTaskFromExtras(Bundle extra) {
+        if (extra == null) {
+            return true;
+        }
+        Bundle work = new Bundle(extra);
+        int layerGroupId = work.getInt(KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
+        MapBase mapBase = MapBase.getInstance();
+        ILayer groupLayer = mapBase != null ? mapBase.getLayerById(layerGroupId) : null;
+        if (!(groupLayer instanceof LayerGroup)) {
+            // Layer group gone (map reset / corrupt config). Skip this task instead of letting the
+            // worker NPE on a null mLayerGroup and stall the whole drain.
+            HyperLog.w(Constants.TAG, "LayerFillService: layer group not found id=" + layerGroupId
+                    + ", skipping fill task");
+            return true;
+        }
+        mLayerGroup = (LayerGroup) groupLayer;
+        int layerType = work.getInt(KEY_INPUT_TYPE, Constants.NOT_FOUND);
+        switch (layerType) {
+            case VECTOR_LAYER:
+                enqueueToQueue(new VectorLayerFillTask(work));
+                return true;
+            case VECTOR_LAYER_WITH_FORM:
+                try {
+                    enqueueToQueue(new UnzipForm(work));
+                    return true;
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    Intent msg = new Intent(MESSAGE_ALERT_INTENT);
+                    msg.putExtra(MESSAGE_EXTRA, getString(R.string.error_load_parent));
+                    msg.putExtra(MESSAGE_EXTRA_IS_PARENTFILL, true);
+                    msg.putExtra(MESSAGE_TITLE_EXTRA, getResources().getString(R.string.error));
+                    msg.setPackage(getPackageName());
+                    sendBroadcast(msg);
+                    return false;
+                }
+            case TMS_LAYER:
+                enqueueToQueue(new LocalTMSFillTask(work));
+                return true;
+            case NGW_LAYER:
+                enqueueToQueue(new NGWVectorLayerFillTask(work));
+                return true;
+            default:
+                HyperLog.w(Constants.TAG, "LayerFillService: unknown KEY_INPUT_TYPE=" + layerType);
+                return true;
+        }
+    }
+
+    private static void copyLayerOriginExtras(Bundle from, Bundle to) {
+        if (from == null || to == null) {
+            return;
+        }
+        if (from.containsKey(KEY_COLLECTOR_PROJECT_UID)) {
+            to.putString(KEY_COLLECTOR_PROJECT_UID, from.getString(KEY_COLLECTOR_PROJECT_UID));
+        }
+        if (from.containsKey(KEY_MARK_MANUAL_NGW_ORIGIN)) {
+            to.putBoolean(KEY_MARK_MANUAL_NGW_ORIGIN,
+                    from.getBoolean(KEY_MARK_MANUAL_NGW_ORIGIN, false));
+        }
+        if (from.containsKey(KEY_LAYER_ORIGIN_FORM_ID)) {
+            to.putLong(KEY_LAYER_ORIGIN_FORM_ID, from.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L));
+        }
+        if (from.containsKey(KEY_LAYER_FORM_HASH)) {
+            to.putString(KEY_LAYER_FORM_HASH, from.getString(KEY_LAYER_FORM_HASH));
+        }
+        if (from.containsKey(KEY_COLLECTOR_LAYER_EDITABLE)) {
+            to.putBoolean(KEY_COLLECTOR_LAYER_EDITABLE,
+                    from.getBoolean(KEY_COLLECTOR_LAYER_EDITABLE, true));
+        }
+        if (from.containsKey(KEY_SERVER_WRITE_PERMITTED)) {
+            to.putBoolean(KEY_SERVER_WRITE_PERMITTED,
+                    from.getBoolean(KEY_SERVER_WRITE_PERMITTED, false));
+        }
+    }
+
+    private void scheduleDrainIfNeeded() {
+        synchronized (mQueueLock) {
+            if (mDrainRunning || mQueue.isEmpty()) {
+                return;
+            }
+            mDrainRunning = true;
+            ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(true);
+        }
+        mWorkerExecutor.execute(this::drainLoop);
+    }
+
+    private void drainLoop() {
+        acquireFillWakeLock();
+        try {
+            while (true) {
+                final LayerFillTask task;
+                synchronized (mQueueLock) {
+                    if (mIsCanceled) {
+                        mQueue.clear();
+                    }
+                    if (mQueue.isEmpty()) {
+                        break;
+                    }
+                    task = mQueue.remove(0);
+                }
+                runSingleFillTask(task);
+            }
+        } finally {
+            synchronized (mQueueLock) {
+                mDrainRunning = false;
+                if (!mQueue.isEmpty()) {
+                    mDrainRunning = true;
+                    mWorkerExecutor.execute(this::drainLoop);
+                    return;
+                }
+            }
+
+            IGISApplication app = (IGISApplication) getApplicationContext();
+
+            if (mIsCanceled) {
+                releaseFillWakeLock();
+                app.setLayerFillServiceBusy(false);
+                app.clearCollectorImportBatch();
+                app.setLayerFillBatchDeferringHeavyMapReload(false);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    stopForeground(true);
+                } else {
+                    mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+                }
+                stopSelf();
+                return;
+            }
+
+            final boolean deferReloadPending = app.isLayerFillBatchDeferringHeavyMapReload();
+            final boolean hadCollectorBatchBeforeFinalize = app.hasCollectorImportBatchRegistered();
+
+            final CountDownLatch finalizeLatch = new CountDownLatch(1);
+            new Handler(Looper.getMainLooper()).post(() -> {
+                try {
+                    app.finalizeCollectorImportVerifyAndRepairIfNeeded();
+                    app.finalizeStandaloneLayerFillVerifyIfNeeded();
+                } finally {
+                    finalizeLatch.countDown();
+                }
+            });
+
+            boolean finalizedInTime = false;
+            try {
+                finalizedInTime = finalizeLatch.await(120, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (!finalizedInTime) {
+                HyperLog.w(Constants.TAG, "LayerFillService: finalizeCollector/standalone await timeout");
+            }
+
+            synchronized (mQueueLock) {
+                if (!mQueue.isEmpty()) {
+                    mDrainRunning = true;
+                    mWorkerExecutor.execute(this::drainLoop);
+                    return;
+                }
+            }
+
+            boolean reload;
+            synchronized (mQueueLock) {
+                reload = mQueue.isEmpty() && app.isLayerFillBatchDeferringHeavyMapReload();
+            }
+            if (reload) {
+                app.setLayerFillBatchDeferringHeavyMapReload(false);
+                app.requestMapReloadAfterLayerFillBatch();
+            }
+
+            releaseFillWakeLock();
+            app.setLayerFillServiceBusy(false);
+
+            boolean collectorBatchEnded = hadCollectorBatchBeforeFinalize
+                    && !app.hasCollectorImportBatchRegistered();
+            if (deferReloadPending || collectorBatchEnded) {
+                Intent sessionDone = new Intent(ACTION_UPDATE);
+                sessionDone.putExtra(KEY_STATUS, STATUS_STOP);
+                sessionDone.putExtra(KEY_TOTAL, 0);
+                sessionDone.putExtra(KEY_COLLECTOR_SESSION_UI_COMPLETE, true);
+                sessionDone.putExtra(KEY_SUPPRESS_STOP_TOAST, true);
+                final Context appContext = getApplicationContext();
+                final String pkg = getPackageName();
+                sessionDone.setPackage(pkg);
+                new Handler(Looper.getMainLooper()).post(() -> appContext.sendBroadcast(sessionDone));
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                stopForeground(true);
+            } else {
+                mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+            }
+            stopSelf();
+        }
+    }
+
+    private void runSingleFillTask(LayerFillTask task) {
+        if (mIsCanceled) {
+            return;
+        }
+
+        mNotifyTitle = task.getDescription();
+
+        if (mProgressIntent.getExtras() != null) {
+            mProgressIntent.getExtras().clear();
+        }
+
+        mProgressIntent.putExtra(KEY_STATUS, STATUS_START)
+                .putExtra(KEY_TITLE, mNotifyTitle)
+                .setPackage(getPackageName());
+        sendBroadcast(mProgressIntent);
+
+        Process.setThreadPriority(Constants.DEFAULT_DOWNLOAD_THREAD_PRIORITY);
+        final IProgressor progressor = this;
+        /* Next progress update must not be skipped (throttle carries mLastUpdate across tasks). */
+        mLastUpdate = 0L;
+        progressor.setValue(0);
+        HyperLog.d(Constants.TAG, "LayerFillService: start "
+                + task.getClass().getSimpleName() + " " + task.logContext());
+        boolean result = task.execute(progressor);
+        if (!result && !mIsCanceled) {
+            HyperLog.w(Constants.TAG, "LayerFillService: fill task failed "
+                    + task.getClass().getSimpleName() + " — " + mProgressMessage);
+        }
+
+        if (!result && !mIsCanceled) {
+            HyperLog.w(Constants.TAG, "LayerFillService: fill task context "
+                    + task.getClass().getSimpleName()
+                    + " " + task.logContext()
+                    + " message=" + ProdLogUtil.truncateForLog(mProgressMessage, 600));
+        }
+
+        if ((!(task instanceof UnzipForm)) || !task.subTaskWasRunned) {
+            mProgressIntent.putExtra(KEY_MESSAGE, mProgressMessage);
+        }
+
+        mProgressIntent.putExtra(KEY_STATUS, STATUS_STOP);
+        mProgressIntent.putExtra(KEY_CANCELLED, mIsCanceled);
+        mProgressIntent.putExtra(KEY_RESULT, result && !mIsCanceled);
+        IGISApplication appCtx = (IGISApplication) getApplicationContext();
+        int remainingQueue;
+        synchronized (mQueueLock) {
+            remainingQueue = mQueue.size();
+            mProgressIntent.putExtra(KEY_TOTAL, remainingQueue);
+        }
+        mProgressIntent.putExtra(KEY_KEEP_PROGRESS_UI_BLOCKING,
+                remainingQueue == 0
+                        && !mIsCanceled
+                        && appCtx.isLayerFillBatchDeferringHeavyMapReload()
+                        && appCtx.hasCollectorImportBatchRegistered());
+        boolean suppressPerLayerToast = remainingQueue > 0
+                || (!mIsCanceled
+                        && appCtx.isLayerFillBatchDeferringHeavyMapReload()
+                        && appCtx.hasCollectorImportBatchRegistered());
+        mProgressIntent.putExtra(KEY_SUPPRESS_STOP_TOAST, suppressPerLayerToast);
+
+        if (result) {
+            ILayer filled = task.getLayer();
+            if (filled != null) {
+                if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
+                    /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
+                    final String osmPathName = "osm";
+                    ILayer osm = task.mLayerGroup.getLayerByPathName(osmPathName);
+                    int insertAt = 0;
+                    if (osm != null) {
+                        int osmIdx = task.mLayerGroup.getChildLayerIndex(osm);
+                        insertAt = osmIdx >= 0 ? osmIdx + 1 : 0;
+                    }
+                    task.mLayerGroup.insertLayer(insertAt, filled);
+                } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
+                        && filled instanceof NGWVectorLayer) {
+                    NGWVectorLayer nv = (NGWVectorLayer) filled;
+                    replaceExistingNgwLayerAfterSuccessfulFill(task, nv);
+                    int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
+                            task.mLayerGroup,
+                            nv.getAccountName(),
+                            task.mCollectorProjectRemoteIds,
+                            task.mCollectorOrderIndex);
+                    task.mLayerGroup.insertLayer(insertAt, filled);
+                } else if (task.mLayerRestoreInsertIndex >= 0) {
+                    int insertAt = Math.min(
+                            task.mLayerRestoreInsertIndex, task.mLayerGroup.getLayerCount());
+                    if (filled instanceof NGWVectorLayer) {
+                        replaceExistingNgwLayerAfterSuccessfulFill(
+                                task, (NGWVectorLayer) filled);
+                        insertAt = Math.min(insertAt, task.mLayerGroup.getLayerCount());
+                    }
+                    task.mLayerGroup.insertLayer(insertAt, filled);
+                } else {
+                    task.mLayerGroup.addLayer(filled);
+                }
+                task.mLayerGroup.save();
+                registerStandaloneLayerFillVerifyIfNeeded(task, filled);
+            }
+        } else {
+            task.cancel();
+        }
+
+        if (task instanceof NGWVectorLayerFillTask) {
+            NGWVectorLayerFillTask ngwTask = (NGWVectorLayerFillTask) task;
+            appCtx.notifyCollectorLayerFillResult(ngwTask.getTrackingRemoteId(), result && !mIsCanceled);
+        } else if (task instanceof UnzipForm) {
+            UnzipForm uf = (UnzipForm) task;
+            if (!result || mIsCanceled) {
+                appCtx.notifyCollectorLayerFillResult(uf.mRemoteId, false);
+            }
+        }
+
+        if (task instanceof NGWVectorLayerFillTask) {
+            NGWVectorLayerFillTask ngwTask = (NGWVectorLayerFillTask) task;
+            mProgressIntent.putExtra(KEY_SYNC, ngwTask.showSyncDialog());
+            mProgressIntent.putExtra(KEY_ACCOUNT, ngwTask.getAccountName());
+            mProgressIntent.putExtra(KEY_REMOTE_ID, task.getLayer().getId());
+            mProgressIntent.putExtra(KEY_MOBILE_LAYER_CONFIG_APPLIED, ngwTask.wasMobileLayerConfigApplied());
+        }
+        mProgressIntent.setPackage(getPackageName());
+
+        sendBroadcast(mProgressIntent);
+    }
+
+    private void replaceExistingNgwLayerAfterSuccessfulFill(
+            LayerFillTask task,
+            NGWVectorLayer replacement) {
+        int removed = 0;
+        while (true) {
+            NGWVectorLayer existing = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(
+                    task.mLayerGroup,
+                    replacement.getRemoteId(),
+                    replacement.getAccountName());
+            if (existing == null || existing == replacement) {
+                break;
+            }
+            ILayer parent = existing.getParent();
+            LayerGroup existingParent = parent instanceof LayerGroup
+                    ? (LayerGroup) parent : task.mLayerGroup;
+            existingParent.removeLayer(existing);
+            existing.delete(true);
+            existingParent.save();
+            removed++;
+        }
+        if (removed > 0) {
+            HyperLog.v(Constants.TAG, "LayerFillService: replaced " + removed
+                    + " old NGW layer(s) only after successful staged fill remoteId="
+                    + replacement.getRemoteId() + " account=" + replacement.getAccountName());
+        }
+    }
+
+    /**
+     * Standalone fills (not collector batch) register for the same post-drain verify/repair pass as collector projects.
+     */
+    private void registerStandaloneLayerFillVerifyIfNeeded(LayerFillTask task, ILayer filled) {
+        if (mIsCanceled
+                || (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null)) {
+            return;
+        }
+        if (!(filled instanceof VectorLayer)) {
+            return;
+        }
+        IGISApplication app = (IGISApplication) getApplicationContext();
+        Bundle copy = new Bundle(task.mEnqueueBundle);
+        if (filled instanceof NGWVectorLayer) {
+            app.registerStandaloneLayerFillVerifyAfterSuccess(copy);
+            return;
+        }
+        if (task instanceof VectorLayerFillTask) {
+            copy.putInt(KEY_STANDALONE_VERIFY_LAYER_ID, filled.getId());
+            app.registerStandaloneLayerFillVerifyAfterSuccess(copy);
+        }
+    }
+
     @Override
     public void onCreate() {
         mNotifyManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         int icon = R.drawable.ic_notification_download;
-        Bitmap largeIcon = NotificationHelper.getLargeIcon(icon, getResources());
 
         mProgressIntent = new Intent(ACTION_UPDATE);
-        Intent intent = new Intent(this, LayerFillService.class);
-        intent.setAction(ACTION_STOP);
-        int flag = PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE;
-        PendingIntent stop = PendingIntent.getService(this, 0, intent, flag);
-        intent.setAction(ACTION_SHOW);
-        PendingIntent show = PendingIntent.getService(this, 0, intent, flag);
 
-
-        boolean isSamsung =
-                Build.MANUFACTURER != null &&
-                        Build.MANUFACTURER.equalsIgnoreCase("samsung");
-
-        mBuilder = createBuilder(this,com.nextgis.maplib.R.string.start_fill_layer);
-        mBuilder.setSmallIcon(icon).setLargeIcon(largeIcon)
-                .setAutoCancel(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel ch = new NotificationChannel(
+                    LAYER_FILL_FGS_CHANNEL_ID,
+                    getString(com.nextgis.maplib.R.string.start_fill_layer),
+                    NotificationManager.IMPORTANCE_MIN);
+            ch.setShowBadge(false);
+            ch.setSound(null, null);
+            ch.enableLights(false);
+            ch.enableVibration(false);
+            mNotifyManager.createNotificationChannel(ch);
+            mBuilder = new NotificationCompat.Builder(this, LAYER_FILL_FGS_CHANNEL_ID);
+        } else {
+            mBuilder = new NotificationCompat.Builder(this);
+        }
+        mBuilder.setSmallIcon(icon)
+                .setContentTitle(getString(com.nextgis.maplib.R.string.start_fill_layer))
                 .setOngoing(true)
-                .setContentIntent(show)
-                .addAction(R.drawable.ic_action_cancel_dark, getString(R.string.tracks_stop), stop);
-        if (isSamsung)
-            mBuilder.setOnlyAlertOnce(true);
+                .setSilent(true)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mBuilder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE);
+        }
         mIsCanceled = false;
 
         mQueue = new LinkedList<>();
-        mIsRunning = false;
+        mWorkerExecutor = Executors.newSingleThreadExecutor(r -> new Thread(r, "LayerFillWorker"));
         mHandler = new Handler(Looper.getMainLooper()){
             @Override
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
                 Bundle resultData = msg.getData();
-
-                Toast.makeText(LayerFillService.this, resultData.getString(BUNDLE_MSG_KEY), Toast.LENGTH_LONG).show();
+                String err = resultData.getString(BUNDLE_MSG_KEY);
+                HyperLog.w(Constants.TAG, "LayerFillService user error toast: "
+                        + ProdLogUtil.truncateForLog(err, 800));
+                Toast.makeText(LayerFillService.this, err, Toast.LENGTH_LONG).show();
             }
         };
 
+        startForegroundWithSessionAwareNotification();
+
+        sActiveInstance = this;
+    }
+
+    /**
+     * During collector batch import (modal progress in app), use a minimal FGS title so the system
+     * notification does not repeat long “start fill” strings; progress stays in the dialog.
+     */
+    private void applyForegroundNotificationTitleForSession() {
+        if (mBuilder == null) {
+            return;
+        }
+        IGISApplication app = (IGISApplication) getApplicationContext();
+        if (app.isLayerFillBatchDeferringHeavyMapReload() && app.hasCollectorImportBatchRegistered()) {
+            mBuilder.setContentTitle(getString(R.string.layer_fill_fgs_minimal)).setContentText(null);
+        } else {
+            mBuilder.setContentTitle(getString(com.nextgis.maplib.R.string.start_fill_layer))
+                    .setContentText(null);
+        }
+    }
+
+    private void startForegroundWithSessionAwareNotification() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            String title = getString(com.nextgis.maplib.R.string.start_fill_layer);
-            mBuilder.setWhen(System.currentTimeMillis()).setContentTitle(title).setTicker(title);
+            applyForegroundNotificationTitleForSession();
+            startForegroundDataSync();
+        }
+    }
+
+    /**
+     * Calls {@code startForeground} with the explicit {@code dataSync} type on Q+ (matches the
+     * manifest declaration and {@link TileDownloadService}); falls back to the untyped form on O.
+     */
+    private void startForegroundDataSync() {
+        if (mBuilder == null) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(FILL_NOTIFICATION_ID, mBuilder.build(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForeground(FILL_NOTIFICATION_ID, mBuilder.build());
         }
     }
 
+    /** After progress updates, refresh FGS text when collector batch uses quiet title. */
+    private void refreshForegroundNotificationIfCollectorBatch() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || mBuilder == null) {
+            return;
+        }
+        IGISApplication app = (IGISApplication) getApplicationContext();
+        if (app.isLayerFillBatchDeferringHeavyMapReload() && app.hasCollectorImportBatchRegistered()) {
+            applyForegroundNotificationTitleForSession();
+            startForegroundDataSync();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        HyperLog.v(Constants.TAG, "LayerFillService.onDestroy");
+        if (sActiveInstance == this) {
+            sActiveInstance = null;
+        }
+        releaseFillWakeLock();
+        ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
+        if (mWorkerExecutor != null) {
+            mWorkerExecutor.shutdown();
+        }
+        super.onDestroy();
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        HyperLog.v(Constants.TAG, "LayerFillService.onStartCommand startId=" + startId);
         if (Constants.DEBUG_MODE)
             Log.i("LayerFillService", "Received start id " + startId + ": " + intent);
+
+        /*
+         * Android 8+: every startForegroundService() delivery must call startForeground() quickly,
+         * including ACTION_SHOW, null intent redelivery, or a race right after stopForeground/stopSelf.
+         * Apply intent-specific notification text after we process defer flags in each branch.
+         */
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mBuilder != null) {
+            startForegroundDataSync();
+        }
+
         if (intent != null) {
             String action = intent.getAction();
             if (action != null && !TextUtils.isEmpty(action)) {
                 switch (action) {
                     case ACTION_ADD_TASK:
-                        int layerGroupId = intent.getIntExtra(KEY_LAYER_GROUP_ID, Constants.NOT_FOUND);
-                        mLayerGroup = (LayerGroup) MapBase.getInstance().getLayerById(layerGroupId);
-
-                        int layerType = intent.getIntExtra(KEY_INPUT_TYPE, Constants.NOT_FOUND);
-                        Bundle extra = intent.getExtras();
-
-                        switch (layerType) {
-                            case VECTOR_LAYER:
-                                mQueue.add(new VectorLayerFillTask(extra));
-                                break;
-                            case VECTOR_LAYER_WITH_FORM:
-                                try {
-                                    mQueue.add(new UnzipForm(extra));
-
-                                } catch (Exception ex){
-                                    ex.printStackTrace();
-                                    //notifyError("Error on start fill form");
-
-                                    Intent msg = new Intent(MESSAGE_ALERT_INTENT);
-                                    msg.putExtra(MESSAGE_EXTRA, getString(R.string.error_load_parent));
-                                    msg.putExtra(MESSAGE_EXTRA_IS_PARENTFILL, true);
-
-                                    //msg.putExtra(MESSAGE_TITLE_EXTRA, getResources().getString(R.string.map_load_exception_title));
-                                    msg.putExtra(MESSAGE_TITLE_EXTRA, getResources().getString(R.string.error));
-                                    msg.setPackage(getPackageName());
-                                    sendBroadcast(msg);
-
-                                    return START_NOT_STICKY;
-                                }
-                                break;
-                            case TMS_LAYER:
-                                mQueue.add(new LocalTMSFillTask(extra));
-                                break;
-                            case NGW_LAYER:
-                                mQueue.add(new NGWVectorLayerFillTask(extra));
-                                break;
+                        if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                            ((IGISApplication) getApplicationContext())
+                                    .setLayerFillBatchDeferringHeavyMapReload(true);
                         }
-
-                        if(!mIsRunning){
-                            startNextTask();
+                        startForegroundWithSessionAwareNotification();
+                        if (!enqueueOneTaskFromExtras(intent.getExtras())) {
+                            return START_NOT_STICKY;
                         }
-
+                        scheduleDrainIfNeeded();
+                        return START_STICKY;
+                    case ACTION_ADD_BATCH:
+                        if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                            ((IGISApplication) getApplicationContext())
+                                    .setLayerFillBatchDeferringHeavyMapReload(true);
+                        }
+                        startForegroundWithSessionAwareNotification();
+                        ArrayList<Bundle> fillBatch = intent.getParcelableArrayListExtra(KEY_BATCH_EXTRAS);
+                        if (fillBatch != null) {
+                            for (Bundle b : fillBatch) {
+                                enqueueOneTaskFromExtras(b);
+                            }
+                        }
+                        scheduleDrainIfNeeded();
+                        return START_STICKY;
+                    case ACTION_ADD_REPAIR_BATCH:
+                        if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
+                            ((IGISApplication) getApplicationContext())
+                                    .setLayerFillBatchDeferringHeavyMapReload(true);
+                        }
+                        startForegroundWithSessionAwareNotification();
+                        ArrayList<Bundle> repairBatch = intent.getParcelableArrayListExtra(KEY_REPAIR_BATCH_EXTRAS);
+                        if (repairBatch != null) {
+                            for (Bundle b : repairBatch) {
+                                enqueueOneTaskFromExtras(b);
+                            }
+                        }
+                        scheduleDrainIfNeeded();
                         return START_STICKY;
                     case ACTION_STOP:
-                        mQueue.clear();
-                        mIsCanceled = true;
-                        startNextTask();
+                        synchronized (mQueueLock) {
+                            mQueue.clear();
+                            mIsCanceled = true;
+                            if (!mDrainRunning) {
+                                IGISApplication appStop = (IGISApplication) getApplicationContext();
+                                appStop.clearCollectorImportBatch();
+                                appStop.setLayerFillServiceBusy(false);
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    stopForeground(true);
+                                } else {
+                                    mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+                                }
+                                stopSelf();
+                            }
+                        }
                         break;
                     case ACTION_SHOW:
+                        if (mProgressIntent.getExtras() != null) {
+                            mProgressIntent.getExtras().clear();
+                        }
                         mProgressIntent.putExtra(KEY_STATUS, STATUS_SHOW)
-                                .putExtra(KEY_TITLE, mNotifyTitle)
-                                .setPackage(getPackageName());
+                                .putExtra(KEY_TITLE, mNotifyTitle != null ? mNotifyTitle : "")
+                                .putExtra(KEY_INDETERMINATE, mIndeterminate)
+                                .putExtra(KEY_TOTAL, mProgressMax)
+                                .putExtra(KEY_PROGRESS, mProgressValue);
+                        if (mProgressMessage != null) {
+                            mProgressIntent.putExtra(KEY_MESSAGE, mProgressMessage);
+                        }
+                        if (isPointz) {
+                            mProgressIntent.putExtra(IS_POINTS, true);
+                        }
+                        mProgressIntent.setPackage(getPackageName());
                         sendBroadcast(mProgressIntent);
-                        //Log.e("FFRRMM", "startCommand ACTION_SHOW broadcast " + mProgressIntent.toString());
-
                         break;
                 }
             }
@@ -290,78 +984,61 @@ public class LayerFillService extends Service implements IProgressor {
         return START_STICKY;
     }
 
-    protected void startNextTask(){
-        if (mQueue.isEmpty()){
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                stopForeground(true);
-            else
-                mNotifyManager.cancel(FILL_NOTIFICATION_ID);
-
-            stopSelf();
-            return;
-        }
-
-        mIsRunning = true;
-        final  IProgressor progressor = this;
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                if (mIsCanceled)
-                    return;
-
-                LayerFillTask task = mQueue.remove(0);
-                mNotifyTitle = task.getDescription();
-//                Log.e("RML", "run LayerFill: " + task.mLayerName);
-
-                mBuilder.setWhen(System.currentTimeMillis())
-                        .setContentTitle(mNotifyTitle)
-                        .setTicker(mNotifyTitle);
-                mNotifyManager.notify(FILL_NOTIFICATION_ID, mBuilder.build());
-
-                if (mProgressIntent.getExtras() != null)
-                    mProgressIntent.getExtras().clear();
-
-                mProgressIntent.putExtra(KEY_STATUS, STATUS_START)
-                        .putExtra(KEY_TITLE, mNotifyTitle)
-                        .setPackage(getPackageName());
-                sendBroadcast(mProgressIntent);
-                //Log.e("FFRRMM", "Thread send broadcast 1" + mProgressIntent.toString());
-
-
-                Process.setThreadPriority(Constants.DEFAULT_DOWNLOAD_THREAD_PRIORITY);
-                progressor.setValue(0);
-                boolean result = task.execute(progressor);
-
-                if ( (!(task instanceof UnzipForm) ) || task.subTaskWasRunned == false)
-                    mProgressIntent.putExtra(KEY_MESSAGE, mProgressMessage);
-
-                mProgressIntent.putExtra(KEY_STATUS, STATUS_STOP);
-                mProgressIntent.putExtra(KEY_CANCELLED, mIsCanceled);
-                mProgressIntent.putExtra(KEY_RESULT, result && !mIsCanceled);
-                mProgressIntent.putExtra(KEY_TOTAL, mQueue.size());
-
-                if (result) {
-                    mLayerGroup.addLayer(task.getLayer());
-                    mLayerGroup.save();
-                } else
-                    task.cancel();
-
-                if (task instanceof NGWVectorLayerFillTask) {
-                    mProgressIntent.putExtra(KEY_SYNC, ((NGWVectorLayerFillTask) task).showSyncDialog());
-                    mProgressIntent.putExtra(KEY_ACCOUNT, ((NGWVectorLayerFillTask) task).getAccountName());
-                    mProgressIntent.putExtra(KEY_REMOTE_ID, task.getLayer().getId());
-                }
-                mProgressIntent.setPackage(getPackageName());
-
-                sendBroadcast(mProgressIntent);
-                //Log.e("FFRRMM", "Thread send broadcast 2" + mProgressIntent.toString());
-                //mProgressIntent.removeExtra(KEY_STATUS);
-                mIsRunning = false;
-                startNextTask();
+    /**
+     * Config JSON from intent extra, or from NGW resource {@code description} (full GET).
+     */
+    private String resolveImportedLayerConfigJson(
+            NGWVectorLayer layer,
+            String fromIntentExtra)
+    {
+        if (!TextUtils.isEmpty(fromIntentExtra)) {
+            String t = fromIntentExtra.trim();
+            if ("null".equalsIgnoreCase(t)) {
+                Log.w(Constants.TAG, LOG_LAYER_CONFIG + " intent extra is literal \"null\" — skipped");
+                HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " intent extra literal null — skipped");
+                return null;
             }
-        }).start();
+            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " using intent extra, chars=" + t.length());
+            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " intent extra length=" + t.length());
+            return t;
+        }
+        try {
+            AccountUtil.AccountData ad =
+                    AccountUtil.getAccountData(getApplicationContext(), layer.getAccountName());
+            String url = NGWUtil.getResourceUrl(ad.url, layer.getRemoteId());
+            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " fetching description GET resource id="
+                    + layer.getRemoteId() + " account=" + layer.getAccountName());
+            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " GET " + url);
+            HttpResponse response = NetworkUtil.get(url, ad.login, ad.password, false);
+            if (!response.isOk()) {
+                Log.w(Constants.TAG, LOG_LAYER_CONFIG + " HTTP " + response.getResponseCode());
+                HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " HTTP " + response.getResponseCode());
+                return null;
+            }
+            JSONObject root = new JSONObject(response.getResponseBody());
+            String d = extractNgwResourceDescriptionJson(root);
+            if (TextUtils.isEmpty(d)) {
+                Log.w(Constants.TAG, LOG_LAYER_CONFIG + " empty description in API response (check NGW resource → Description)");
+                HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " description empty after GET");
+                return null;
+            }
+            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " from NGW description, chars=" + d.length());
+            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " NGW description length=" + d.length());
+            return d.trim();
+        } catch (Exception e) {
+            Log.e(Constants.TAG, LOG_LAYER_CONFIG + " resolve failed", e);
+            HyperLog.exception(Constants.TAG, e);
+            return null;
+        }
     }
 
+    private static String extractNgwResourceDescriptionJson(JSONObject root) {
+        return LayerConfigUtil.extractNgwResourceDescriptionJson(root);
+    }
+
+    private static JSONObject parseLayerConfigObject(String raw) throws JSONException {
+        return LayerConfigUtil.parseLayerConfigObject(raw);
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -397,14 +1074,13 @@ public class LayerFillService extends Service implements IProgressor {
         updateNotify();
     }
 
+    /** Throttles progress broadcast to the UI (same interval as {@link ConstantsUI#NOTIFICATION_DELAY}). */
     protected void updateNotify(){
-        if (mLastUpdate + ConstantsUI.NOTIFICATION_DELAY < System.currentTimeMillis()) {
-            mLastUpdate = System.currentTimeMillis();
-            mBuilder.setProgress(mProgressMax, mProgressValue, mIndeterminate)
-                    .setContentText(mProgressMessage);
-            // Displays the progress bar for the first time.
-            mNotifyManager.notify(FILL_NOTIFICATION_ID, mBuilder.build());
+        final long now = System.currentTimeMillis();
+        if (mLastUpdate + ConstantsUI.NOTIFICATION_DELAY >= now) {
+            return;
         }
+        mLastUpdate = now;
 
         if (mProgressIntent.getExtras() != null)
             mProgressIntent.getExtras().clear();
@@ -421,10 +1097,7 @@ public class LayerFillService extends Service implements IProgressor {
 
         mProgressIntent.setPackage(getPackageName());
         sendBroadcast(mProgressIntent);
-//        Log.e("FFRRMM", "updateNotify send broadcast with mProgressMessage " + mProgressMessage);
-//
-//        Log.e("FFRRMM", "updateNotify send broadcast 1 " + mProgressIntent.toString());
-
+        refreshForegroundNotificationIfCollectorBatch();
     }
 
     private void notifyError(String error) {
@@ -441,16 +1114,27 @@ public class LayerFillService extends Service implements IProgressor {
      */
 
     private abstract class LayerFillTask{
+        /** Target group captured when this task is enqueued; later tasks may target another group. */
+        protected final LayerGroup mLayerGroup;
         String mLayerName;
         File mLayerPath;
         float mMinZoom, mMaxZoom;
         boolean mVisible;
         Uri mUri;
         protected Layer mLayer;
+        /** Copy of {@link #ACTION_ADD_TASK} extras for verify/repair re-queue. */
+        protected final Bundle mEnqueueBundle;
         public boolean subTaskWasRunned = true;
         public long[] defaultFormIDArray = null;
+        protected String mLayerConfigJson;
+        protected int mCollectorOrderIndex = -1;
+        protected long[] mCollectorProjectRemoteIds;
+        /** {@code >= 0}: insert filled layer at this index in {@link #mLayerGroup}; {@code -1}: append via {@link LayerGroup#addLayer}. */
+        protected int mLayerRestoreInsertIndex = -1;
 
         LayerFillTask(Bundle bundle) {
+            mLayerGroup = LayerFillService.this.mLayerGroup;
+            mEnqueueBundle = new Bundle(bundle);
             mUri = bundle.getParcelable(KEY_URI);
             mLayerName = bundle.getString(KEY_NAME);
             mLayerPath = bundle.containsKey(KEY_LAYER_PATH) ?
@@ -459,18 +1143,32 @@ public class LayerFillService extends Service implements IProgressor {
             mMinZoom = bundle.getFloat(KEY_MIN_ZOOM, GeoConstants.DEFAULT_MIN_ZOOM);
             mMaxZoom = bundle.getFloat(KEY_MAX_ZOOM, GeoConstants.DEFAULT_MAX_ZOOM);
             mVisible = bundle.getBoolean(KEY_VISIBLE, true);
+            mLayerConfigJson = bundle.getString(KEY_LAYER_CONFIG_JSON);
 
-            Serializable serializable = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
-            if (serializable instanceof ArrayList<?>) {
+            if (bundle.containsKey(KEY_COLLECTOR_ORDER_INDEX)) {
+                mCollectorOrderIndex = bundle.getInt(KEY_COLLECTOR_ORDER_INDEX);
+                mCollectorProjectRemoteIds = bundle.getLongArray(KEY_COLLECTOR_PROJECT_REMOTE_IDS);
+            }
+            if (bundle.containsKey(KEY_LAYER_RESTORE_INSERT_INDEX)) {
+                mLayerRestoreInsertIndex = bundle.getInt(KEY_LAYER_RESTORE_INSERT_INDEX, -1);
+            }
 
-                ArrayList<Long> idsList = (ArrayList<Long>) serializable;
-
-                long[] idsArray = new long[idsList.size()];
-                for (int i = 0; i < idsList.size(); i++) {
-                    idsArray[i] = idsList.get(i);
-                }
-
+            long[] idsArray = bundle.getLongArray(KEY_DEFAULT_FORM_IDS);
+            if (idsArray != null) {
                 defaultFormIDArray = idsArray;
+            } else {
+                Serializable serializable = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
+                if (serializable instanceof long[]) {
+                    defaultFormIDArray = (long[]) serializable;
+                } else if (serializable instanceof ArrayList<?>) {
+                    ArrayList<?> idsList = (ArrayList<?>) serializable;
+                    long[] converted = new long[idsList.size()];
+                    for (int i = 0; i < idsList.size(); i++) {
+                        Object id = idsList.get(i);
+                        converted[i] = id instanceof Number ? ((Number) id).longValue() : 0L;
+                    }
+                    defaultFormIDArray = converted;
+                }
             }
 
             //defaultFormIDArray = bundle.getSerializable(KEY_DEFAULT_FORM_IDS);
@@ -486,9 +1184,22 @@ public class LayerFillService extends Service implements IProgressor {
         public abstract boolean execute(IProgressor progressor);
 
         public String getDescription(){
-            if(null == mLayer)
-                return "";
-            return getString(R.string.processing) + " " + mLayer.getName();
+            String name = mLayer != null ? mLayer.getName() : null;
+            if (TextUtils.isEmpty(name)) {
+                name = mLayerName;
+            }
+            if (TextUtils.isEmpty(name)) {
+                return getString(R.string.processing);
+            }
+            return getString(R.string.processing) + " " + name;
+        }
+
+        String logContext() {
+            return "layer=\"" + ProdLogUtil.truncateForLog(mLayerName, 100) + "\""
+                    + " path=" + (mLayerPath != null ? mLayerPath.getAbsolutePath() : "<null>")
+                    + " groupId=" + (mLayerGroup != null ? mLayerGroup.getId() : Constants.NOT_FOUND)
+                    + " collectorOrder=" + mCollectorOrderIndex
+                    + " restoreIndex=" + mLayerRestoreInsertIndex;
         }
 
         public ILayer getLayer() {
@@ -542,13 +1253,16 @@ public class LayerFillService extends Service implements IProgressor {
         long mRemoteId;
         String mAccount;
         boolean startLayerFill; // false if fill second form from layer - no need to create layer
+        boolean isNGFPOpen = false;
 
-        UnzipForm(Bundle bundle) {
+
+                UnzipForm(Bundle bundle) {
             super(bundle);
             mSync = bundle.getBoolean(KEY_SYNC, true);
             mRemoteId = bundle.getLong(KEY_REMOTE_ID, -1);
             mAccount = bundle.getString(KEY_ACCOUNT, "");
             startLayerFill = bundle.getBoolean(KEY_START_LAYER_FILL, true);
+            isNGFPOpen  = bundle.getBoolean(KEY_IS_NGFP_OPEN, false);
         }
 
         @Override
@@ -610,8 +1324,15 @@ public class LayerFillService extends Service implements IProgressor {
                     //read meta.json
 
                     long defaultFormID = -1;
-                    if (defaultFormIDArray != null && defaultFormIDArray.length > 0)
+                    if (defaultFormIDArray != null && defaultFormIDArray.length > 0) {
                         defaultFormID = defaultFormIDArray[0];
+                    } else {
+                        long originFormId = mEnqueueBundle.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L);
+                        if (originFormId > 0L) {
+                            defaultFormID = originFormId;
+                            defaultFormIDArray = new long[]{originFormId};
+                        }
+                    }
 
                     String formPrefix =  defaultFormID + "_";
 
@@ -624,7 +1345,17 @@ public class LayerFillService extends Service implements IProgressor {
                     String jsonText = FileUtil.readFromFile(meta);
                     JSONObject metaJson = new JSONObject(jsonText);
                     File dataFile = new File(mLayerPath, NGFP_FILE_DATA);
+                    String formHash = "";
+                    if (defaultFormID > 0L) {
+                        try {
+                            formHash = LayerFormHashUtil.md5LocalNgfpFiles(mLayerPath, defaultFormID);
+                        } catch (IOException hashEx) {
+                            HyperLog.w(Constants.TAG, "LayerFillService: NGFP form hash failed formId="
+                                    + defaultFormID + ": " + hashEx.getMessage());
+                        }
+                    }
                     Bundle extra = new Bundle();
+                    extra.putInt(KEY_LAYER_GROUP_ID, mLayerGroup.getId());
                     extra.putSerializable(KEY_LAYER_PATH, mLayerPath);
                     extra.putString(KEY_NAME, mLayerName);
 
@@ -697,14 +1428,26 @@ public class LayerFillService extends Service implements IProgressor {
                         File form = new File(mLayerPath, formPrefix + FILE_FORM);
                         ArrayList<String> lookupTableIds = LayerUtil.fillLookupTableIds(form);
 
+                        extra.putInt(KEY_INPUT_TYPE, NGW_LAYER);
                         extra.putStringArrayList(KEY_LOOKUP_ID, lookupTableIds);
                         extra.putLong(KEY_REMOTE_ID, resourceId);
+                        extra.putLong(KEY_COLLECTOR_TRACKING_REMOTE_ID, mRemoteId);
                         extra.putString(KEY_ACCOUNT, accountName);
                         extra.putBoolean(KEY_SYNC, mSync);
                         extra.putLongArray(KEY_DEFAULT_FORM_IDS, defaultFormIDArray);
-
+                        if (!TextUtils.isEmpty(mLayerConfigJson)) {
+                            extra.putString(KEY_LAYER_CONFIG_JSON, mLayerConfigJson);
+                        }
+                        if (!TextUtils.isEmpty(formHash)) {
+                            extra.putString(KEY_LAYER_FORM_HASH, formHash);
+                        }
+                        copyLayerOriginExtras(mEnqueueBundle, extra);
+                        if (mCollectorOrderIndex >= 0 && mCollectorProjectRemoteIds != null) {
+                            extra.putInt(KEY_COLLECTOR_ORDER_INDEX, mCollectorOrderIndex);
+                            extra.putLongArray(KEY_COLLECTOR_PROJECT_REMOTE_IDS, mCollectorProjectRemoteIds);
+                        }
                         if (!isCanceled() && startLayerFill) {
-                            mQueue.add(new NGWVectorLayerFillTask(extra));
+                            enqueueToQueue(new NGWVectorLayerFillTask(extra));
                         }
                         if (!startLayerFill) {
 //                            if (getLayer() instanceof  NGWVectorLayer)
@@ -714,12 +1457,14 @@ public class LayerFillService extends Service implements IProgressor {
                             subTaskWasRunned = false;
                         }
                     } else {
+                        extra.putInt(KEY_INPUT_TYPE, VECTOR_LAYER);
+                        extra.putBoolean(LayerFillService.KEY_IS_NGFP_OPEN, isNGFPOpen);
                         extra.putSerializable(LayerFillService.KEY_PATH, dataFile);
                         extra.putBoolean(LayerFillService.KEY_DELETE_SRC_FILE, true);
                         extra.putLongArray(KEY_DEFAULT_FORM_IDS, defaultFormIDArray);
 
                         if (!isCanceled() && startLayerFill) {
-                            mQueue.add(new VectorLayerFormFillTask(extra));
+                            enqueueToQueue(new VectorLayerFormFillTask(extra));
                         }
                         if (!startLayerFill) {
 //                            if (getLayer() instanceof  NGWVectorLayer)
@@ -744,12 +1489,14 @@ public class LayerFillService extends Service implements IProgressor {
     private class VectorLayerFormFillTask extends LayerFillTask {
         File mPath;
         boolean mDeletePath;
+        boolean isOpenNGFP = false;
 
         VectorLayerFormFillTask(Bundle bundle) {
             super(bundle);
             mPath = (File) bundle.getSerializable(KEY_PATH);
             mDeletePath = bundle.getBoolean(KEY_DELETE_SRC_FILE, false);
             mLayer = new VectorLayerUI(mLayerGroup.getContext(), mLayerPath);
+            isOpenNGFP =  bundle.getBoolean(KEY_IS_NGFP_OPEN);
             initLayer();
         }
 
@@ -759,7 +1506,7 @@ public class LayerFillService extends Service implements IProgressor {
                 VectorLayer vectorLayer = (VectorLayer) mLayer;
                 if (null == vectorLayer)
                     return false;
-                String formPrefix = vectorLayer.getId() + "_";
+                String formPrefix = (isOpenNGFP ? "-1" :vectorLayer.getId()) + "_";
                 File meta = new File(mPath.getParentFile(),formPrefix +  NGFP_META);
 
                 if (meta.exists()) {
@@ -817,9 +1564,14 @@ public class LayerFillService extends Service implements IProgressor {
                 if (null == tmsLayer)
                     return false;
 
-                if (mIsNgrc)
+                if (mIsNgrc) {
                     tmsLayer.fillFromNgrc(mUri, progressor);
-                else
+                    tmsLayer.setNgrcImportProvenance(
+                            mLayerName, tmsLayer.getLastArchiveSha256());
+                    if (!tmsLayer.save()) {
+                        throw new IOException("Cannot save NGRC import provenance");
+                    }
+                } else
                     tmsLayer.fillFromZip(mUri, progressor);
             } catch (IOException | NGException | RuntimeException e) {
                 e.printStackTrace();
@@ -838,18 +1590,35 @@ public class LayerFillService extends Service implements IProgressor {
     }
 
     private class NGWVectorLayerFillTask extends LayerFillTask{
+        private static final int NGW_FILL_MAX_ATTEMPTS = 3;
+
         private ArrayList<String> mLookupIds = new ArrayList<>();
         private boolean mShowSyncDialog;
+        private final long mRemoteIdInit;
+        /** Collector batch correlation id (original NGW resource id from import UI). */
+        private final long mTrackingRemoteId;
+        private final String mAccountNameInit;
+        private boolean mMobileLayerConfigApplied;
 
+        boolean wasMobileLayerConfigApplied() {
+            return mMobileLayerConfigApplied;
+        }
+
+        long getTrackingRemoteId() {
+            return mTrackingRemoteId;
+        }
 
         NGWVectorLayerFillTask(Bundle bundle) {
             super(bundle);
             isPointz = false;
+            mRemoteIdInit = bundle.getLong(KEY_REMOTE_ID);
+            mTrackingRemoteId = bundle.containsKey(KEY_COLLECTOR_TRACKING_REMOTE_ID)
+                    ? bundle.getLong(KEY_COLLECTOR_TRACKING_REMOTE_ID)
+                    : mRemoteIdInit;
+            mAccountNameInit = bundle.getString(KEY_ACCOUNT);
             mLayer = new NGWVectorLayerUI(mLayerGroup.getContext(), mLayerPath);
-            ((NGWVectorLayerUI) mLayer).setRemoteId(bundle.getLong(KEY_REMOTE_ID));
-            //((NGWVectorLayerUI) mLayer).setDefaultFormId(bundle.getLongArray(KEY_DEFAULT_FORM_IDS));
-            ((NGWVectorLayerUI) mLayer).setAccountName(bundle.getString(KEY_ACCOUNT));
-            ((NGWVectorLayerUI) mLayer).setAccountName(bundle.getString(KEY_ACCOUNT));
+            ((NGWVectorLayerUI) mLayer).setRemoteId(mRemoteIdInit);
+            ((NGWVectorLayerUI) mLayer).setAccountName(mAccountNameInit);
             initLayer();
 
             if (bundle.containsKey(KEY_LOOKUP_ID))
@@ -867,51 +1636,300 @@ public class LayerFillService extends Service implements IProgressor {
             }
         }
 
+        private void rebuildNgwLayerAfterTransientFailure() {
+            /*
+             * Collector/Form sync foundation: VECTOR_LAYER_WITH_FORM unzips NGFP sidecars before
+             * this NGW fill task starts. A transient feature-download retry must clean partial layer
+             * data, but it must not silently drop the already downloaded form files.
+             */
+            Map<String, byte[]> preservedFormFiles = preserveNgfpFormFiles(mLayerPath);
+            if (mLayer != null) {
+                mLayer.delete(true);
+            }
+            mLayerPath = mLayerGroup.createLayerStorage();
+            restoreNgfpFormFiles(mLayerPath, preservedFormFiles);
+            mLayer = new NGWVectorLayerUI(mLayerGroup.getContext(), mLayerPath);
+            ((NGWVectorLayerUI) mLayer).setRemoteId(mRemoteIdInit);
+            ((NGWVectorLayerUI) mLayer).setAccountName(mAccountNameInit);
+            initLayer();
+        }
+
+        private Map<String, byte[]> preserveNgfpFormFiles(File layerPath) {
+            Map<String, byte[]> out = new LinkedHashMap<>();
+            if (layerPath == null || !layerPath.exists()) {
+                return out;
+            }
+            File[] files = layerPath.listFiles();
+            if (files == null) {
+                return out;
+            }
+            byte[] buffer = new byte[Constants.IO_BUFFER_SIZE];
+            for (File file : files) {
+                if (file == null || !file.isFile() || !isNgfpFormSidecar(file.getName())) {
+                    continue;
+                }
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                FileInputStream in = null;
+                try {
+                    in = new FileInputStream(file);
+                    FileUtil.copyStream(in, bytes, buffer, Constants.IO_BUFFER_SIZE);
+                    out.put(file.getName(), bytes.toByteArray());
+                } catch (IOException e) {
+                    HyperLog.w(Constants.TAG, "NGW fill retry: preserve form sidecar failed "
+                            + file.getName() + ": " + e.getMessage());
+                } finally {
+                    if (in != null) {
+                        try {
+                            in.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+                    try {
+                        bytes.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+            }
+            return out;
+        }
+
+        private boolean isNgfpFormSidecar(String fileName) {
+            return !TextUtils.isEmpty(fileName)
+                    && (fileName.endsWith(FILE_FORM) || fileName.endsWith(NGFP_META));
+        }
+
+        private void restoreNgfpFormFiles(File layerPath, Map<String, byte[]> preservedFormFiles) {
+            if (layerPath == null || preservedFormFiles == null || preservedFormFiles.isEmpty()) {
+                return;
+            }
+            if (!layerPath.exists() && !layerPath.mkdirs()) {
+                HyperLog.w(Constants.TAG, "NGW fill retry: cannot create layer dir for form restore "
+                        + layerPath);
+                return;
+            }
+            for (Map.Entry<String, byte[]> entry : preservedFormFiles.entrySet()) {
+                File outFile = new File(layerPath, entry.getKey());
+                FileOutputStream out = null;
+                try {
+                    out = new FileOutputStream(outFile);
+                    out.write(entry.getValue());
+                    HyperLog.v(Constants.TAG, "NGW fill retry: restored form sidecar "
+                            + outFile.getName());
+                } catch (IOException e) {
+                    HyperLog.w(Constants.TAG, "NGW fill retry: restore form sidecar failed "
+                            + outFile.getName() + ": " + e.getMessage());
+                } finally {
+                    if (out != null) {
+                        try {
+                            out.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+                }
+            }
+        }
+
+        @Override
+        String logContext() {
+            return super.logContext()
+                    + " remoteId=" + mRemoteIdInit
+                    + " trackingRemoteId=" + mTrackingRemoteId
+                    + " account=\"" + ProdLogUtil.truncateForLog(mAccountNameInit, 100) + "\"";
+        }
+
+        private String failureContext(int attempt) {
+            return "NGW fill failed attempt=" + attempt + "/" + NGW_FILL_MAX_ATTEMPTS
+                    + " " + logContext();
+        }
+
+        private boolean handleNgwExecuteError(Exception e, IProgressor progressor, int attempt) {
+            String context = failureContext(attempt);
+            Log.w(Constants.TAG, context + ": " + e.getMessage(), e);
+            HyperLog.w(Constants.TAG, ProdLogUtil.withStack(context + ": "
+                    + ProdLogUtil.truncateForLog(e.getMessage(), 500), e));
+
+            String error = e.getLocalizedMessage();
+            if (TextUtils.isEmpty(error)) {
+                error = e.getClass().getSimpleName();
+            }
+            if (e instanceof JSONException && e.getMessage().equals("No value for fields")){
+                error = getResources().getString(com.nextgis.maplib.R.string.error_forbidden);
+            }
+            if ("POINTZ".equals(e.getMessage())){
+                error = getBaseContext().getString(R.string.pointz_alert);
+                isPointz = true;
+            }
+
+            setError(error, progressor);
+            if ("POINTZ".equals(e.getMessage())){
+            } else notifyError(mProgressMessage);
+            return false;
+        }
+
         @Override
         public boolean execute(IProgressor progressor) {
-            try {
-                NGWVectorLayer ngwVectorLayer = (NGWVectorLayer) mLayer;
-                if (null == ngwVectorLayer)
-                    return false;
+            boolean lookupsFilled = false;
+            for (int attempt = 1; attempt <= NGW_FILL_MAX_ATTEMPTS; attempt++) {
+                try {
+                    NGWVectorLayer ngwVectorLayer = (NGWVectorLayer) mLayer;
+                    if (null == ngwVectorLayer)
+                        return false;
 
-                for (String id : mLookupIds) {
-                    NGWLookupTable table = new NGWLookupTable(mLayer.getContext(), mLayerGroup.createLayerStorage());
-                    table.setAccountName(((NGWVectorLayer) mLayer).getAccountName());
-                    table.setRemoteId(Long.parseLong(id));
-                    table.setSyncType(Constants.SYNC_ALL);
-                    table.setName(getText(R.string.layer_lookuptable) + " #" + id);
-                    table.fillFromNGW(null);
-                    mLayerGroup.addLayer(table);
+                    if (!lookupsFilled) {
+                        for (String id : mLookupIds) {
+                            NGWLookupTable table = new NGWLookupTable(mLayer.getContext(), mLayerGroup.createLayerStorage());
+                            table.setAccountName(((NGWVectorLayer) mLayer).getAccountName());
+                            table.setRemoteId(Long.parseLong(id));
+                            table.setSyncType(Constants.SYNC_ALL);
+                            table.setName(getText(R.string.layer_lookuptable) + " #" + id);
+                            table.fillFromNGW(null);
+                            mLayerGroup.addLayer(table);
+                        }
+                        lookupsFilled = true;
+                    }
+
+                    ngwVectorLayer.setCollectorDistrictOverride(mLayerGroup.getCollectorDistrict());
+                    HyperLog.d(Constants.TAG, NGWVectorLayer.LOG_DISTRICT_FILTER + " fill group=\""
+                            + mLayerGroup.getName() + "\" collector_district="
+                            + (TextUtils.isEmpty(mLayerGroup.getCollectorDistrict())
+                            ? "<empty>" : mLayerGroup.getCollectorDistrict())
+                            + " layer remoteId=" + ngwVectorLayer.getRemoteId());
+
+                    ngwVectorLayer.createFromNGW(progressor);
+                    String rawConfig = resolveImportedLayerConfigJson(ngwVectorLayer, mLayerConfigJson);
+                    String importedRenderMode = null;
+                    if (!TextUtils.isEmpty(rawConfig)) {
+                        try {
+                            JSONObject cfg = parseLayerConfigObject(rawConfig);
+                            importedRenderMode = LayerConfigUtil.extractRenderMode(cfg);
+                            ngwVectorLayer.fromJSON(cfg);
+                            ngwVectorLayer.save();
+                            mMobileLayerConfigApplied = true;
+                            String hash = LayerConfigUtil.md5(rawConfig.trim());
+                            ngwVectorLayer.getPreferences().edit()
+                                    .putString(SettingsConstants.KEY_PREF_LAST_CONFIG_HASH, hash)
+                                    .apply();
+                            Log.i(Constants.TAG, LOG_LAYER_CONFIG + " applied+saved OK name="
+                                    + ngwVectorLayer.getName());
+                            HyperLog.d(Constants.TAG, LOG_LAYER_CONFIG + " applied OK " + ngwVectorLayer.getName());
+                        } catch (Exception e) {
+                            Log.e(Constants.TAG, LOG_LAYER_CONFIG + " fromJSON/save failed: " + e.getMessage(), e);
+                            HyperLog.exception(Constants.TAG, e);
+                        }
+                    } else {
+                        Log.w(Constants.TAG, LOG_LAYER_CONFIG + " skipped (no text): name="
+                                + ngwVectorLayer.getName() + " remoteId=" + ngwVectorLayer.getRemoteId());
+                        HyperLog.w(Constants.TAG, LOG_LAYER_CONFIG + " skipped no config text for "
+                                + ngwVectorLayer.getName());
+                    }
+                    applyLayerOriginFromIntent(ngwVectorLayer, importedRenderMode);
+                    applyCollectorEditableFromIntent(ngwVectorLayer);
+                    applyServerWritePermissionFromIntent(ngwVectorLayer);
+                    return true;
+                } catch (IOException e) {
+                    if (!NetworkUtil.isTransientNetworkFailure(e) || attempt >= NGW_FILL_MAX_ATTEMPTS) {
+                        return handleNgwExecuteError(e, progressor, attempt);
+                    }
+                    String retryContext = "NGW fill transient retry attempt=" + attempt
+                            + "/" + NGW_FILL_MAX_ATTEMPTS
+                            + " next=" + (attempt + 1)
+                            + " " + logContext();
+                    Log.w(Constants.TAG, retryContext + ": " + e.getMessage(), e);
+                    HyperLog.w(Constants.TAG, ProdLogUtil.withStack(retryContext + ": "
+                            + ProdLogUtil.truncateForLog(e.getMessage(), 500), e));
+                    if (progressor != null) {
+                        progressor.setMessage(getString(R.string.layer_fill_network_retry, attempt + 1, NGW_FILL_MAX_ATTEMPTS));
+                    }
+                    try {
+                        Thread.sleep(1000L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        setError(ie.getLocalizedMessage(), progressor);
+                        notifyError(mProgressMessage);
+                        return false;
+                    }
+                    rebuildNgwLayerAfterTransientFailure();
+                } catch (JSONException | SQLiteException | NGException | ClassCastException e) {
+                    return handleNgwExecuteError(e, progressor, attempt);
                 }
-
-                ngwVectorLayer.createFromNGW(progressor);
-            } catch (JSONException | IOException | SQLiteException | NGException |
-                     ClassCastException e) {
-                String error = e.getLocalizedMessage();
-                if (e instanceof JSONException && e.getMessage().equals("No value for fields")){
-                    error = getResources().getString(com.nextgis.maplib.R.string.error_forbidden);
-                }
-                if ("POINTZ".equals(e.getMessage())){
-                    error = getBaseContext().getString(R.string.pointz_alert);
-                    isPointz = true;
-                }
-
-
-                setError(error, progressor);
-                if ("POINTZ".equals(e.getMessage())){
-//                    Intent msg = new Intent(MESSAGE_ALERT_INTENT);
-//                    msg.putExtra(MESSAGE_EXTRA,getBaseContext().getString(R.string.pointz_alert));
-//                    msg.putExtra(MESSAGE_TITLE_EXTRA,getBaseContext().getString(R.string.pointz_alert_title));
-//                    msg.setPackage(getPackageName());
-//                    getBaseContext().sendBroadcast(msg);
-                } else notifyError(mProgressMessage);
-                return false;
             }
-            return true;
+            return false;
         }
 
         boolean showSyncDialog() {
             return mShowSyncDialog;
+        }
+
+        private void applyCollectorEditableFromIntent(NGWVectorLayer ngwVectorLayer) {
+            if (mEnqueueBundle.containsKey(KEY_COLLECTOR_LAYER_EDITABLE)) {
+                ngwVectorLayer.setCollectorEditable(
+                        mEnqueueBundle.getBoolean(KEY_COLLECTOR_LAYER_EDITABLE, true));
+                try {
+                    ngwVectorLayer.save();
+                } catch (Exception e) {
+                    Log.w(Constants.TAG, "applyCollectorEditableFromIntent save failed: " + e.getMessage());
+                }
+            }
+        }
+
+        private void applyServerWritePermissionFromIntent(NGWVectorLayer ngwVectorLayer) {
+            if (!mEnqueueBundle.containsKey(KEY_SERVER_WRITE_PERMITTED)) {
+                return;
+            }
+            boolean canWrite = mEnqueueBundle.getBoolean(KEY_SERVER_WRITE_PERMITTED, false);
+            ngwVectorLayer.setIsEditable(canWrite);
+            if (!canWrite) {
+                // Keep server-to-device refresh available but never enqueue writes to the server.
+                ngwVectorLayer.setSyncDirection(2);
+            }
+            try {
+                ngwVectorLayer.save();
+            } catch (Exception e) {
+                Log.w(Constants.TAG,
+                        "applyServerWritePermissionFromIntent save failed: " + e.getMessage());
+            }
+        }
+
+        private void applyLayerOriginFromIntent(
+                NGWVectorLayer ngwVectorLayer,
+                String importedRenderMode) {
+            if (ngwVectorLayer == null) {
+                return;
+            }
+            String formHash = mEnqueueBundle.getString(KEY_LAYER_FORM_HASH);
+            if (!TextUtils.isEmpty(formHash)) {
+                ngwVectorLayer.getPreferences().edit()
+                        .putString(SettingsConstants.KEY_PREF_LAST_FORM_HASH, formHash)
+                        .apply();
+            }
+
+            long formId = mEnqueueBundle.getLong(KEY_LAYER_ORIGIN_FORM_ID, 0L);
+            if (formId <= 0L && defaultFormIDArray != null && defaultFormIDArray.length > 0) {
+                formId = defaultFormIDArray[0];
+            }
+
+            String collectorProjectUid = mEnqueueBundle.getString(KEY_COLLECTOR_PROJECT_UID);
+            LayerOriginMetadata existingOrigin = ngwVectorLayer.getLayerOriginMetadata();
+            String renderMode = importedRenderMode;
+            if (TextUtils.isEmpty(renderMode) && existingOrigin != null) {
+                renderMode = existingOrigin.getRenderMode();
+            }
+            renderMode = LayerOriginMetadata.normalizeRenderMode(renderMode);
+            if (!TextUtils.isEmpty(collectorProjectUid)) {
+                ngwVectorLayer.setLayerOriginMetadata(LayerOriginMetadata.collectorLayer(
+                        collectorProjectUid, mCollectorOrderIndex, formId, renderMode));
+            } else if (mEnqueueBundle.getBoolean(KEY_MARK_MANUAL_NGW_ORIGIN, false)) {
+                ngwVectorLayer.setLayerOriginMetadata(LayerOriginMetadata.manualNgwLayer(
+                        formId, renderMode));
+            } else {
+                return;
+            }
+
+            try {
+                ngwVectorLayer.save();
+            } catch (Exception e) {
+                Log.w(Constants.TAG, "applyLayerOriginFromIntent save failed: " + e.getMessage());
+            }
         }
 
         String getAccountName() {

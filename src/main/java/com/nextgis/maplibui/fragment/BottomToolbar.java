@@ -23,11 +23,13 @@
 
 package com.nextgis.maplibui.fragment;
 
+import android.app.Activity;
 import android.content.Context;
 import androidx.annotation.MenuRes;
 import androidx.core.view.MenuItemCompat;
 import androidx.appcompat.widget.Toolbar;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
@@ -73,16 +75,35 @@ public class BottomToolbar
     public void inflateMenu(@MenuRes int resId) {
         super.inflateMenu(resId);
         final Menu menu = getMenu();
+        if (menu.size() == 0) {
+            return;
+        }
         MenuItem item = menu.getItem(0);
+        if (item.getIcon() == null) {
+            return;
+        }
         int size = item.getIcon().getIntrinsicWidth() + ControlHelper.dpToPx(30, getResources());
         int width = getWidth();
+        if (width == 0) {
+            width = getContext().getResources().getDisplayMetrics().widthPixels;
+        }
+
+        // Lean bars (select_action_view: info+edit; attributes_editable: form+prev+next):
+        // force ALWAYS so width math does not drop an icon on narrow screens.
+        if (menu.size() <= 3) {
+            for (int i = 0; i < menu.size(); i++) {
+                MenuItemCompat.setShowAsAction(menu.getItem(i), MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
+            }
+            return;
+        }
 
         for (int i = 0; i < menu.size(); i++) {
             item = menu.getItem(i);
-            if (size * (i + 2) < width)
+            if (size * (i + 2) < width) {
                 MenuItemCompat.setShowAsAction(item, MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
-            else
+            } else {
                 break;
+            }
         }
     }
 }

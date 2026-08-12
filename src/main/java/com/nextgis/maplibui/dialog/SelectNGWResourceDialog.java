@@ -30,9 +30,12 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -41,11 +44,18 @@ import android.widget.Toast;
 
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
+import com.nextgis.maplib.datasource.ngw.CollectorResource;
 import com.nextgis.maplib.datasource.ngw.Connection;
 import com.nextgis.maplib.datasource.ngw.Connections;
 import com.nextgis.maplib.datasource.ngw.INGWResource;
 import com.nextgis.maplib.datasource.ngw.LayerWithStyles;
+import com.nextgis.maplib.datasource.ngw.Resource;
 import com.nextgis.maplib.datasource.ngw.WebMap;
+import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.NGWUtil;
+
+import com.hypertrack.hyperlog.HyperLog;
+import com.nextgis.maplib.map.CollectorProjectMetadata;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplib.map.NGWRasterLayer;
@@ -57,6 +67,8 @@ import com.nextgis.maplibui.mapui.NGWRasterLayerUI;
 import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
+import com.nextgis.maplibui.util.CollectorProjectImportHelper;
+import com.nextgis.maplibui.util.CollectorProjectRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,6 +87,7 @@ public class SelectNGWResourceDialog
     protected AlertDialog             mDialog;
     protected AccountManager          mAccountManager;
     protected NGWResourcesListAdapter.OnConnectionListener mConnectionListener;
+    boolean skipSubLoad = false;
 
     protected final static String KEY_MASK        = "mask";
     protected final static String KEY_ID          = "id";
@@ -83,6 +96,11 @@ public class SelectNGWResourceDialog
     protected final static String KEY_STATES      = "states";
 
     protected final static int ADD_ACCOUNT_CODE = 777;
+
+
+    public SelectNGWResourceDialog(boolean skipSubLoad){
+        this.skipSubLoad = skipSubLoad;
+    }
 
 
     public SelectNGWResourceDialog setLayerGroup(LayerGroup groupLayer)
@@ -111,7 +129,7 @@ public class SelectNGWResourceDialog
         if (null == savedInstanceState) {
             //first launch, lets fill connections array
             Connections connections = fillConnections(getActivity(), mAccountManager);
-            mListAdapter.setConnections(connections);
+            mListAdapter.setConnections(connections, skipSubLoad);
             mListAdapter.setCurrentResourceId(connections.getId());
             mListAdapter.setCheckState(new ArrayList<CheckState>());
         } else {
@@ -125,7 +143,7 @@ public class SelectNGWResourceDialog
                 }
             }
 
-            mListAdapter.setConnections((Connections) savedInstanceState.getParcelable(KEY_CONNECTIONS));
+            mListAdapter.setConnections((Connections) savedInstanceState.getParcelable(KEY_CONNECTIONS), skipSubLoad);
             mListAdapter.setCurrentResourceId(savedInstanceState.getInt(KEY_RESOURCE_ID));
             mListAdapter.setCheckState(savedInstanceState.<CheckState> getParcelableArrayList(KEY_STATES));
         }
@@ -145,16 +163,16 @@ public class SelectNGWResourceDialog
                 .setIcon(R.drawable.ic_ngw)
                 .setView(view)
                 .setInverseBackgroundForced(true)
-                .setPositiveButton(
-                        R.string.add, new DialogInterface.OnClickListener()
-                        {
-                            public void onClick(
-                                    DialogInterface dialog,
-                                    int id)
-                            {
-                                createLayers(mContextWeakRef.get());
-                            }
-                        })
+//                .setPositiveButton(
+//                        R.string.add, new DialogInterface.OnClickListener()
+//                        {
+//                            public void onClick(
+//                                    DialogInterface dialog,
+//                                    int id)
+//                            {
+//                                createLayers(mContextWeakRef.get());
+//                            }
+//                        })
                 .setNegativeButton(R.string.cancel, null);
 
         // Create the AlertDialog object and return it
@@ -274,6 +292,24 @@ public class SelectNGWResourceDialog
 
         List<CheckState> checkStates = mListAdapter.getCheckState();
         Connections connections = mListAdapter.getConnections();
+        int selectedCollectorCount = countSelectedCollectorResources(connections, checkStates);
+        if (selectedCollectorCount > 1) {
+            Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+            HyperLog.w(Constants.TAG, "Collector import (dialog): multiple collector projects selected in one batch");
+            setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+            setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+            return;
+        }
+        if (selectedCollectorCount == 1) {
+            CollectorResource selectedCollector = findSelectedCollectorResource(connections, checkStates);
+            if (selectedCollector == null || !prepareCollectorWorkspaceForImport(context, selectedCollector)) {
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                return;
+            }
+        }
+
+        final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
             if (checkState.isCheckState1()) { //create raster
 
@@ -316,26 +352,155 @@ public class SelectNGWResourceDialog
                 }
             }
 
-            if (checkState.isCheckState2()) { //create vector
+            if (checkState.isCheckState2()) { //create vector or collector import
                 INGWResource resource = connections.getResourceById(checkState.getId());
-                if (resource instanceof LayerWithStyles) {
+                if (resource instanceof CollectorResource) {
+                    CollectorProjectImportHelper.Result result =
+                            CollectorProjectImportHelper.appendImportTasks(
+                                    context,
+                                    mGroupLayer,
+                                    (CollectorResource) resource,
+                                    vectorFillBatch);
+                    if (result == CollectorProjectImportHelper.Result.NO_SUPPORTED_ITEMS) {
+                        Toast.makeText(
+                                context,
+                                R.string.ngw_collector_no_supported_layers,
+                                Toast.LENGTH_LONG).show();
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                        return;
+                    }
+                    if (result == CollectorProjectImportHelper.Result.FAILED) {
+                        Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                        setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                        return;
+                    }
+                } else if (resource instanceof LayerWithStyles) {
                     LayerWithStyles layer = (LayerWithStyles) resource;
                     //1. get connection for url
                     Connection connection = layer.getConnection();
                     // create or connect to fill layer with features
                     Intent intent = new Intent(context, LayerFillService.class);
                     intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                    intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
                     intent.putExtra(LayerFillService.KEY_NAME, layer.getName());
                     intent.putExtra(LayerFillService.KEY_ACCOUNT, connection.getName());
                     intent.putExtra(LayerFillService.KEY_REMOTE_ID, layer.getRemoteId());
                     intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, mGroupLayer.getId());
                     intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                    intent.putExtra(LayerFillService.KEY_MARK_MANUAL_NGW_ORIGIN, true);
+                    Resource remoteResource = (Resource) resource;
+                    if (remoteResource.hasDataPermissionInfo()) {
+                        intent.putExtra(
+                                LayerFillService.KEY_SERVER_WRITE_PERMITTED,
+                                remoteResource.hasDataWritePermission());
+                    }
 
-                    LayerFillProgressDialogFragment.startFill(intent);
+                    if (layer.getFormCount() > 0) {
+                        Long formId = layer.getFormId(0);
+                        if (formId != null && formId > 0L) {
+                            intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, formId);
+                            intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS,
+                                    new long[]{formId});
+                            String path = NGWUtil.getFormUrl(connection.getURL(), formId);
+                            intent.putExtra(LayerFillService.KEY_URI, Uri.parse(path));
+                            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.VECTOR_LAYER_WITH_FORM);
+                        }
+                    }
+
+                    vectorFillBatch.add(intent);
                 }
             }
         }
+        if (!vectorFillBatch.isEmpty()) {
+            Activity hostActivity = LayerFillProgressDialogFragment.getProgressHostActivity();
+            if (hostActivity == null) {
+                hostActivity = context instanceof Activity ? (Activity) context : getActivity();
+            }
+            if (hostActivity == null) {
+                Toast.makeText(context, R.string.error, Toast.LENGTH_SHORT).show();
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                return;
+            }
+            // Single FGS start for the whole batch (one stopSelf() at drain end) avoids the
+            // foreground-service lifecycle race of N separate startService deliveries.
+            LayerFillService.startFillBatch(hostActivity, vectorFillBatch);
+            LayerFillProgressDialogFragment.startBatchFillProgress(hostActivity);
+        }
         mGroupLayer.save();
+    }
+
+    private int countSelectedCollectorResources(Connections connections, List<CheckState> checkStates) {
+        int count = 0;
+        if (connections == null || checkStates == null) {
+            return count;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private CollectorResource findSelectedCollectorResource(
+            Connections connections,
+            List<CheckState> checkStates) {
+        if (connections == null || checkStates == null) {
+            return null;
+        }
+        for (CheckState checkState : checkStates) {
+            if (checkState == null || !checkState.isCheckState2()) {
+                continue;
+            }
+            INGWResource resource = connections.getResourceById(checkState.getId());
+            if (resource instanceof CollectorResource) {
+                return (CollectorResource) resource;
+            }
+        }
+        return null;
+    }
+
+    private boolean prepareCollectorWorkspaceForImport(Context context, CollectorResource collector) {
+        if (context == null || collector == null || collector.getConnection() == null) {
+            return false;
+        }
+        if (!collector.isSnapshotComplete()) {
+            HyperLog.e(Constants.TAG, "Collector import (dialog): incomplete project snapshot remoteId="
+                    + collector.getRemoteId() + " error=" + collector.getSnapshotError());
+            Toast.makeText(context, R.string.ngw_collector_incomplete_snapshot, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        if (collector.getProjectItems().isEmpty()) {
+            Toast.makeText(
+                    context,
+                    R.string.ngw_collector_no_supported_layers,
+                    Toast.LENGTH_LONG).show();
+            return false;
+        }
+        Connection connection = collector.getConnection();
+        CollectorProjectMetadata metadata = CollectorProjectMetadata.create(
+                connection.getName(),
+                collector.getRemoteId(),
+                collector.getName(),
+                collector.getProjectDistrict());
+        LayerGroup projectWorkspace = CollectorProjectRegistry.prepareCollectorProjectWorkspace(
+                context,
+                metadata);
+        if (projectWorkspace == null) {
+            HyperLog.e(Constants.TAG, "Collector import (dialog): failed to prepare isolated workspace remoteId="
+                    + collector.getRemoteId() + " account=" + connection.getName());
+            Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+            return false;
+        }
+        mGroupLayer = projectWorkspace;
+        return true;
     }
 
 }

@@ -29,6 +29,8 @@ import android.os.AsyncTask;
 import android.widget.Toast;
 
 import com.hypertrack.hyperlog.HyperLog;
+import com.nextgis.maplib.api.IGISApplication;
+import com.nextgis.maplib.api.ILayer;
 import com.nextgis.maplib.datasource.GeoGeometry;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.Constants;
@@ -81,12 +83,29 @@ public final class LayerUtil {
 
     public static void showEditForm(VectorLayer layer, Context context, long featureId, GeoGeometry geometry,
                                     long mFormId) {
+        showEditForm(layer, context, featureId, geometry, mFormId, false, null);
+    }
+
+    public static void showEditForm(VectorLayer layer, Context context, long featureId, GeoGeometry geometry,
+                                    long mFormId, boolean applyFormDraft) {
+        showEditForm(layer, context, featureId, geometry, mFormId, applyFormDraft, null);
+    }
+
+    private static void showEditForm(
+            VectorLayer layer,
+            Context context,
+            long featureId,
+            GeoGeometry geometry,
+            long mFormId,
+            boolean applyFormDraft,
+            Boolean geometryChangedOverride) {
         if (!layer.isFieldsInitialized()) {
             Toast.makeText(context, context.getString(R.string.error_layer_not_inited), Toast.LENGTH_SHORT).show();
             return;
         }
 
-        boolean isGeometryChanged = geometry != null;
+        boolean isGeometryChanged = geometryChangedOverride != null
+                ? geometryChangedOverride : geometry != null;
         //get geometry
         if (geometry == null && featureId != Constants.NOT_FOUND) {
             geometry = layer.getGeometryForId(featureId);
@@ -98,6 +117,7 @@ public final class LayerUtil {
         File form = new File(layer.getPath(), formPrefix+ ConstantsUI.FILE_FORM);
 
         try {
+        CollectorFormFileTransaction.recover(layer.getPath());
 
         if (!form.exists()){ //try to find file
             // try to search
@@ -142,8 +162,89 @@ public final class LayerUtil {
         intent.putExtra(KEY_GEOMETRY_CHANGED, isGeometryChanged);
         if (null != geometry)
             intent.putExtra(KEY_GEOMETRY, geometry);
+        if (applyFormDraft) {
+            intent.putExtra(FeatureFormDraftStore.KEY_APPLY_FORM_DRAFT, true);
+        }
 
         ((Activity) context).startActivityForResult(intent, IVectorLayerUI.MODIFY_REQUEST);
+    }
+
+    /**
+     * Open the attribute form and apply a previously saved crash draft.
+     */
+    public static void showEditFormFromDraft(Context context, FeatureFormDraftStore.Snapshot draft) {
+        if (!isEditFormDraftRecoverable(context, draft)) {
+            FeatureFormDraftStore.clear(context);
+            return;
+        }
+        IGISApplication app = (IGISApplication) ((Activity) context).getApplication();
+        ILayer layer = app.getMap().getLayerById(draft.layerId);
+        VectorLayer vectorLayer = (VectorLayer) layer;
+        GeoGeometry geometry = FeatureFormDraftStore.geometryFromSnapshot(draft);
+        long formId = -1;
+        if (draft.formPath != null) {
+            File formFile = new File(draft.formPath);
+            String name = formFile.getName();
+            int idx = name.indexOf('_');
+            if (idx > 0) {
+                try {
+                    formId = Long.parseLong(name.substring(0, idx));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        showEditForm(
+                vectorLayer,
+                context,
+                draft.featureId,
+                geometry,
+                formId,
+                true,
+                draft.geometryChanged);
+    }
+
+    /**
+     * Reject stale journals before showing recovery UI.  In particular, a positive feature id
+     * must still identify a row; otherwise Save would execute an update that affects zero rows.
+     */
+    public static boolean isEditFormDraftRecoverable(
+            Context context, FeatureFormDraftStore.Snapshot draft) {
+        if (!(context instanceof Activity) || draft == null || !draft.isValid()) {
+            return false;
+        }
+        IGISApplication app = (IGISApplication) ((Activity) context).getApplication();
+        if (app == null || app.getMap() == null) {
+            return false;
+        }
+        ILayer layer = app.getMap().getLayerById(draft.layerId);
+        if (!(layer instanceof VectorLayer)) {
+            return false;
+        }
+        if (draft.geometryWkt != null) {
+            try {
+                if (FeatureFormDraftStore.geometryFromSnapshot(draft) == null) {
+                    return false;
+                }
+            } catch (RuntimeException error) {
+                HyperLog.w(Constants.TAG, "Corrupt geometry in form draft for layer "
+                        + draft.layerId, error);
+                return false;
+            }
+        }
+        if (draft.featureId != Constants.NOT_FOUND) {
+            try {
+                if (((VectorLayer) layer).getFeature(draft.featureId) == null) {
+                    HyperLog.w(Constants.TAG, "Stale form draft for missing feature "
+                            + draft.featureId + " in layer " + draft.layerId);
+                    return false;
+                }
+            } catch (RuntimeException error) {
+                // A transient provider/database error must not erase a potentially valid draft.
+                HyperLog.e(Constants.TAG, "Unable to validate form draft feature "
+                        + draft.featureId, error);
+            }
+        }
+        return true;
     }
 
 

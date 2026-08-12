@@ -39,6 +39,8 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.MenuItemCompat;
 import androidx.appcompat.widget.Toolbar;
@@ -144,6 +146,49 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     protected List<EditEventListener> mListeners;
     protected WalkEditReceiver mReceiver;
     protected GpsEventSource mGpsEventSource;
+
+    /**
+     * Walk mode: {@link #replaceGeometryFromHistoryChanges} on every GPS broadcast blocked the UI thread.
+     * Coalesce updates; flush on {@link #stopGeometryByWalk()}.
+     */
+    private final Handler mWalkMapSyncHandler = new Handler(Looper.getMainLooper());
+    private static final long WALK_MAP_SYNC_DELAY_MS = 400L;
+    /** MapLibre walk preview: coalesce GPS lead line updates. */
+    private static final long WALK_LEAD_SYNC_DELAY_MS = 48L;
+    private final Runnable mWalkMapSyncRunnable = new Runnable() {
+        @Override
+        public void run() {
+            syncWalkGeometryToMaplibreUi(true);
+        }
+    };
+    private final Runnable mWalkLeadSyncRunnable = new Runnable() {
+        @Override
+        public void run() {
+            syncWalkGeometryToMaplibreUi(true);
+        }
+    };
+    /**
+     * After {@link #stopGeometryByWalk()} the service may broadcast the final ring asynchronously; keep the
+     * receiver a bit longer, then merge the same GPS lead used for MapLibre preview into {@link #mFeature}.
+     */
+    private static final long WALK_STOP_CLEANUP_DELAY_MS = 250L;
+    /** While true, {@link #commitWalkGpsLeadToFeature()} may run (walk stop + delayed cleanup only). */
+    private boolean mWalkStopTailCommitActive = false;
+    private final Runnable mWalkStopCleanupRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                commitWalkGpsLeadToFeature();
+                syncWalkGeometryToMaplibreUi(false);
+            } finally {
+                mWalkStopTailCommitActive = false;
+                if (mReceiver != null) {
+                    mContext.get().unregisterReceiver(mReceiver);
+                    mReceiver = null;
+                }
+            }
+        }
+    };
 
     public EditLayerOverlay(
             final Context context,
@@ -399,17 +444,22 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                         moreThanMin = size > minPoints;
                         break;
                     case GeoConstants.GTPolygon:
+                        moreThanMin = size > minPoints;
+                        break;
                     case GeoConstants.GTMultiPolygon:
                         moreThanMin = size > minPoints;
+                        if (moreThanMin && mMap != null) {
+                            moreThanMin = mMap.canDeleteCurrentPointSafe();
+                        }
                         break;
                 }
 
                 ControlHelper.setEnabled(item, moreThanMin);
             }
 
-//            item = mBottomToolbar.getMenu().findItem(R.id.menu_edit_by_walk);
-//            if (item != null)
-//                ControlHelper.setEnabled(item, !hasEdits);
+            item = mBottomToolbar.getMenu().findItem(R.id.menu_edit_by_walk);
+            if (item != null)
+                ControlHelper.setEnabled(item, !hasEdits);
         }
     }
 
@@ -465,7 +515,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                         break;
                 }
 
-                hideNavigationButton();
+                // Navigation close is set by MapFragment (cancelEdits); do not hide it here.
 
                 for (EditEventListener listener : mListeners)
                     listener.onStartEditSession();
@@ -473,7 +523,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 mLayer.hideFeature(mFeature.getId());
                 break;
             case MODE_EDIT_BY_WALK:
-                hideNavigationButton();
+                // Navigation close is set by MapFragment (cancelEdits).
 
                 for (EditEventListener listener : mListeners)
                     listener.onStartEditSession();
@@ -498,7 +548,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 startGeometryByWalk();
                 break;
             case MODE_EDIT_BY_TOUCH:
-                hideNavigationButton();
+                // Navigation close is set by MapFragment (cancelEdits).
                 mBottomToolbar.setTitle(R.string.title_edit_by_touch);
                 mBottomToolbar.getMenu().clear();
                 MenuItem apply = mBottomToolbar.getMenu().add(0, 0, 0, R.string.ok);
@@ -532,11 +582,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
         float[] coordinates = new float[]{mOverlayPoint.getScreenX(), mOverlayPoint.getScreenY()};
         mSelectedItem = new DrawItem(DrawItem.TYPE_VERTEX, coordinates);
-
-
-
-       mDrawItems.add(mSelectedItem);
-
+        mDrawItems.add(mSelectedItem);
         update(true);
     }
 
@@ -565,9 +611,9 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         } else if (id == R.id.menu_edit_delete_point) {
             result = deletePoint();
         }
-//        else if (id == R.id.menu_edit_by_walk) {
-//            result = true;
-//        }
+        else if (id == R.id.menu_edit_by_walk) {
+            result = true;
+        }
         else if (id == R.id.menu_edit_by_touch) {
             result = true;
         }
@@ -642,7 +688,10 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
 
     protected boolean movePointToLocation() {
-        Activity parent = (Activity) mContext.get();
+        Activity parent = mContext != null ? (Activity) mContext.get() : null;
+        if (parent == null)
+            return false;
+
         Location location = mGpsEventSource.getLastKnownLocation();
 
         if (null != location) {
@@ -757,6 +806,8 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(WalkEditService.WALKEDIT_CHANGE);
         mReceiver = new WalkEditReceiver();
+        mWalkMapSyncHandler.removeCallbacks(mWalkStopCleanupRunnable);
+        mWalkStopTailCommitActive = false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             mContext.get().registerReceiver(mReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -795,23 +846,190 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         Intent trackerService = new Intent(mContext.get(), WalkEditService.class);
         trackerService.setAction(WalkEditService.ACTION_START);
         trackerService.putExtra(ConstantsUI.KEY_LAYER_ID, mLayer.getId());
+        trackerService.putExtra(ConstantsUI.KEY_FEATURE_ID, mFeature != null ? mFeature.getId() : Constants.NOT_FOUND);
+        trackerService.putExtra(WalkEditService.KEY_RING_INDEX,
+                mSelectedItem != null ? mSelectedItem.getSelectedRingId() : 0);
         trackerService.putExtra(ConstantsUI.KEY_GEOMETRY, geometry);
-        trackerService.putExtra(ConstantsUI.TARGET_CLASS, mContext.getClass().getName());
+        Context ctx = mContext.get();
+        String targetActivity = "";
+        if (ctx instanceof Activity)
+            targetActivity = ctx.getClass().getName();
+        trackerService.putExtra(ConstantsUI.TARGET_CLASS, targetActivity);
         ContextCompat.startForegroundService(mContext.get(), trackerService);
     }
 
 
     public void stopGeometryByWalk() {
-        // stop service
-        Intent trackerService = new Intent(mContext.get(), WalkEditService.class);
-        trackerService.setAction(WalkEditService.ACTION_STOP);
-        mContext.get().stopService(trackerService);
+        mWalkMapSyncHandler.removeCallbacks(mWalkMapSyncRunnable);
+        mWalkMapSyncHandler.removeCallbacks(mWalkLeadSyncRunnable);
+        mWalkMapSyncHandler.removeCallbacks(mWalkStopCleanupRunnable);
+        syncWalkGeometryToMaplibreUi(true);
 
-        // unregister events
-        if(null != mReceiver) {
-            mContext.get().unregisterReceiver(mReceiver);
-            mReceiver = null;
+        mWalkStopTailCommitActive = true;
+        // Explicit stop: clear durable draft so watchdog does not offer Continue after Save/Cancel.
+        WalkEditService.stopAndClearDraft(mContext.get());
+
+        /*
+         * MapFragment.saveEdits() calls updateHistoryByWalkEnd() immediately after this method; that reads
+         * geometry from MapLibre. Commit the GPS tail into mFeature and push it to GL before return.
+         * Delayed cleanup: merge again if a late WALKEDIT_CHANGE arrives, then unregister the receiver.
+         */
+        commitWalkGpsLeadToFeature();
+        syncWalkGeometryToMaplibreUi(false);
+
+        mWalkMapSyncHandler.postDelayed(mWalkStopCleanupRunnable, WALK_STOP_CLEANUP_DELAY_MS);
+    }
+
+    /**
+     * Persist the walk preview tail: same rule as {@link #buildWalkGeometryWithGpsLeadForMap}, using
+     * {@link GpsEventSource#getLastKnownLocation()} so the saved line matches what MapLibre showed.
+     */
+    private void commitWalkGpsLeadToFeature() {
+        if (!mWalkStopTailCommitActive) {
+            return;
         }
+        if (mFeature == null || mLayer == null || mSelectedItem == null) {
+            return;
+        }
+        GeoGeometry base = mFeature.getGeometry();
+        if (base == null) {
+            return;
+        }
+        try {
+            GeoGeometry withLead = buildWalkGeometryWithGpsLeadForMap(base);
+            if (withLead == null) {
+                return;
+            }
+            mFeature.setGeometry(withLead);
+            fillDrawItems(withLead);
+        } catch (Exception ex) {
+            Log.w(Constants.TAG, "commitWalkGpsLeadToFeature", ex);
+        }
+    }
+
+    private void syncWalkGeometryToMaplibreUi() {
+        syncWalkGeometryToMaplibreUi(true);
+    }
+
+    /**
+     * @param walkGpsLead when {@code true} and {@link #mMode} is {@link #MODE_EDIT_BY_WALK}, append current GPS
+     *                    to the displayed geometry only (not {@link #mFeature}).
+     */
+    private void syncWalkGeometryToMaplibreUi(boolean walkGpsLead) {
+        try {
+            if (mMap != null && mMap.editingObject != null && mFeature != null
+                    && mFeature.getGeometry() != null) {
+                GeoGeometry forMap = mFeature.getGeometry();
+                if (walkGpsLead && mMode == MODE_EDIT_BY_WALK) {
+                    forMap = buildWalkGeometryWithGpsLeadForMap(forMap);
+                }
+                if (forMap != null && isGeometrySafeForMaplibreReplace(forMap)) {
+                    mMap.replaceGeometryFromHistoryChanges(forMap);
+                }
+            }
+        } catch (Exception ex) {
+            Log.e(Constants.TAG, "syncWalkGeometryToMaplibreUi", ex);
+        }
+        mMapViewOverlays.postInvalidate();
+    }
+
+    private static final float WALK_LEAD_MIN_DIST_M = 0.55f;
+
+    /**
+     * MapLibre uses GL, not Canvas overlays — extend the edited line/ring on the map with the current GPS
+     * fix for preview only; {@link Feature} geometry from the service stays unchanged.
+     */
+    private GeoGeometry buildWalkGeometryWithGpsLeadForMap(GeoGeometry base) {
+        if (base == null || mLayer == null || mSelectedItem == null) {
+            return base;
+        }
+        Location loc = mGpsEventSource.getLastKnownLocation();
+        if (loc == null) {
+            return base;
+        }
+        GeoPoint gpsMerc = new GeoPoint(loc.getLongitude(), loc.getLatitude());
+        gpsMerc.setCRS(GeoConstants.CRS_WGS84);
+        gpsMerc.project(GeoConstants.CRS_WEB_MERCATOR);
+
+        int selectedGeometry = mDrawItems.indexOf(mSelectedItem);
+        if (selectedGeometry < 0) {
+            selectedGeometry = 0;
+        }
+        int selectedRing = mSelectedItem.getSelectedRingId();
+        try {
+            switch (mLayer.getGeometryType()) {
+                case GeoConstants.GTLineString:
+                    return appendWalkGpsLeadToLineString((GeoLineString) base, gpsMerc);
+                case GeoConstants.GTMultiLineString:
+                    GeoMultiLineString ml = (GeoMultiLineString) base;
+                    if (selectedGeometry < 0 || selectedGeometry >= ml.size()) {
+                        return base;
+                    }
+                    GeoMultiLineString mlOut = new GeoMultiLineString(ml);
+                    mlOut.set(selectedGeometry,
+                            appendWalkGpsLeadToLineString(ml.get(selectedGeometry), gpsMerc));
+                    return mlOut;
+                case GeoConstants.GTPolygon:
+                    return appendWalkGpsLeadToPolygon((GeoPolygon) base, selectedRing, gpsMerc);
+                case GeoConstants.GTMultiPolygon:
+                    GeoMultiPolygon mp = (GeoMultiPolygon) base;
+                    if (selectedGeometry < 0 || selectedGeometry >= mp.size()) {
+                        return base;
+                    }
+                    GeoMultiPolygon mpOut = new GeoMultiPolygon(mp);
+                    mpOut.set(selectedGeometry,
+                            appendWalkGpsLeadToPolygon(mp.get(selectedGeometry), selectedRing, gpsMerc));
+                    return mpOut;
+                default:
+                    return base;
+            }
+        } catch (Exception ex) {
+            Log.w(Constants.TAG, "buildWalkGeometryWithGpsLeadForMap", ex);
+            return base;
+        }
+    }
+
+    private static GeoLineString appendWalkGpsLeadToLineString(GeoLineString src, GeoPoint gpsMerc) {
+        GeoLineString out = new GeoLineString(src);
+        if (out.getPointCount() < 1 || walkLeadTooCloseToLast(out.getPoint(out.getPointCount() - 1), gpsMerc)) {
+            return out;
+        }
+        out.add(gpsMerc);
+        return out;
+    }
+
+    private static GeoLinearRing appendWalkGpsLeadToLinearRing(GeoLinearRing src, GeoPoint gpsMerc) {
+        GeoLinearRing out = new GeoLinearRing(src);
+        if (out.getPointCount() < 1 || walkLeadTooCloseToLast(out.getPoint(out.getPointCount() - 1), gpsMerc)) {
+            return out;
+        }
+        out.add(gpsMerc);
+        return out;
+    }
+
+    private static GeoPolygon appendWalkGpsLeadToPolygon(GeoPolygon src, int selectedRing, GeoPoint gpsMerc) {
+        GeoPolygon out = new GeoPolygon(src);
+        if (selectedRing == 0) {
+            out.setOuterRing(appendWalkGpsLeadToLinearRing(out.getOuterRing(), gpsMerc));
+        } else {
+            out.setInnerRing(selectedRing - 1,
+                    appendWalkGpsLeadToLinearRing(out.getInnerRing(selectedRing - 1), gpsMerc));
+        }
+        return out;
+    }
+
+    private static boolean walkLeadTooCloseToLast(GeoPoint lastMerc, GeoPoint gpsMerc) {
+        GeoPoint lastWgs = (GeoPoint) lastMerc.copy();
+        lastWgs.project(GeoConstants.CRS_WGS84);
+        Location a = new Location("");
+        a.setLatitude(lastWgs.getY());
+        a.setLongitude(lastWgs.getX());
+        GeoPoint gpsWgs = (GeoPoint) gpsMerc.copy();
+        gpsWgs.project(GeoConstants.CRS_WGS84);
+        Location b = new Location("");
+        b.setLatitude(gpsWgs.getY());
+        b.setLongitude(gpsWgs.getX());
+        return a.distanceTo(b) < WALK_LEAD_MIN_DIST_M;
     }
 
 
@@ -929,6 +1147,13 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
         if (mMode == MODE_CHANGE || mFeature == null)
             return;
+
+        // Walk geometry is shown via MapLibre; rebuilding DrawItems every frame here is O(n) * fps
+        // and freezes the app on long tracks (fillDrawItems clears and rebuilds all vertices each call).
+        if (mMode == MODE_EDIT_BY_WALK) {
+            drawCross(canvas);
+            return;
+        }
 
         fillDrawItems(mFeature.getGeometry());
 
@@ -1054,6 +1279,9 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             default:
                 break;
         }
+
+        if (mDrawItems == null || mDrawItems.isEmpty())
+            return;
 
         if (mDrawItems.size() == lastItemsCount && lastSelectedItem != null &&
                 lastSelectedItemPosition != Constants.NOT_FOUND) {
@@ -1261,10 +1489,10 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         GeoPoint point = new GeoPoint(exactEnv.getMaxX(), exactEnv.getMinY());
         point.setCRS(GeoConstants.CRS_WEB_MERCATOR);
 
-        for (int i = 0; i < items.size(); i++) {    // FIXME hack for bad RTree cache
+        for (int i = 0; i < items.size(); i++) {    // refine RTree envelope candidates by geometry
             long featureId = items.get(i);
             GeoGeometry geometry = mLayer.getGeometryForId(featureId);
-            if (notContains(geometry, point))
+            if (notContains(geometry, point, mapEnv))
                 continue;
 
             if (geometry != null && previousFeatureId != featureId) {
@@ -1291,26 +1519,42 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     }
 
 
+    /**
+     * Refine RTree envelope hits. Returns {@code true} when the feature should be skipped.
+     * Polygons use point-in-polygon; lines/points require intersection with the tap
+     * tolerance envelope (otherwise lines are accepted for any bbox hit).
+     */
     static public boolean notContains(GeoGeometry geometry, GeoPoint point) {
+        return notContains(geometry, point, null);
+    }
+
+    static public boolean notContains(GeoGeometry geometry, GeoPoint point, GeoEnvelope tapEnv) {
+        if (geometry == null) {
+            return true;
+        }
+
         if (geometry instanceof GeoPolygon) {
-            GeoPolygon polygon = (GeoPolygon) geometry;
-            if (!polygon.contains(point))
-                return true;
+            return !((GeoPolygon) geometry).contains(point);
         }
 
         if (geometry instanceof GeoMultiPolygon) {
             GeoMultiPolygon multiPolygon = (GeoMultiPolygon) geometry;
-            boolean contains = false;
             for (int j = 0; j < multiPolygon.size(); j++) {
                 GeoPolygon geom = (GeoPolygon) multiPolygon.getGeometry(j);
                 if (geom.contains(point)) {
-                    contains = true;
-                    break;
+                    return false;
                 }
             }
-
-            return !contains;
+            return true;
         }
+
+        if (tapEnv != null && (geometry instanceof GeoLineString
+                || geometry instanceof GeoMultiLineString
+                || geometry instanceof GeoPoint
+                || geometry instanceof GeoMultiPoint)) {
+            return !geometry.intersects(tapEnv);
+        }
+
         return false;
     }
 
@@ -1442,6 +1686,8 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             return;
         GeoGeometry geometry = to == null ? mFeature.getGeometry() : to;
         boolean mode = mMode != MODE_EDIT && mMode != MODE_CHANGE;
+        if (mLayer == null)
+            return;
         int type = mLayer.getGeometryType();
         boolean valid = type == GeoConstants.GTPoint || type == GeoConstants.GTMultiPoint;
         if (geometry == null || location == null || mode || !valid)
@@ -1461,7 +1707,8 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         point.setLongitude(geoPoint.getX());
         float distance = location.distanceTo(point);
         String formatted = LocationUtil.formatLength(mContext.get(), distance, 2);
-        mBottomToolbar.setTitle(formatted);
+        if (mBottomToolbar != null)
+            mBottomToolbar.setTitle(formatted);
     }
 
     public void onResume() {
@@ -1475,11 +1722,20 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     @Override
     public void onLocationChanged(Location location) {
         updateDistance(location, null);
+        invalidateWalkLeadIfNeeded();
     }
 
     @Override
     public void onBestLocationChanged(Location location) {
+        invalidateWalkLeadIfNeeded();
+    }
 
+    private void invalidateWalkLeadIfNeeded() {
+        if (mMode != MODE_EDIT_BY_WALK || mMapViewOverlays == null) {
+            return;
+        }
+        mWalkMapSyncHandler.removeCallbacks(mWalkLeadSyncRunnable);
+        mWalkMapSyncHandler.postDelayed(mWalkLeadSyncRunnable, WALK_LEAD_SYNC_DELAY_MS);
     }
 
     @Override
@@ -1487,21 +1743,59 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
     }
 
+    /**
+     * MapLibre LineString / polygon sources expect a minimum number of positions; skip replace until safe.
+     */
+    private static boolean isGeometrySafeForMaplibreReplace(GeoGeometry g) {
+        if (g == null)
+            return false;
+        switch (g.getType()) {
+            case GeoConstants.GTLineString:
+                return ((GeoLineString) g).getPointCount() >= 2;
+            case GeoConstants.GTLinearRing:
+                return ((GeoLinearRing) g).getPointCount() >= 3;
+            case GeoConstants.GTPolygon:
+                GeoLinearRing outer = ((GeoPolygon) g).getOuterRing();
+                return outer != null && outer.getPointCount() >= 3;
+            case GeoConstants.GTMultiLineString:
+                GeoMultiLineString ml = (GeoMultiLineString) g;
+                return ml.size() > 0 && ml.get(0).getPointCount() >= 2;
+            case GeoConstants.GTMultiPolygon:
+                GeoMultiPolygon mp = (GeoMultiPolygon) g;
+                if (mp.size() == 0)
+                    return false;
+                GeoLinearRing or = mp.get(0).getOuterRing();
+                return or != null && or.getPointCount() >= 3;
+            default:
+                return true;
+        }
+    }
+
     public class WalkEditReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            GeoGeometry geometry = (GeoGeometry) intent.getSerializableExtra(ConstantsUI.KEY_GEOMETRY);
+            GeoGeometry geometry = WalkEditService.readWalkGeometryExtra(intent);
+            if (geometry == null)
+                return;
             try {
                 setGeometryFromWalkEdit(geometry);
-            } catch (Exception ex){
-                Log.e("tag", ex.getMessage());
+                if (mWalkStopTailCommitActive) {
+                    commitWalkGpsLeadToFeature();
+                    syncWalkGeometryToMaplibreUi(false);
+                }
+            } catch (Exception ex) {
+                Log.e(Constants.TAG, "WalkEditReceiver", ex);
             }
-            setGeometryFromWalkEdit(geometry);
+            mWalkMapSyncHandler.removeCallbacks(mWalkMapSyncRunnable);
+            mWalkMapSyncHandler.postDelayed(mWalkMapSyncRunnable, WALK_MAP_SYNC_DELAY_MS);
             mMapViewOverlays.postInvalidate();
         }
     }
 
     public void setGeometryFromWalkEdit(GeoGeometry geometry) {
+        if (mDrawItems == null || mSelectedItem == null)
+            return;
+
         int selectedGeometry = mDrawItems.indexOf(mSelectedItem);
         int selectedRing = mSelectedItem.getSelectedRingId();
 
@@ -1527,7 +1821,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             case GeoConstants.GTMultiPolygon:
                 GeoMultiPolygon multiPolygon = (GeoMultiPolygon) mFeature.getGeometry();
                 GeoPolygon selectedPolygon = multiPolygon.get(selectedGeometry);
-                selectedPolygon.setOuterRing((GeoLinearRing) geometry);
 
                 if (selectedRing == 0)
                     selectedPolygon.setOuterRing((GeoLinearRing) geometry);

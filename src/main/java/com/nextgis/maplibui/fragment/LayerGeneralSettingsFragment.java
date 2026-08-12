@@ -36,6 +36,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.appyvet.materialrangebar.RangeBar;
@@ -52,6 +53,8 @@ import com.nextgis.maplibui.util.ControlHelper;
 public class LayerGeneralSettingsFragment extends Fragment {
     protected EditText mEditText;
     protected RangeBar mRangeBar;
+    protected SeekBar mLayerOpacitySeek;
+    protected TextView mLayerOpacityLabel;
     protected ILayer mLayer;
     protected LayerSettingsActivity mActivity;
 
@@ -77,10 +80,24 @@ public class LayerGeneralSettingsFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        /* onCreateView returns early when mLayer == null — never assigns mEditText / mRangeBar. */
+        if (mActivity != null) {
+            if (mEditText != null) {
+                mActivity.mLayerName = mEditText.getEditableText().toString();
+            }
+            if (mRangeBar != null) {
+                mActivity.mLayerMinZoom = mRangeBar.getLeftIndex();
+                mActivity.mLayerMaxZoom = mRangeBar.getRightIndex();
+            }
+            if (mLayerOpacitySeek != null) {
+                mActivity.mLayerOpacity = mLayerOpacitySeek.getProgress();
+            }
+        }
         super.onDestroyView();
-        mActivity.mLayerName = mEditText.getEditableText().toString();
-        mActivity.mLayerMinZoom = mRangeBar.getLeftIndex();
-        mActivity.mLayerMaxZoom = mRangeBar.getRightIndex();
+        mEditText = null;
+        mRangeBar = null;
+        mLayerOpacitySeek = null;
+        mLayerOpacityLabel = null;
     }
 
     @Override
@@ -167,6 +184,30 @@ public class LayerGeneralSettingsFragment extends Fragment {
         });
         mRangeBar.setRangePinsByIndices(nMinZoom, nMaxZoom);
 
+        mLayerOpacityLabel = v.findViewById(R.id.layer_opacity_label);
+        mLayerOpacitySeek = v.findViewById(R.id.layer_opacity_seek);
+        if (mLayerOpacitySeek != null) {
+            mLayerOpacitySeek.setProgress(mActivity.mLayerOpacity);
+            updateLayerOpacityLabel(mActivity.mLayerOpacity);
+            mLayerOpacitySeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    if (fromUser) {
+                        mActivity.mLayerOpacity = progress;
+                        updateLayerOpacityLabel(progress);
+                    }
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                }
+            });
+        }
+
         if (mLayer instanceof VectorLayer && getActivity() != null) {
             final VectorLayer vectorLayer = (VectorLayer) mLayer;
             Button deleteFeatures = v.findViewById(R.id.delete_features);
@@ -191,6 +232,15 @@ public class LayerGeneralSettingsFragment extends Fragment {
 
         return v;
     }
+
+    private void updateLayerOpacityLabel(int alpha) {
+        if (mLayerOpacityLabel == null || getContext() == null) {
+            return;
+        }
+        mLayerOpacityLabel.setText(ControlHelper.getPercentValue(
+                getContext(), R.string.layer_opacity, alpha * 1.0f));
+    }
+
     public class DeleteFeaturesTask extends AsyncTask<VectorLayer, Integer, Void> implements IProgressor {
         private ProgressDialog mProgressDialog;
 

@@ -22,6 +22,9 @@
   -->
 
 <resources>
+    <!-- Overridden by app module flavors (resValue app_name in app/build.gradle). -->
+    <string name="app_name" translatable="false">NextGIS Mobile</string>
+    <string name="layer_fill_fgs_minimal" translatable="false">…</string>
     <string name="layers_drawer_open">Open layers list</string>
     <string name="layers_drawer_close">Close layers list</string>
     <string name="ok">OK</string>
@@ -53,6 +56,7 @@
 
     <string name="ngw_layer_add">Add from Web GIS</string>
     <string name="ngw_account_already_exists">Account already exist</string>
+    <string name="ngw_account_add_failed">Web GIS credentials are valid, but Android could not add the account. Please try again.</string>
     <string name="ngw_accounts">Web GIS</string>
 
     <string name="ngw_account_add_item">Add Web GIS</string>
@@ -76,6 +80,14 @@
     <string name="raster_layer">Raster layer</string>
     <string name="vector_layer">Vector layer</string>
     <string name="pg_layer">PostGIS layer</string>
+    <string name="ngw_collector_project">Collector project</string>
+    <string name="ngw_collector_import">Import project</string>
+    <string name="ngw_collector_no_vector_layers">No vector layers to import from this Collector project. For details open HyperLog or logcat (tag nextgismobile).</string>
+    <string name="ngw_collector_no_supported_layers">This Collector project has no supported vector or style layers to import. For details open HyperLog or logcat (tag nextgismobile).</string>
+    <string name="ngw_collector_incomplete_snapshot">The Collector project description was not loaded completely. Import was cancelled to prevent a partial project. Check the connection and try again.</string>
+    <string name="collector_import_repair_queued">Retrying %d incomplete collector layer(s)…</string>
+    <string name="collector_import_repair_gave_up">Some collector layers are still incomplete after 3 download attempts. See HyperLog for names.</string>
+    <string name="layer_not_editable_in_collector">This layer is read-only in the collector project</string>
     <string name="credentials_opt">Credentials (optional)</string>
     <string name="layer_type_optional">Tile layer type (optional)</string>
     <string name="sync">Synchronization</string>
@@ -107,6 +119,7 @@
     <string name="set_attributes">Set attributes</string>
     <string name="latitude_caption_short">Lat</string>
     <string name="longitude_caption_short">Long</string>
+    <string name="photo_overlay_processing">Processing photos…</string>
     <string name="altitude_caption_short">Alt</string>
     <string name="accuracy_caption_short">Acc</string>
     <string name="accurate_location">Accurate location</string>
@@ -190,6 +203,8 @@
     <string name="attributes_next">Next</string>
     <string name="attributes_prev">Previous</string>
     <string name="not_enough_points">Not enough points</string>
+    <string name="multipolygon_repaired">Multi-polygon geometry corrected. Polygon parts: %1$d</string>
+    <string name="multipolygon_repair_failed">Could not correct the multi-polygon geometry. Return to geometry editing.</string>
     <string name="error_change_feature">Change feature failed</string>
     <string name="move_point_to_center">Point to display center</string>
     <string name="mainSettings">Main settings</string>
@@ -202,7 +217,8 @@
     <string name="type">Type</string>
     <string name="type_solid">Solid</string>
     <string name="type_dash">Dash</string>
-    <string name="type_edge">Edge solid</string>
+    <string name="type_edge">Solid with outline</string>
+    <string name="type_dash_edge">Dash with outline</string>
     <string name="type_point">Point</string>
     <string name="type_circle">Circle</string>
     <string name="type_diamond">Diamond</string>
@@ -243,6 +259,16 @@
     <string name="tracks_running">Track is recording now</string>
     <string name="tracks_title">Track %s</string>
     <string name="walkedit_title">Walk edit %s</string>
+    <string name="walkedit_interrupted_title">Walk recording interrupted</string>
+    <string name="walkedit_interrupted_message">Recording by walk was interrupted. Continue from the saved draft or discard it?</string>
+    <string name="walkedit_continue">Continue</string>
+    <string name="geometry_edit_interrupted_title">Geometry editing interrupted</string>
+    <string name="geometry_edit_interrupted_message">An unfinished geometry draft was found. Continue editing or discard it?</string>
+    <string name="geometry_edit_continue">Continue</string>
+    <string name="geometry_edit_restore_error">Could not reopen the geometry draft. It was kept for the next launch.</string>
+    <string name="form_draft_title">Unsaved form draft</string>
+    <string name="form_draft_message">An unfinished attribute form was found. Continue editing or discard the draft?</string>
+    <string name="form_draft_continue">Continue</string>
     <string name="tracks_stop">Stop</string>
     <string name="tracks_open">Open</string>
     <string name="download_tiles_finished">Tiles download finished</string>
@@ -252,6 +278,60 @@
     <string name="min" translatable="false">min: %1$d</string>
     <string name="max" translatable="false">max: %1$d</string>
     <string name="alpha">Opacity</string>
+    <string name="fill_opacity">Fill opacity</string>
+    <string name="stroke_opacity">Stroke opacity</string>
+    <string name="line_cap">Line cap</string>
+    <string name="line_cap_round">Round</string>
+    <string name="line_dash_preset">Dash pattern</string>
+    <string name="line_dash_short">Short dash</string>
+    <string name="line_dash_long">Long dash</string>
+    <string name="line_dash_dot_dash">Dot-dash</string>
+    <string name="line_dash_dots">Dots</string>
+    <string name="geometry_scale_with_zoom">Scale symbol size with zoom</string>
+    <string name="geometry_scale_with_zoom_hint">Off: marker/line keeps the same screen size while zooming. On: grows when zooming in, shrinks when zooming out.</string>
+    <string name="zoom_scale_stops">Custom zoom scale stops</string>
+    <string name="zoom_scale_stops_hint">Optional: 6:0.35,10:0.65,14:1,18:1.5</string>
+    <string name="marker_icon_image">Marker icon</string>
+    <string name="marker_icon_image_hint">Registered MapLibre image id</string>
+    <string name="marker_icon_none">No PNG icon</string>
+    <string name="marker_icon_size">PNG icon size</string>
+    <string name="marker_icon_size_hint">0 = marker size</string>
+    <string name="marker_icon_rotate">Icon rotation</string>
+    <string name="marker_icon_offset">Icon offset X/Y</string>
+    <string name="marker_icon_anchor">Icon anchor</string>
+    <string name="marker_icon_allow_overlap">Allow icon overlap</string>
+    <string name="marker_icon_ignore_placement">Ignore icon placement</string>
+    <string name="polygon_fill_pattern">Fill pattern</string>
+    <string name="polygon_fill_pattern_image">Fill pattern image name</string>
+    <string name="polygon_fill_translate">Fill translate X/Y</string>
+    <string name="polygon_fill_none">Solid fill</string>
+    <string name="polygon_fill_hatch">Diagonal hatch</string>
+    <string name="polygon_fill_cross">Cross hatch</string>
+    <string name="polygon_fill_dots">Dots</string>
+    <string name="polygon_fill_brick">Brick</string>
+    <string name="polygon_fill_forest">Forest</string>
+    <string name="polygon_fill_marsh">Marsh</string>
+    <string name="blur_off">Off</string>
+    <string name="circle_blur">Point blur</string>
+    <string name="line_blur">Line blur</string>
+    <string name="line_blur_help">Soft glow along the line body. Most visible on solid lines (types 1–2), bright colors, preset 2–3. Not selection highlight.</string>
+    <string name="line_cap_butt">Butt</string>
+    <string name="line_cap_square">Square</string>
+    <string name="line_join">Line join</string>
+    <string name="line_join_round">Round</string>
+    <string name="line_join_miter">Miter</string>
+    <string name="line_join_bevel">Bevel</string>
+    <string name="line_miter_limit">Miter limit</string>
+    <string name="line_miter_limit_hint">2</string>
+    <string name="line_dash_array">Custom dash array</string>
+    <string name="line_dash_array_hint">Optional: 8,4,1,4</string>
+    <string name="line_offset">Line offset</string>
+    <string name="line_gap_width">Line gap width</string>
+    <string name="line_outline_multiplier">Outline width multiplier</string>
+    <string name="layer_opacity">Layer opacity</string>
+    <string name="text_opacity">Label opacity</string>
+    <string name="rule_key_ignore_case">Ignore case in rule values</string>
+    <string name="rule_other_style">Style for others (default)</string>
     <string name="layerInfo">Layer info</string>
     <string name="geom_type">Geometry type</string>
     <string name="feature_count">Features: %1$d (%2$s)</string>
@@ -320,7 +400,7 @@
     <string name="error_export_geojson">Can not create geojson output</string>
     <string name="attributes">Features table</string>
     <string name="error_cache">Bad cache, try rebuild it in layer settings</string>
-    <string name="menu_send_to_ngw">Send to NextGIS</string>
+    <string name="menu_send_to_ngw">Send to WEB GIS</string>
     <string name="commercial">Available in commercial version</string>
     <string name="clear_layer">Delete all features</string>
     <string name="are_you_sure">Are you sure?</string>
@@ -342,9 +422,17 @@
     <string name="coming_soon">Coming soon</string>
     <string name="get_pro">This feature is available only under subscription. Please sign in or sign up here (<a href="https://nextgis.com/pricing-base">https://nextgis.com/pricing-base</a>)</string>
     <string name="pro_user_only">Pro feature</string>
+    <string name="very_small">Very small</string>
     <string name="small">Small</string>
     <string name="medium">Medium</string>
     <string name="big">Big</string>
+    <string name="extra_large">Extra large</string>
+    <string name="label_text_size">Label size</string>
+    <string name="line_label_repeat">Repeat along line</string>
+    <string name="line_label_repeat_hint">Off: one label per object at the center of the line.</string>
+    <string name="line_label_rotation">Label orientation</string>
+    <string name="line_label_rotation_along">Along line</string>
+    <string name="line_label_rotation_horizontal">Horizontal</string>
     <string name="top">Top</string>
     <string name="right_top">Top-right</string>
     <string name="right">Right</string>
@@ -353,9 +441,33 @@
     <string name="left_bottom">Bottom-left</string>
     <string name="left">Left</string>
     <string name="left_top">Top-left</string>
+    <string name="center">Center</string>
     <string name="alignment">Alignment</string>
     <string name="enter_signature">Enter constant value</string>
     <string name="text_color">Text color</string>
+    <string name="text_halo_color">Label halo color</string>
+    <string name="text_halo_width">Label halo width</string>
+    <string name="text_halo_blur">Label halo blur</string>
+    <string name="text_scale_with_zoom">Scale label size with zoom</string>
+    <string name="text_scale_with_zoom_hint">Off: label keeps the same screen size while zooming. On: label grows when zooming in and shrinks when zooming out.</string>
+    <string name="text_allow_overlap">Allow overlapping labels</string>
+    <string name="text_optional">Label is optional</string>
+    <string name="text_symbol_spacing">Label spacing</string>
+    <string name="text_max_width">Label max width</string>
+    <string name="text_font">Label font</string>
+    <string name="text_justify">Label justify</string>
+    <string name="text_transform">Label transform</string>
+    <string name="text_letter_spacing">Letter spacing</string>
+    <string name="text_line_height">Line height</string>
+    <string name="text_padding">Collision padding</string>
+    <string name="text_keep_upright">Keep text upright</string>
+    <string name="text_max_angle">Max angle along line</string>
+    <string name="label_template">Label template</string>
+    <string name="label_template_hint">${field_name}</string>
+    <string name="label_zoom_range">Label visibility zoom</string>
+    <string name="label_zoom_range_hint">Optional. Leave empty to use the layer zoom range. Example: layer from 12, labels from 14.</string>
+    <string name="label_min_zoom_hint">Min zoom (e.g. 14)</string>
+    <string name="label_max_zoom_hint">Max zoom</string>
     <string name="metric">Metric</string>
     <string name="imperial">Imperial</string>
     <string name="delete_confirm">Confirm object deletion.</string>
@@ -457,5 +569,7 @@
 
     <string name="sync_no_layers">No layers for synchronization</string>
     <string name="edit_invisible">To edit layer make it visible</string>
+
+    <string name="layer_fill_network_retry">Connection problem. Retrying %1$d of %2$d…</string>
 
 </resources>
