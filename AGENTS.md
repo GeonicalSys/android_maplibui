@@ -18,3 +18,12 @@ deferred reload. Обновляй local pack и central docs по DoD.
 composition sync проходит через `CollectorRasterLayerHelper`. Не дублируй эту
 логику обратно в Activity/Dialog: vector и штатные QGIS style items должны
 получать один смешанный project order, а style layer всегда остаётся read-only.
+
+## Git-доставка
+
+Запрос изменить/исправить/добавить содержимое репозитория разрешает агенту
+создать `codex/*` ветку, выполнить проверки, scoped commits, push и открыть
+Draft PR без отдельных подтверждений каждого шага. Read-only запросы этого не
+разрешают. Direct push в `master`, force push, tag/release и merge запрещены без
+явного намерения пользователя завершить выпуск. PR библиотеки сливается через
+Merge Commit; связанный root PR обновляет submodule pointer после merge.
