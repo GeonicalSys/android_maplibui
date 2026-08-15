@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-07-30
+last_verified: 2026-08-15
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -15,13 +15,19 @@ Collector workspaces и защитные backups.
 ## Основные сценарии
 
 - импорт обычных NGW и Collector vector/style resources;
+- безопасное сообщение об ошибке подключения в выборе NGW-ресурсов без попытки
+  открыть окно через application context или уничтоженную Activity;
 - импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline;
+- локальный KML/GPX направляется в отдельную fill-задачу, которая создаёт один
+  редактируемый точечный слой и удаляет его целиком при ошибке разбора/записи;
 - вставка NGRc/raster/vector layers в правильном порядке;
 - deferred reload карты после batch fill, который остаётся pending до фактического
   завершения MapLibre style/source apply;
 - изолированные Collector projects и переключение composition;
 - schema rebuild/removal только после успешного backup;
 - track/edit/form UI и foreground workers/services;
+- фото-вложения по умолчанию получают видимый штамп координат из геометрии объекта;
+  оба preference можно выключить в настройках карты;
 - `TrackerService` и `WalkEditService` записывают GPS через общий фильтр до
   160 км/ч, выгружают последние буферизированные точки при остановке и публикуют
   безопасные счётчики причин отбрасывания; при двух разрешённых источниках свежий
@@ -59,6 +65,8 @@ Collector workspaces и защитные backups.
 - Каждая параллельная fill-задача получает заранее зарезервированный уникальный
   каталог. Ошибка первого SQL insert откатывает и удаляет неполный слой вместо
   продолжения партии по заведомо неверной таблице.
+- KML/GPX fill не восстанавливает исходную геометрию или стиль: он сохраняет
+  только упорядоченные точки и доступные name/time/elevation.
 - Сравнение сохранённых строковых значений формы с typed controls выполняется по
   строковому представлению, чтобы число `42` не считалось ложной правкой к `"42"`.
 - Successful form Save/Discard is terminal before `Activity.finish()`; its trailing
@@ -73,6 +81,9 @@ Collector workspaces и защитные backups.
   а не жёстким сравнением package name, чтобы suffix `.geonical`/`.debug` не менял UI сервисов.
 - Источник трека принадлежит только `tracks_location_source`, источник обхода —
   только обычному `location_source`; настройки не включают providers друг другу.
+- Фоновая загрузка дерева NGW может использовать application context для сети и
+  строковых ресурсов, но диалог ошибки показывается только через живую Activity;
+  после её закрытия результат не должен создавать новое окно.
 
 ## Диагностика
 
@@ -94,7 +105,11 @@ Collector workspaces и защитные backups.
   только ожидаемые Network-фиксы, перекрытые свежим пригодным GPS.
 - Валидный вход закрывается без аккаунта: проверить совпадение account type в
   runtime, authenticator и sync adapter, затем сообщения `NGW account add` в HyperLog.
+- Сервер NGW отвечает `5xx`, а приложение падает с `BadTokenException`: проверить,
+  что `NGWResourceAsyncTask.onPostExecute()` не передаёт application context в
+  `AlertDialog` и пропускает UI после уничтожения Activity.
 
 ## Проверки
 
-Собрать `:maplibui:assembleDebug`, затем выполнить относящиеся device smoke IDs.
+Собрать `:maplibui:assembleDebug`, затем выполнить относящиеся device smoke IDs,
+включая `SMOKE-NGW-CONNECTION-FAILURE` для недоступного сервера.

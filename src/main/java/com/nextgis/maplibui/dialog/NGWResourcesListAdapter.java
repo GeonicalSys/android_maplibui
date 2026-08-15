@@ -760,10 +760,15 @@ public class NGWResourcesListAdapter
         @Override
         protected void onPreExecute()
         {
-            adapterRef.get().mLoading = true;
-            adapterRef.get().notifyDataSetChanged();
-            if (mActivity.get() instanceof SelectNGWResourceActivity)
-                ((SelectNGWResourceActivity) mActivity.get()).disableButton();
+            NGWResourcesListAdapter adapter = adapterRef.get();
+            if (adapter != null) {
+                adapter.mLoading = true;
+                adapter.notifyDataSetChanged();
+            }
+
+            Activity activity = mActivity.get();
+            if (activity instanceof SelectNGWResourceActivity)
+                ((SelectNGWResourceActivity) activity).disableButton();
         }
 
 
@@ -790,22 +795,31 @@ public class NGWResourcesListAdapter
         @Override
         protected void onPostExecute(String error)
         {
-            if (null != error && error.length() > 0 && mContext.get() != null) {
-                new AlertDialog.Builder(mContext.get())
-                        .setMessage(error)
-                        .setPositiveButton(R.string.ok, null)
-                        .create()
-                        .show();
-                //Toast.makeText(mContext, error, Toast.LENGTH_SHORT).show();
-            }
-            if (adapterRef.get() != null) {
-                adapterRef.get().mLoading = false;
-                adapterRef.get().notifyDataSetChanged();
+            NGWResourcesListAdapter adapter = adapterRef.get();
+            if (adapter != null) {
+                adapter.mLoading = false;
+                adapter.notifyDataSetChanged();
             }
 
-            if (mActivity.get() != null && mActivity.get() instanceof  SelectNGWResourceActivity)
-                ((SelectNGWResourceActivity) mActivity.get()).enableButton();
+            Activity activity = mActivity.get();
+            if (isActivityAvailable(activity)) {
+                if (activity instanceof SelectNGWResourceActivity)
+                    ((SelectNGWResourceActivity) activity).enableButton();
 
+                if (error != null && error.length() > 0) {
+                    new AlertDialog.Builder(activity)
+                            .setMessage(error)
+                            .setPositiveButton(R.string.ok, null)
+                            .create()
+                            .show();
+                }
+            }
+        }
+
+
+        static boolean isActivityAvailable(Activity activity)
+        {
+            return activity != null && !activity.isFinishing() && !activity.isDestroyed();
         }
     }
 

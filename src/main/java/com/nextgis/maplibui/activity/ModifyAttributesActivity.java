@@ -1322,9 +1322,12 @@ public class ModifyAttributesActivity
     private PhotoOverlaySettings readPhotoOverlaySettings() {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         PhotoOverlaySettings settings = new PhotoOverlaySettings();
-        settings.enabled = prefs.getBoolean(SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_ENABLED, false);
+        settings.enabled = prefs.getBoolean(
+                SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_ENABLED,
+                SettingsConstantsUI.DEFAULT_PHOTO_OVERLAY_ENABLED);
         settings.useObjectCoords = prefs.getBoolean(
-                SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_USE_OBJECT, false);
+                SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_USE_OBJECT,
+                SettingsConstantsUI.DEFAULT_PHOTO_OVERLAY_USE_OBJECT);
         settings.showTime = prefs.getBoolean(
                 SettingsConstantsUI.KEY_PREF_PHOTO_OVERLAY_SHOW_TIME, false);
         String def = Location.FORMAT_DEGREES + "";

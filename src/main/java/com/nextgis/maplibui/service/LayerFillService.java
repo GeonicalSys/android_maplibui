@@ -62,6 +62,8 @@ import com.nextgis.maplib.map.TMSLayer;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.CoordinatePointLayerImporter;
+import com.nextgis.maplib.util.CoordinatePointParser;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.LayerConfigUtil;
@@ -141,6 +143,8 @@ public class LayerFillService extends Service implements IProgressor {
     public final static int VECTOR_LAYER_WITH_FORM = 2;
     public final static int TMS_LAYER              = 3;
     public final static int NGW_LAYER              = 4;
+    public final static int KML_POINT_LAYER        = 5;
+    public final static int GPX_POINT_LAYER        = 6;
 
     public static final String ACTION_STOP = "com.nextgis.maplibui.FILL_LAYER_STOP";
     public static final String ACTION_ADD_TASK = "com.nextgis.maplibui.ADD_FILL_LAYER_TASK";
@@ -421,6 +425,14 @@ public class LayerFillService extends Service implements IProgressor {
         switch (layerType) {
             case VECTOR_LAYER:
                 enqueueToQueue(new VectorLayerFillTask(work));
+                return true;
+            case KML_POINT_LAYER:
+                enqueueToQueue(new CoordinatePointLayerFillTask(
+                        work, CoordinatePointParser.Format.KML));
+                return true;
+            case GPX_POINT_LAYER:
+                enqueueToQueue(new CoordinatePointLayerFillTask(
+                        work, CoordinatePointParser.Format.GPX));
                 return true;
             case VECTOR_LAYER_WITH_FORM:
                 try {
@@ -1245,6 +1257,40 @@ public class LayerFillService extends Service implements IProgressor {
             }
 
             return true;
+        }
+    }
+
+    private class CoordinatePointLayerFillTask extends LayerFillTask {
+        private final CoordinatePointParser.Format mFormat;
+
+        CoordinatePointLayerFillTask(Bundle bundle, CoordinatePointParser.Format format) {
+            super(bundle);
+            mFormat = format;
+            mLayer = new VectorLayerUI(mLayerGroup.getContext(), mLayerPath);
+            initLayer();
+        }
+
+        @Override
+        public boolean execute(IProgressor progressor) {
+            try {
+                CoordinatePointLayerImporter.importFromUri(
+                        (VectorLayer) mLayer, mUri, mFormat, progressor);
+                return true;
+            } catch (IOException | SQLiteException | NGException | ClassCastException exception) {
+                HyperLog.w(Constants.TAG, "LayerFillService: " + mFormat
+                        + " point import failed " + logContext() + " cause="
+                        + exception.getClass().getSimpleName() + ": "
+                        + ProdLogUtil.truncateForLog(exception.getMessage(), 600));
+                if (progressor != null && progressor.isCanceled()) {
+                    return false;
+                }
+                String userMessage = exception instanceof NGException
+                        ? exception.getLocalizedMessage()
+                        : getString(com.nextgis.maplib.R.string.error_coordinate_file_import);
+                setError(userMessage, progressor);
+                notifyError(userMessage);
+                return false;
+            }
         }
     }
 
