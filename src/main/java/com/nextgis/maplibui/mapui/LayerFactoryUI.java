@@ -52,6 +52,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.nextgis.maplib.util.Constants.CONFIG;
@@ -184,6 +185,13 @@ public class LayerFactoryUI
     {
         String layerName =
                 FileUtil.getFileNameByUri(context, uri, context.getString(R.string.new_layer));
+        String lowerFileName = layerName.toLowerCase(Locale.ROOT);
+        int inputType = LayerFillService.VECTOR_LAYER;
+        if (lowerFileName.endsWith(".kml")) {
+            inputType = LayerFillService.KML_POINT_LAYER;
+        } else if (lowerFileName.endsWith(".gpx")) {
+            inputType = LayerFillService.GPX_POINT_LAYER;
+        }
         final int lastPeriodPos = layerName.lastIndexOf('.');
         if (lastPeriodPos > 0) {
             layerName = layerName.substring(0, lastPeriodPos);
@@ -192,7 +200,7 @@ public class LayerFactoryUI
             NGActivity fragmentActivity = (NGActivity) context;
             CreateLocalLayerDialog newFragment = new CreateLocalLayerDialog();
             newFragment.setLayerGroup(groupLayer)
-                    .setLayerType(LayerFillService.VECTOR_LAYER)
+                    .setLayerType(inputType)
                     .setUri(uri)
                     .setLayerName(layerName)
                     .setTitle(context.getString(R.string.create_vector_layer))

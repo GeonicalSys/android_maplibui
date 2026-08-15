@@ -59,6 +59,8 @@ public interface SettingsConstantsUI
     String KEY_PREF_PHOTO_OVERLAY_ENABLED   = "photo_overlay_enabled";
     String KEY_PREF_PHOTO_OVERLAY_USE_OBJECT = "photo_overlay_use_object_coords";
     String KEY_PREF_PHOTO_OVERLAY_SHOW_TIME  = "photo_overlay_show_time";
+    boolean DEFAULT_PHOTO_OVERLAY_ENABLED = true;
+    boolean DEFAULT_PHOTO_OVERLAY_USE_OBJECT = true;
 
     String KEY_PREF_OFFLINE_SYNC_ON     = "offline_sync_on";
     /** Max size of LayerBackups/ directory in gigabytes (ListPreference string value). */

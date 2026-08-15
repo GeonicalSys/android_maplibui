@@ -121,7 +121,7 @@ public class CreateLocalLayerDialog
         }
 
         View view;
-        if (mLayerType < 3) {
+        if (mLayerType != LayerFillService.TMS_LAYER) {
             view = View.inflate(mContextWeakRef.get(), R.layout.dialog_create_vector_layer, null);
         } else {
             view = View.inflate(mContextWeakRef.get(), R.layout.dialog_create_local_tms, null);
