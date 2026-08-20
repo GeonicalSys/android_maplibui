@@ -30,6 +30,9 @@ Collector workspaces и защитные backups.
   повторов неизменного mismatch fingerprint;
 - toolbar Back в NGW resource tree поднимается к родительскому каталогу и
   закрывает экран только из корня;
+- просмотр вкладок свойств NGW-слоя не меняет направление синхронизации;
+  направление можно вернуть из «только с сервера» в двустороннее по политике
+  владельца слоя, даже если generic mobile `is_editable` у Collector-слоя false;
 - track/edit/form UI и foreground workers/services;
 - фото-вложения по умолчанию получают видимый штамп координат из геометрии объекта;
   оба preference можно выключить в настройках карты;
@@ -104,6 +107,9 @@ Collector workspaces и защитные backups.
 - Неверный порядок: insertion index в model и последующий style reload.
 - «Нет редактируемых слоёв»: проверить Collector item `editable`,
   `managed_by_project` и исходящее направление sync.
+- После просмотра «Синхронизация», «Поля» или «Общие» слой стал read-only:
+  проверить no-op guard начального события `Spinner` и доступность направления
+  через `NGWVectorLayer.isSyncDirectionConfigurable()`.
 - Потеря слоя после composition: backup result и removal scheduling.
 - Неверный проект после restart: registry JSON, active project и map path.
 - Пустая/чужая история треков после switch: проверить active project preference, создание нового

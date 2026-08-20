@@ -48,6 +48,8 @@ key_components:
     responsibility: Persist the latest non-walk geometry with map/layer/feature identity until explicit completion or Discard.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/ModifyAttributesActivity.java
     responsibility: Attribute form and photo attachment processing, including shared enabled-by-default coordinate-overlay preferences.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/activity/VectorLayerSettingsActivity.java
+    responsibility: Preserve NGW synchronization direction on no-op layer-settings visits and allow Collector-owned editable layers to recover from server-only mode without reimport.
   - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
     responsibility: Rule-based style editor UI; other/default style naming and cloning new categories from other.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/SyncAccountWorker.java
@@ -85,5 +87,5 @@ global_docs:
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GPS-RECORDING]
+smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GPS-RECORDING]
 upstream_hotspots: [LAYER-FILL, MAP-HOST, COLLECTOR-RESOURCE]
