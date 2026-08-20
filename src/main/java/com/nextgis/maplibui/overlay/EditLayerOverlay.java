@@ -600,13 +600,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             result = addGeometryToMulti(GeoConstants.GTPoint);
         } else if (id == R.id.menu_edit_add_new_line) {
             result = addGeometryToMulti(GeoConstants.GTLineString);
-        } else if (id == R.id.menu_edit_add_new_polygon) {
-            result = addGeometryToMulti(GeoConstants.GTPolygon);
-        } else if (id == R.id.menu_edit_add_new_inner_ring) {
-            result = addInnerRing();
-        } else if (id == R.id.menu_edit_delete_inner_ring) {
-            result = deleteInnerRing();
-        } else if (id == R.id.menu_edit_delete_line || id == R.id.menu_edit_delete_polygon) {
+        } else if (id == R.id.menu_edit_delete_line) {
             result = deleteGeometry();
         } else if (id == R.id.menu_edit_delete_point) {
             result = deletePoint();
@@ -658,13 +652,15 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 return geoPoints;
             case GeoConstants.GTPolygon:
             case GeoConstants.GTMultiPolygon:
-                geoPoints = new float[6];
+                geoPoints = new float[8];
                 geoPoints[0] = (float) center.getX() - add;
                 geoPoints[1] = (float) center.getY() - add;
-                geoPoints[2] = (float) center.getX() - add;
-                geoPoints[3] = (float) center.getY() + add;
+                geoPoints[2] = (float) center.getX() + add;
+                geoPoints[3] = (float) center.getY() - add;
                 geoPoints[4] = (float) center.getX() + add;
                 geoPoints[5] = (float) center.getY() + add;
+                geoPoints[6] = (float) center.getX() - add;
+                geoPoints[7] = (float) center.getY() + add;
                 return geoPoints;
             case GeoConstants.GTLinearRing:
                 geoPoints = new float[6];

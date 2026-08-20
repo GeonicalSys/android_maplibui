@@ -43,6 +43,8 @@ Collector workspaces и защитные backups.
   как резерв;
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
+- Polygon и MultiPolygon используют ту же компактную панель вершин, что LineString:
+  без добавления/удаления частей и отверстий, с режимами обхода и касания;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/touch geometry and attribute forms use explicit Continue/Discard recovery;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
