@@ -39,23 +39,27 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nextgis.maplib.util.SettingsConstants.KEY_PREF_MAP;
 
 public final class CollectorProjectRegistry {
     private static final Object LOCK = new Object();
 
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
     private static final String REGISTRY_FILE_NAME = "collector_projects_registry.json";
     private static final String WORKSPACES_DIR_NAME = "collector_projects";
     private static final String WORKSPACE_MAP_NAME = "map";
+    private static final String WORKSPACE_INFO_NAME = "project.json";
 
     private static final String JSON_SCHEMA_VERSION = "schema_version";
     private static final String JSON_PROJECTS = "projects";
     private static final String JSON_PROJECT_UID = "project_uid";
+    private static final String JSON_PROJECT_TYPE = "project_type";
     private static final String JSON_ACCOUNT = "account";
     private static final String JSON_PROJECT_REMOTE_ID = "project_remote_id";
     private static final String JSON_NAME = "name";
+    private static final String JSON_SOURCE_NAME = "source_name";
     private static final String JSON_DISTRICT = "district";
     private static final String JSON_MAP_PATH = "map_path";
     private static final String JSON_MAP_NAME = "map_name";
@@ -65,11 +69,54 @@ public final class CollectorProjectRegistry {
     private CollectorProjectRegistry() {
     }
 
+    public enum ProjectType {
+        WEBGIS,
+        LOCAL
+    }
+
+    public interface DestructiveBackupGate {
+        boolean prepareBackup();
+    }
+
+    public static final class DeleteResult {
+        public enum Status {
+            SUCCESS,
+            BUSY,
+            NOT_FOUND,
+            NOT_ACTIVE,
+            TRACKING,
+            BACKUP_FAILED,
+            STORAGE_FAILED
+        }
+
+        private final Status status;
+        private final String fallbackProjectUid;
+
+        private DeleteResult(Status status, String fallbackProjectUid) {
+            this.status = status;
+            this.fallbackProjectUid = fallbackProjectUid;
+        }
+
+        public boolean isSuccess() {
+            return status == Status.SUCCESS;
+        }
+
+        public Status getStatus() {
+            return status;
+        }
+
+        public String getFallbackProjectUid() {
+            return fallbackProjectUid;
+        }
+    }
+
     public static final class ProjectInfo {
         private final String projectUid;
+        private final ProjectType projectType;
         private final String accountName;
         private final long projectRemoteId;
         private final String name;
+        private final String sourceName;
         private final String district;
         private final String mapPath;
         private final String mapName;
@@ -78,18 +125,22 @@ public final class CollectorProjectRegistry {
 
         private ProjectInfo(
                 String projectUid,
+                ProjectType projectType,
                 String accountName,
                 long projectRemoteId,
                 String name,
+                String sourceName,
                 String district,
                 String mapPath,
                 String mapName,
                 long createdAt,
                 long lastOpenedAt) {
             this.projectUid = projectUid;
+            this.projectType = projectType != null ? projectType : ProjectType.WEBGIS;
             this.accountName = accountName;
             this.projectRemoteId = projectRemoteId;
             this.name = name;
+            this.sourceName = sourceName;
             this.district = district;
             this.mapPath = mapPath;
             this.mapName = mapName;
@@ -105,12 +156,24 @@ public final class CollectorProjectRegistry {
             return accountName;
         }
 
+        public ProjectType getProjectType() {
+            return projectType;
+        }
+
+        public boolean isLocal() {
+            return projectType == ProjectType.LOCAL;
+        }
+
         public long getProjectRemoteId() {
             return projectRemoteId;
         }
 
         public String getName() {
             return name;
+        }
+
+        public String getSourceName() {
+            return sourceName;
         }
 
         public String getDistrict() {
@@ -145,9 +208,17 @@ public final class CollectorProjectRegistry {
         private JSONObject toJSON() throws JSONException {
             JSONObject json = new JSONObject();
             json.put(JSON_PROJECT_UID, projectUid);
-            json.put(JSON_ACCOUNT, accountName);
-            json.put(JSON_PROJECT_REMOTE_ID, projectRemoteId);
+            json.put(JSON_PROJECT_TYPE, projectType.name());
+            if (!TextUtils.isEmpty(accountName)) {
+                json.put(JSON_ACCOUNT, accountName);
+            }
+            if (projectRemoteId > 0L) {
+                json.put(JSON_PROJECT_REMOTE_ID, projectRemoteId);
+            }
             json.put(JSON_NAME, name);
+            if (!TextUtils.isEmpty(sourceName)) {
+                json.put(JSON_SOURCE_NAME, sourceName);
+            }
             if (!TextUtils.isEmpty(district)) {
                 json.put(JSON_DISTRICT, district);
             }
@@ -163,22 +234,33 @@ public final class CollectorProjectRegistry {
                 return null;
             }
             String projectUid = json.optString(JSON_PROJECT_UID, null);
+            ProjectType projectType;
+            try {
+                projectType = ProjectType.valueOf(
+                        json.optString(JSON_PROJECT_TYPE, ProjectType.WEBGIS.name()));
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
             String accountName = json.optString(JSON_ACCOUNT, null);
             long projectRemoteId = json.optLong(JSON_PROJECT_REMOTE_ID, 0L);
             String mapPath = json.optString(JSON_MAP_PATH, null);
             String mapName = json.optString(JSON_MAP_NAME, WORKSPACE_MAP_NAME);
+            boolean invalidWebProject = projectType == ProjectType.WEBGIS
+                    && (TextUtils.isEmpty(accountName) || projectRemoteId <= 0L);
             if (TextUtils.isEmpty(projectUid)
-                    || TextUtils.isEmpty(accountName)
-                    || projectRemoteId <= 0L
+                    || invalidWebProject
                     || TextUtils.isEmpty(mapPath)
                     || TextUtils.isEmpty(mapName)) {
                 return null;
             }
             return new ProjectInfo(
                     projectUid,
+                    projectType,
                     accountName,
                     projectRemoteId,
                     json.optString(JSON_NAME, projectUid),
+                    json.optString(JSON_SOURCE_NAME,
+                            json.optString(JSON_NAME, projectUid)),
                     json.optString(JSON_DISTRICT, null),
                     mapPath,
                     mapName,
@@ -212,6 +294,208 @@ public final class CollectorProjectRegistry {
         }
         synchronized (LOCK) {
             return findProject(loadProjectsLocked(context), activeUid);
+        }
+    }
+
+    public static ProjectInfo createLocalProject(Context context, String requestedName) {
+        if (context == null || TextUtils.isEmpty(requestedName)
+                || TextUtils.isEmpty(requestedName.trim())) {
+            return null;
+        }
+        ProjectOperationCoordinator.Lease operationLease =
+                ProjectOperationCoordinator.tryBegin(
+                        context, ProjectOperationCoordinator.Kind.PROJECT_CREATE);
+        if (operationLease == null) {
+            return null;
+        }
+        try {
+            synchronized (LOCK) {
+                ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
+                ProjectInfo project = buildLocalProjectInfoLocked(
+                        context, projects, requestedName.trim());
+                if (project == null) {
+                    return null;
+                }
+                projects.add(project);
+                if (!saveProjectsLocked(context, projects)) {
+                    FileUtil.deleteRecursive(new File(project.getMapPath()));
+                    return null;
+                }
+                return project;
+            }
+        } finally {
+            operationLease.close();
+        }
+    }
+
+    public static ProjectInfo renameProject(Context context, String projectUid, String requestedName) {
+        if (context == null || TextUtils.isEmpty(projectUid)
+                || TextUtils.isEmpty(requestedName)
+                || TextUtils.isEmpty(requestedName.trim())) {
+            return null;
+        }
+        ProjectOperationCoordinator.Lease operationLease =
+                ProjectOperationCoordinator.tryBegin(
+                        context, ProjectOperationCoordinator.Kind.PROJECT_RENAME);
+        if (operationLease == null) {
+            return null;
+        }
+        try {
+            synchronized (LOCK) {
+                ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
+                ProjectInfo existing = findProject(projects, projectUid);
+                if (existing == null) {
+                    return null;
+                }
+                String displayName = uniqueDisplayName(
+                        projects, requestedName.trim(), projectUid);
+                ProjectInfo renamed = copyProject(existing, displayName, existing.getLastOpenedAt());
+                projects.remove(existing);
+                projects.add(renamed);
+                return saveProjectsLocked(context, projects) ? renamed : null;
+            }
+        } finally {
+            operationLease.close();
+        }
+    }
+
+    /**
+     * Deletes the active local workspace only. The remote Web GIS resource and Android account are
+     * never modified. If this is the last project, an empty local fallback is created first.
+     */
+    public static DeleteResult deleteActiveProject(
+            Context context,
+            String projectUid,
+            String fallbackLocalName,
+            DestructiveBackupGate backupGate) {
+        if (context == null || TextUtils.isEmpty(projectUid)) {
+            return new DeleteResult(DeleteResult.Status.NOT_FOUND, null);
+        }
+        ProjectOperationCoordinator.Lease operationLease =
+                ProjectOperationCoordinator.tryBegin(
+                        context, ProjectOperationCoordinator.Kind.PROJECT_DELETE);
+        if (operationLease == null) {
+            return new DeleteResult(DeleteResult.Status.BUSY, null);
+        }
+        try {
+            if (TrackerService.isTrackerServiceRunning(context)) {
+                return new DeleteResult(DeleteResult.Status.TRACKING, null);
+            }
+
+            ProjectInfo target;
+            synchronized (LOCK) {
+                target = findProject(loadProjectsLocked(context), projectUid);
+                if (target == null) {
+                    return new DeleteResult(DeleteResult.Status.NOT_FOUND, null);
+                }
+                if (!target.isActive(context)) {
+                    return new DeleteResult(DeleteResult.Status.NOT_ACTIVE, null);
+                }
+            }
+
+            if (backupGate != null && !backupGate.prepareBackup()) {
+                return new DeleteResult(DeleteResult.Status.BACKUP_FAILED, null);
+            }
+            if (TrackerService.isTrackerServiceRunning(context)) {
+                return new DeleteResult(DeleteResult.Status.TRACKING, null);
+            }
+
+            synchronized (LOCK) {
+                ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
+                target = findProject(projects, projectUid);
+                if (target == null || !target.isActive(context)) {
+                    return new DeleteResult(DeleteResult.Status.NOT_ACTIVE, null);
+                }
+                if (!isWorkspacePathSafe(context, target.getMapPath())) {
+                    return new DeleteResult(DeleteResult.Status.STORAGE_FAILED, null);
+                }
+
+                Context appContext = context.getApplicationContext();
+                GISApplication gisApplication = appContext instanceof GISApplication
+                        ? (GISApplication) appContext : null;
+                if (gisApplication != null && gisApplication.getMap() != null) {
+                    gisApplication.getMap().save();
+                }
+
+                ProjectInfo fallback = mostRecentlyOpenedProjectExcept(projects, projectUid);
+                boolean createdFallback = false;
+                if (fallback == null) {
+                    String localName = TextUtils.isEmpty(fallbackLocalName)
+                            ? "Local project" : fallbackLocalName.trim();
+                    fallback = buildLocalProjectInfoLocked(context, projects, localName);
+                    if (fallback == null) {
+                        return new DeleteResult(DeleteResult.Status.STORAGE_FAILED, null);
+                    }
+                    projects.add(fallback);
+                    createdFallback = true;
+                }
+
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+                if (!persistActiveProjectPreferences(preferences, fallback)) {
+                    if (createdFallback) {
+                        FileUtil.deleteRecursive(new File(fallback.getMapPath()));
+                    }
+                    return new DeleteResult(DeleteResult.Status.STORAGE_FAILED, null);
+                }
+                if (gisApplication != null) {
+                    gisApplication.closeMapObj();
+                }
+
+                File targetDir = new File(target.getMapPath());
+                File tombstone = new File(
+                        getWorkspacesRootDir(context),
+                        ".deleting_" + UUID.randomUUID().toString());
+                boolean moved = !targetDir.exists() || targetDir.renameTo(tombstone);
+                if (!moved) {
+                    persistActiveProjectPreferences(preferences, target);
+                    if (gisApplication != null) {
+                        gisApplication.closeMapObj();
+                    }
+                    if (createdFallback) {
+                        projects.remove(fallback);
+                        FileUtil.deleteRecursive(new File(fallback.getMapPath()));
+                    }
+                    return new DeleteResult(DeleteResult.Status.STORAGE_FAILED, null);
+                }
+
+                projects.remove(target);
+                projects.remove(fallback);
+                ProjectInfo openedFallback = copyProject(
+                        fallback, fallback.getName(), System.currentTimeMillis());
+                projects.add(openedFallback);
+                if (!saveProjectsLocked(context, projects)) {
+                    if (tombstone.exists()) {
+                        tombstone.renameTo(targetDir);
+                    }
+                    persistActiveProjectPreferences(preferences, target);
+                    if (gisApplication != null) {
+                        gisApplication.closeMapObj();
+                    }
+                    return new DeleteResult(DeleteResult.Status.STORAGE_FAILED, null);
+                }
+
+                CollectorImportJournal.Snapshot journal = CollectorImportJournal.load(context);
+                if (journal != null && projectUid.equals(journal.projectUid)) {
+                    CollectorImportJournal.clear(context);
+                }
+                if (tombstone.exists() && !FileUtil.deleteRecursive(tombstone)) {
+                    HyperLog.w(Constants.TAG,
+                            "Project deletion: tombstone cleanup deferred " + tombstone.getPath());
+                }
+                if (gisApplication != null) {
+                    MapBase fallbackMap = gisApplication.getMap();
+                    if (fallbackMap != null) {
+                        fallbackMap.save();
+                    }
+                }
+                return new DeleteResult(DeleteResult.Status.SUCCESS,
+                        openedFallback.getProjectUid());
+            }
+        } catch (RuntimeException e) {
+            HyperLog.w(Constants.TAG, "Project deletion failed: " + e.getMessage(), e);
+            return new DeleteResult(DeleteResult.Status.STORAGE_FAILED, null);
+        } finally {
+            operationLease.close();
         }
     }
 
@@ -261,7 +545,14 @@ public final class CollectorProjectRegistry {
         if (context == null || TextUtils.isEmpty(projectUid)) {
             return false;
         }
-        synchronized (LOCK) {
+        ProjectOperationCoordinator.Lease operationLease =
+                ProjectOperationCoordinator.tryBegin(
+                        context, ProjectOperationCoordinator.Kind.PROJECT_SWITCH);
+        if (operationLease == null) {
+            return false;
+        }
+        try {
+            synchronized (LOCK) {
             ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
             ProjectInfo project = findProject(projects, projectUid);
             if (project == null) {
@@ -301,6 +592,19 @@ public final class CollectorProjectRegistry {
                 // invalidation of the old map atomic so a provider/background thread cannot observe
                 // the new project identity while still receiving the previous workspace instance.
                 synchronized (gisApplication) {
+                    try {
+                        MapBase currentMap = gisApplication.getMap();
+                        if (currentMap != null && !currentMap.save()) {
+                            HyperLog.w(Constants.TAG,
+                                    "CollectorProjectRegistry: current map save returned false");
+                            return false;
+                        }
+                    } catch (RuntimeException e) {
+                        HyperLog.w(Constants.TAG,
+                                "CollectorProjectRegistry: current map save before switch failed: "
+                                        + e.getMessage(), e);
+                        return false;
+                    }
                     activated = persistActiveProjectPreferences(preferences, project);
                     if (activated) {
                         gisApplication.closeMapObj();
@@ -318,9 +622,11 @@ public final class CollectorProjectRegistry {
             projects.remove(project);
             ProjectInfo opened = new ProjectInfo(
                     project.getProjectUid(),
+                    project.getProjectType(),
                     project.getAccountName(),
                     project.getProjectRemoteId(),
                     project.getName(),
+                    project.getSourceName(),
                     project.getDistrict(),
                     project.getMapPath(),
                     project.getMapName(),
@@ -329,6 +635,9 @@ public final class CollectorProjectRegistry {
             projects.add(opened);
             saveProjectsLocked(context, projects);
             return true;
+            }
+        } finally {
+            operationLease.close();
         }
     }
 
@@ -402,7 +711,10 @@ public final class CollectorProjectRegistry {
             String district) {
         long now = System.currentTimeMillis();
         File workspaceDir = getProjectWorkspaceDir(context, projectUid, projectRemoteId);
-        String projectName = TextUtils.isEmpty(name) ? projectUid : name;
+        String sourceName = TextUtils.isEmpty(name) ? projectUid : name.trim();
+        String projectName = existing != null && !TextUtils.isEmpty(existing.getName())
+                ? existing.getName()
+                : uniqueDisplayNameLocked(context, sourceName, projectUid);
         String projectDistrict = TextUtils.isEmpty(district) ? null : district.trim();
         long createdAt = existing != null && existing.getCreatedAt() > 0L
                 ? existing.getCreatedAt()
@@ -410,14 +722,122 @@ public final class CollectorProjectRegistry {
         long lastOpenedAt = existing != null ? existing.getLastOpenedAt() : 0L;
         return new ProjectInfo(
                 projectUid,
+                ProjectType.WEBGIS,
                 accountName,
                 projectRemoteId,
                 projectName,
+                sourceName,
                 projectDistrict,
                 workspaceDir.getAbsolutePath(),
                 WORKSPACE_MAP_NAME,
                 createdAt,
                 lastOpenedAt);
+    }
+
+    private static ProjectInfo buildLocalProjectInfoLocked(
+            Context context,
+            List<ProjectInfo> projects,
+            String requestedName) {
+        String uuid = UUID.randomUUID().toString();
+        String projectUid = "local:" + uuid;
+        File workspaceDir = new File(getWorkspacesRootDir(context), "local_" + uuid);
+        try {
+            FileUtil.createDir(workspaceDir);
+        } catch (RuntimeException e) {
+            HyperLog.w(Constants.TAG, "Local project workspace creation failed: "
+                    + e.getMessage(), e);
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        String displayName = uniqueDisplayName(projects, requestedName, projectUid);
+        return new ProjectInfo(
+                projectUid,
+                ProjectType.LOCAL,
+                null,
+                0L,
+                displayName,
+                displayName,
+                null,
+                workspaceDir.getAbsolutePath(),
+                WORKSPACE_MAP_NAME,
+                now,
+                0L);
+    }
+
+    private static ProjectInfo copyProject(
+            ProjectInfo source,
+            String displayName,
+            long lastOpenedAt) {
+        return new ProjectInfo(
+                source.getProjectUid(),
+                source.getProjectType(),
+                source.getAccountName(),
+                source.getProjectRemoteId(),
+                displayName,
+                source.getSourceName(),
+                source.getDistrict(),
+                source.getMapPath(),
+                source.getMapName(),
+                source.getCreatedAt(),
+                lastOpenedAt);
+    }
+
+    private static ProjectInfo mostRecentlyOpenedProjectExcept(
+            List<ProjectInfo> projects,
+            String excludedUid) {
+        ProjectInfo result = null;
+        if (projects == null) {
+            return null;
+        }
+        for (ProjectInfo project : projects) {
+            if (project == null || project.getProjectUid().equals(excludedUid)) {
+                continue;
+            }
+            if (result == null || project.getLastOpenedAt() > result.getLastOpenedAt()) {
+                result = project;
+            }
+        }
+        return result;
+    }
+
+    private static String uniqueDisplayNameLocked(
+            Context context,
+            String requestedName,
+            String excludedUid) {
+        return uniqueDisplayName(loadProjectsLocked(context), requestedName, excludedUid);
+    }
+
+    static String uniqueDisplayName(
+            List<ProjectInfo> projects,
+            String requestedName,
+            String excludedUid) {
+        String base = TextUtils.isEmpty(requestedName) ? "Project" : requestedName.trim();
+        String candidate = base;
+        int suffix = 2;
+        while (containsDisplayName(projects, candidate, excludedUid)) {
+            candidate = base + " " + suffix++;
+        }
+        return candidate;
+    }
+
+    private static boolean containsDisplayName(
+            List<ProjectInfo> projects,
+            String candidate,
+            String excludedUid) {
+        if (projects == null) {
+            return false;
+        }
+        for (ProjectInfo project : projects) {
+            if (project == null
+                    || (!TextUtils.isEmpty(excludedUid)
+                            && excludedUid.equals(project.getProjectUid()))) {
+                continue;
+            }
+            if (candidate.equalsIgnoreCase(project.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ProjectInfo findProject(List<ProjectInfo> projects, String projectUid) {
@@ -440,10 +860,12 @@ public final class CollectorProjectRegistry {
                 || new File(registryFile.getPath() + ".bak").exists())) {
             try {
             JSONObject root = new JSONObject(readAtomicFile(registryFile));
-            if (root.optInt(JSON_SCHEMA_VERSION, -1) != SCHEMA_VERSION) {
+            int storedSchemaVersion = root.optInt(JSON_SCHEMA_VERSION, -1);
+            if (storedSchemaVersion != 1 && storedSchemaVersion != SCHEMA_VERSION) {
                 throw new JSONException("unsupported schema_version="
-                        + root.optInt(JSON_SCHEMA_VERSION, -1));
+                        + storedSchemaVersion);
             }
+            rewriteRegistry = storedSchemaVersion != SCHEMA_VERSION;
             JSONArray items = root.optJSONArray(JSON_PROJECTS);
             if (items == null) {
                 throw new JSONException("projects array missing");
@@ -479,10 +901,10 @@ public final class CollectorProjectRegistry {
         return projects;
     }
 
-    private static void saveProjectsLocked(Context context, List<ProjectInfo> projects) {
+    private static boolean saveProjectsLocked(Context context, List<ProjectInfo> projects) {
         File registryFile = getRegistryFile(context);
         if (registryFile == null) {
-            return;
+            return false;
         }
         File parent = registryFile.getParentFile();
         if (parent != null) {
@@ -491,7 +913,7 @@ public final class CollectorProjectRegistry {
             } catch (RuntimeException e) {
                 HyperLog.w(Constants.TAG, "CollectorProjectRegistry: failed to create registry dir "
                         + parent.getPath() + ": " + e.getMessage(), e);
-                return;
+                return false;
             }
         }
         try {
@@ -501,15 +923,23 @@ public final class CollectorProjectRegistry {
             if (projects != null) {
                 for (ProjectInfo project : projects) {
                     if (project != null) {
-                        array.put(project.toJSON());
+                        JSONObject projectJson = project.toJSON();
+                        File workspaceDir = new File(project.getMapPath());
+                        FileUtil.createDir(workspaceDir);
+                        writeAtomicFile(
+                                new File(workspaceDir, WORKSPACE_INFO_NAME),
+                                projectJson.toString());
+                        array.put(projectJson);
                     }
                 }
             }
             root.put(JSON_PROJECTS, array);
             writeAtomicFile(registryFile, root.toString());
-        } catch (IOException | JSONException e) {
+            return true;
+        } catch (IOException | JSONException | RuntimeException e) {
             HyperLog.w(Constants.TAG, "CollectorProjectRegistry: failed to save registry: "
                     + e.getMessage(), e);
+            return false;
         }
     }
 
@@ -551,6 +981,24 @@ public final class CollectorProjectRegistry {
             return recovered;
         }
         for (File dir : dirs) {
+            if (dir.getName().startsWith(".deleting_")) {
+                continue;
+            }
+            File workspaceInfo = new File(dir, WORKSPACE_INFO_NAME);
+            if (workspaceInfo.isFile()) {
+                try {
+                    ProjectInfo project = ProjectInfo.fromJSON(
+                            new JSONObject(readAtomicFile(workspaceInfo)));
+                    if (project != null && isWorkspacePathSafe(context, project.getMapPath())) {
+                        recovered.add(project);
+                        continue;
+                    }
+                } catch (IOException | JSONException e) {
+                    HyperLog.w(Constants.TAG,
+                            "CollectorProjectRegistry: project sidecar skipped "
+                                    + workspaceInfo.getPath() + ": " + e.getMessage());
+                }
+            }
             File mapFile = new File(dir, WORKSPACE_MAP_NAME + Constants.MAP_EXT);
             if (!mapFile.isFile()) {
                 continue;
@@ -565,8 +1013,10 @@ public final class CollectorProjectRegistry {
                 long timestamp = Math.max(dir.lastModified(), mapFile.lastModified());
                 recovered.add(new ProjectInfo(
                         metadata.getProjectUid(),
+                        ProjectType.WEBGIS,
                         metadata.getAccountName(),
                         metadata.getProjectRemoteId(),
+                        metadata.getName(),
                         metadata.getName(),
                         metadata.getDistrict(),
                         dir.getAbsolutePath(),

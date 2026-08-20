@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-08-15
+last_verified: 2026-08-20
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -17,13 +17,17 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     responsibility: Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; keep post-fill map reload pending until MapLibre confirms style/source application.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
-    responsibility: Background NGW/Collector layer download and local GeoJSON/KML/GPX fill, Collector-item edit policy application, fail-fast cleanup of incomplete layers, and ordered insertion of non-null layers below the top tracks layer.
+    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX fill, Collector-item edit policy application, fail-fast cleanup of incomplete layers, durable timeout recovery, staged replacement and ordered insertion below the top tracks layer.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LayerFactoryUI.java
     responsibility: Route local GeoJSON, KML and GPX documents to their matching vector fill task while preserving the standard layer naming dialog.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
-    responsibility: Atomically persist, recover and activate isolated Collector project workspaces while refusing cross-project switches during track recording.
+    responsibility: Atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local project workspaces with schema-v2 sidecars and backup-gated fallback switching.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectOperationCoordinator.java
+    responsibility: Hold one active workspace across sync/fill/rebuild stages and make project switch/create/rename/delete mutually exclusive with database background work.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/SchemaRebuildRetryGuard.java
+    responsibility: Circuit-break unchanged heavy NGW schema rebuilds per workspace/account/resource while allowing an explicit project-settings reset.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectImportHelper.java
     responsibility: Keep Activity and Dialog initial Collector imports identical across vector and supported raster-style items.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorRasterLayerHelper.java
@@ -57,12 +61,14 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-import-journal, collector-form-transaction, layer-backups, track_recording_enabled, walkedit_temp, geometry_edit_draft, feature_form_draft]
+settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, walkedit_temp, geometry_edit_draft, feature_form_draft]
 storage_contracts:
   - id: collector-registry
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
   - id: collector-import-journal
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorImportJournal.java
+  - id: ngw-schema-rebuild-guard
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/SchemaRebuildRetryGuard.java
   - id: collector-form-transaction
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
   - id: layer-backups
@@ -73,11 +79,11 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
   - id: geometry_edit_draft
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
-invariant_refs: [INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-NGRC-PRESERVE, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS]
+invariant_refs: [INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS]
 global_docs:
   - docs/architecture/map-rendering.md
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GPS-RECORDING]
+smoke_tests: [AUTO-MAPLIBUI-ASSEMBLE, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GPS-RECORDING]
 upstream_hotspots: [LAYER-FILL, MAP-HOST, COLLECTOR-RESOURCE]

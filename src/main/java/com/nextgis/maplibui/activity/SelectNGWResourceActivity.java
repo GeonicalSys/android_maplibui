@@ -193,7 +193,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
 
     @Override
     public void onBackPressed() {
-        if (!mListAdapter.isAccountsDisabled())
+        if (mListAdapter != null && mListAdapter.canGoUp())
             mListAdapter.goUp();
         else
             super.onBackPressed();
@@ -222,7 +222,10 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int i = item.getItemId();
-        if (i == R.id.menu_new_group) {
+        if (i == android.R.id.home) {
+            onBackPressed();
+            return true;
+        } else if (i == R.id.menu_new_group) {
             View view = View.inflate(this, R.layout.dialog_edittext, null);
             final EditText editText = view.findViewById(R.id.edit1);
             final AlertDialog.Builder builder = new AlertDialog.Builder(this);
