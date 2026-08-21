@@ -455,7 +455,8 @@ public class VectorLayerSettingsActivity
                             public void onClick(DialogInterface dialog, int which) {
                                 ngwLayer.setSyncType(Constants.SYNC_ALL);
                                 ngwLayer.save();
-                                direction.setEnabled(checked && ngwLayer.isEditable());
+                                direction.setEnabled(
+                                        checked && ngwLayer.isSyncDirectionConfigurable());
                             } };
                         DialogInterface.OnClickListener noClick = new DialogInterface.OnClickListener() {
                             @Override
@@ -474,7 +475,8 @@ public class VectorLayerSettingsActivity
                             public void onClick(DialogInterface dialog, int which) {
                                 ngwLayer.setSyncType(Constants.SYNC_NONE);
                                 ngwLayer.save();
-                                direction.setEnabled(checked && ngwLayer.isEditable());
+                                direction.setEnabled(
+                                        checked && ngwLayer.isSyncDirectionConfigurable());
                             } };
                         DialogInterface.OnClickListener noClick = new DialogInterface.OnClickListener() {
                             @Override
@@ -495,10 +497,16 @@ public class VectorLayerSettingsActivity
             direction.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                    if (ngwLayer.isEditable()) {
-                        ngwLayer.setSyncDirection(i + 1);
-                    } else {
-                        ngwLayer.setSyncDirection(2);
+                    int selectedDirection = i + 1;
+                    int currentDirection = ngwLayer.getSyncDirection();
+                    int resolvedDirection = SyncDirectionSelectionPolicy.resolve(
+                            currentDirection,
+                            selectedDirection,
+                            ngwLayer.isSyncDirectionConfigurable());
+                    if (resolvedDirection != currentDirection) {
+                        ngwLayer.setSyncDirection(resolvedDirection);
+                    } else if (selectedDirection != currentDirection) {
+                        direction.setSelection(ngwLayer.getSyncDirection() - 1);
                     }
                 }
 
@@ -521,7 +529,8 @@ public class VectorLayerSettingsActivity
                 }
             });
 
-            direction.setEnabled(enabled.isChecked() && ngwLayer.isEditable());
+            direction.setEnabled(
+                    enabled.isChecked() && ngwLayer.isSyncDirectionConfigurable());
 
             period.setEnabled(auto.isChecked());
             String prefValue = "" + Constants.DEFAULT_SYNC_PERIOD;

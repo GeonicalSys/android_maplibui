@@ -81,6 +81,7 @@ import com.nextgis.maplibui.mapui.NGWVectorLayerUI;
 import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.LayerUtil;
+import com.nextgis.maplibui.util.ProjectOperationCoordinator;
 import com.hypertrack.hyperlog.HyperLog;
 
 import org.json.JSONException;
@@ -104,9 +105,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -244,6 +247,10 @@ public class LayerFillService extends Service implements IProgressor {
     public static final String KEY_REPAIR_BATCH_EXTRAS = "repair_batch_extras";
     /** {@link ArrayList}{@code <}{@link Bundle}{@code >} for {@link #ACTION_ADD_BATCH} — one bundle per task. */
     public static final String KEY_BATCH_EXTRAS = "fill_batch_extras";
+    private static final String KEY_OPERATION_RESERVATION =
+            "project_operation_reservation";
+    private static final ConcurrentHashMap<String, ProjectOperationCoordinator.Lease>
+            PENDING_OPERATION_LEASES = new ConcurrentHashMap<>();
 
     public static final String NGFP_META = "ngfp_meta.json";
     protected final static String NGFP_FILE_META = "meta.json";
@@ -270,7 +277,11 @@ public class LayerFillService extends Service implements IProgressor {
 
     private final Object mQueueLock = new Object();
     private ExecutorService mWorkerExecutor;
+    private ProjectOperationCoordinator.Lease mProjectOperationLease;
     private volatile boolean mDrainRunning;
+    private int mLastStartId;
+    /** System timeout must leave the collector journal intact so the next app start can resume it. */
+    private volatile boolean mPreserveImportJournalOnStop;
 
     /**
      * Set in {@link #onCreate}, cleared in {@link #onDestroy} when still this instance — used to enqueue repair
@@ -402,7 +413,39 @@ public class LayerFillService extends Service implements IProgressor {
             batchIntent.putExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
         }
         batchIntent.putParcelableArrayListExtra(KEY_BATCH_EXTRAS, batch);
-        ContextCompat.startForegroundService(context, batchIntent);
+        startFillIntent(context, batchIntent);
+    }
+
+    /**
+     * Reserves the active workspace before Android receives the service start. This closes the
+     * otherwise small window in which a project could be switched after a fill was scheduled but
+     * before {@link #onStartCommand(Intent, int, int)} acquired its lease.
+     */
+    public static boolean startFillIntent(Context context, Intent intent) {
+        if (context == null || intent == null) {
+            return false;
+        }
+        ProjectOperationCoordinator.Lease lease = ProjectOperationCoordinator.tryBegin(
+                context, ProjectOperationCoordinator.Kind.LAYER_FILL);
+        if (lease == null) {
+            HyperLog.w(Constants.TAG,
+                    "LayerFillService start blocked by active project operation");
+            return false;
+        }
+        String reservation = UUID.randomUUID().toString();
+        PENDING_OPERATION_LEASES.put(reservation, lease);
+        intent.putExtra(KEY_OPERATION_RESERVATION, reservation);
+        try {
+            ContextCompat.startForegroundService(context, intent);
+            return true;
+        } catch (RuntimeException e) {
+            ProjectOperationCoordinator.Lease pending =
+                    PENDING_OPERATION_LEASES.remove(reservation);
+            if (pending != null) {
+                pending.close();
+            }
+            throw e;
+        }
     }
 
     private boolean enqueueOneTaskFromExtras(Bundle extra) {
@@ -492,6 +535,20 @@ public class LayerFillService extends Service implements IProgressor {
             if (mDrainRunning || mQueue.isEmpty()) {
                 return;
             }
+            if (mProjectOperationLease == null) {
+                mProjectOperationLease = ProjectOperationCoordinator.tryBegin(
+                        this, ProjectOperationCoordinator.Kind.LAYER_FILL);
+            }
+            if (mProjectOperationLease == null) {
+                HyperLog.w(Constants.TAG,
+                        "LayerFillService: queue rejected while project mutation is active");
+                mQueue.clear();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    stopForeground(true);
+                }
+                stopSelf(mLastStartId);
+                return;
+            }
             mDrainRunning = true;
             ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(true);
         }
@@ -501,6 +558,16 @@ public class LayerFillService extends Service implements IProgressor {
     private void drainLoop() {
         acquireFillWakeLock();
         try {
+            ProjectOperationCoordinator.Lease databaseLease = mProjectOperationLease;
+            if (databaseLease == null || !databaseLease.awaitDatabaseAccess()) {
+                HyperLog.w(Constants.TAG,
+                        "LayerFillService: database wait interrupted; preserving queued work state");
+                mPreserveImportJournalOnStop = true;
+                synchronized (mQueueLock) {
+                    mIsCanceled = true;
+                }
+                return;
+            }
             while (true) {
                 final LayerFillTask task;
                 synchronized (mQueueLock) {
@@ -513,12 +580,14 @@ public class LayerFillService extends Service implements IProgressor {
                     task = mQueue.remove(0);
                 }
                 runSingleFillTask(task);
+                ProjectOperationCoordinator.Lease lease = mProjectOperationLease;
+                if (lease != null) {
+                    lease.heartbeat();
+                }
             }
         } finally {
             synchronized (mQueueLock) {
-                mDrainRunning = false;
                 if (!mQueue.isEmpty()) {
-                    mDrainRunning = true;
                     mWorkerExecutor.execute(this::drainLoop);
                     return;
                 }
@@ -527,16 +596,24 @@ public class LayerFillService extends Service implements IProgressor {
             IGISApplication app = (IGISApplication) getApplicationContext();
 
             if (mIsCanceled) {
-                releaseFillWakeLock();
-                app.setLayerFillServiceBusy(false);
-                app.clearCollectorImportBatch();
-                app.setLayerFillBatchDeferringHeavyMapReload(false);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    stopForeground(true);
-                } else {
-                    mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+                int completedStartId;
+                synchronized (mQueueLock) {
+                    releaseFillWakeLock();
+                    app.setLayerFillServiceBusy(false);
+                    if (!mPreserveImportJournalOnStop) {
+                        app.clearCollectorImportBatch();
+                    }
+                    app.setLayerFillBatchDeferringHeavyMapReload(false);
+                    releaseProjectOperationLease();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        stopForeground(true);
+                    } else {
+                        mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+                    }
+                    mDrainRunning = false;
+                    completedStartId = mLastStartId;
                 }
-                stopSelf();
+                stopSelf(completedStartId);
                 return;
             }
 
@@ -580,8 +657,23 @@ public class LayerFillService extends Service implements IProgressor {
                 app.requestMapReloadAfterLayerFillBatch();
             }
 
-            releaseFillWakeLock();
-            app.setLayerFillServiceBusy(false);
+            int completedStartId;
+            synchronized (mQueueLock) {
+                if (!mQueue.isEmpty()) {
+                    mWorkerExecutor.execute(this::drainLoop);
+                    return;
+                }
+                releaseFillWakeLock();
+                app.setLayerFillServiceBusy(false);
+                releaseProjectOperationLease();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    stopForeground(true);
+                } else {
+                    mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+                }
+                mDrainRunning = false;
+                completedStartId = mLastStartId;
+            }
 
             boolean collectorBatchEnded = hadCollectorBatchBeforeFinalize
                     && !app.hasCollectorImportBatchRegistered();
@@ -597,12 +689,7 @@ public class LayerFillService extends Service implements IProgressor {
                 new Handler(Looper.getMainLooper()).post(() -> appContext.sendBroadcast(sessionDone));
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                stopForeground(true);
-            } else {
-                mNotifyManager.cancel(FILL_NOTIFICATION_ID);
-            }
-            stopSelf();
+            stopSelf(completedStartId);
         }
     }
 
@@ -682,22 +769,25 @@ public class LayerFillService extends Service implements IProgressor {
                 } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
                         && filled instanceof NGWVectorLayer) {
                     NGWVectorLayer nv = (NGWVectorLayer) filled;
-                    replaceExistingNgwLayerAfterSuccessfulFill(task, nv);
                     int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
                             task.mLayerGroup,
                             nv.getAccountName(),
                             task.mCollectorProjectRemoteIds,
                             task.mCollectorOrderIndex);
                     task.mLayerGroup.insertLayer(insertAt, filled);
+                    // Persist the fully built replacement before retiring the working copy.
+                    task.mLayerGroup.save();
+                    replaceExistingNgwLayerAfterSuccessfulFill(task, nv);
                 } else if (task.mLayerRestoreInsertIndex >= 0) {
                     int insertAt = Math.min(
                             task.mLayerRestoreInsertIndex, task.mLayerGroup.getLayerCount());
+                    task.mLayerGroup.insertLayer(insertAt, filled);
+                    // The old layer remains readable until this save succeeds.
+                    task.mLayerGroup.save();
                     if (filled instanceof NGWVectorLayer) {
                         replaceExistingNgwLayerAfterSuccessfulFill(
                                 task, (NGWVectorLayer) filled);
-                        insertAt = Math.min(insertAt, task.mLayerGroup.getLayerCount());
                     }
-                    task.mLayerGroup.insertLayer(insertAt, filled);
                 } else {
                     task.mLayerGroup.addLayer(filled);
                 }
@@ -734,13 +824,18 @@ public class LayerFillService extends Service implements IProgressor {
             LayerFillTask task,
             NGWVectorLayer replacement) {
         int removed = 0;
-        while (true) {
-            NGWVectorLayer existing = LayerGroup.findNgwVectorLayerByRemoteIdRecursive(
-                    task.mLayerGroup,
-                    replacement.getRemoteId(),
-                    replacement.getAccountName());
-            if (existing == null || existing == replacement) {
-                break;
+        List<ILayer> candidates = new ArrayList<>();
+        LayerGroup.getLayersByType(
+                task.mLayerGroup, Constants.LAYERTYPE_NGW_VECTOR, candidates);
+        for (ILayer candidate : candidates) {
+            if (!(candidate instanceof NGWVectorLayer) || candidate == replacement) {
+                continue;
+            }
+            NGWVectorLayer existing = (NGWVectorLayer) candidate;
+            if (existing.getRemoteId() != replacement.getRemoteId()
+                    || !TextUtils.equals(
+                            existing.getAccountName(), replacement.getAccountName())) {
+                continue;
             }
             ILayer parent = existing.getParent();
             LayerGroup existingParent = parent instanceof LayerGroup
@@ -891,15 +986,47 @@ public class LayerFillService extends Service implements IProgressor {
         }
         releaseFillWakeLock();
         ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
+        releaseProjectOperationLease();
         if (mWorkerExecutor != null) {
-            mWorkerExecutor.shutdown();
+            mWorkerExecutor.shutdownNow();
         }
         super.onDestroy();
     }
 
     @Override
+    public void onTimeout(int startId, int fgsType) {
+        HyperLog.w(Constants.TAG, "LayerFillService foreground data-sync timeout startId="
+                + startId + " type=" + fgsType + "; preserving import journal");
+        mPreserveImportJournalOnStop = true;
+        synchronized (mQueueLock) {
+            mIsCanceled = true;
+            mQueue.clear();
+        }
+        if (mWorkerExecutor != null) {
+            mWorkerExecutor.shutdownNow();
+        }
+        ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
+        ((IGISApplication) getApplicationContext()).setLayerFillBatchDeferringHeavyMapReload(false);
+        releaseFillWakeLock();
+        releaseProjectOperationLease();
+        stopForeground(true);
+        stopSelf(startId);
+    }
+
+    private void releaseProjectOperationLease() {
+        ProjectOperationCoordinator.Lease lease = mProjectOperationLease;
+        mProjectOperationLease = null;
+        if (lease != null) {
+            lease.close();
+        }
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         HyperLog.v(Constants.TAG, "LayerFillService.onStartCommand startId=" + startId);
+        synchronized (mQueueLock) {
+            mLastStartId = Math.max(mLastStartId, startId);
+        }
         if (Constants.DEBUG_MODE)
             Log.i("LayerFillService", "Received start id " + startId + ": " + intent);
 
@@ -913,6 +1040,20 @@ public class LayerFillService extends Service implements IProgressor {
         }
 
         if (intent != null) {
+            String reservation = intent.getStringExtra(KEY_OPERATION_RESERVATION);
+            if (!TextUtils.isEmpty(reservation)) {
+                ProjectOperationCoordinator.Lease reservedLease =
+                        PENDING_OPERATION_LEASES.remove(reservation);
+                synchronized (mQueueLock) {
+                    if (mProjectOperationLease == null) {
+                        mProjectOperationLease = reservedLease;
+                        reservedLease = null;
+                    }
+                }
+                if (reservedLease != null) {
+                    reservedLease.close();
+                }
+            }
             String action = intent.getAction();
             if (action != null && !TextUtils.isEmpty(action)) {
                 switch (action) {
@@ -923,10 +1064,10 @@ public class LayerFillService extends Service implements IProgressor {
                         }
                         startForegroundWithSessionAwareNotification();
                         if (!enqueueOneTaskFromExtras(intent.getExtras())) {
-                            return START_NOT_STICKY;
+                            break;
                         }
                         scheduleDrainIfNeeded();
-                        return START_STICKY;
+                        break;
                     case ACTION_ADD_BATCH:
                         if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
                             ((IGISApplication) getApplicationContext())
@@ -940,7 +1081,7 @@ public class LayerFillService extends Service implements IProgressor {
                             }
                         }
                         scheduleDrainIfNeeded();
-                        return START_STICKY;
+                        break;
                     case ACTION_ADD_REPAIR_BATCH:
                         if (intent.getBooleanExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false)) {
                             ((IGISApplication) getApplicationContext())
@@ -954,7 +1095,7 @@ public class LayerFillService extends Service implements IProgressor {
                             }
                         }
                         scheduleDrainIfNeeded();
-                        return START_STICKY;
+                        break;
                     case ACTION_STOP:
                         synchronized (mQueueLock) {
                             mQueue.clear();
@@ -963,12 +1104,13 @@ public class LayerFillService extends Service implements IProgressor {
                                 IGISApplication appStop = (IGISApplication) getApplicationContext();
                                 appStop.clearCollectorImportBatch();
                                 appStop.setLayerFillServiceBusy(false);
+                                releaseProjectOperationLease();
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                     stopForeground(true);
                                 } else {
                                     mNotifyManager.cancel(FILL_NOTIFICATION_ID);
                                 }
-                                stopSelf();
+                                stopSelf(startId);
                             }
                         }
                         break;
@@ -993,7 +1135,21 @@ public class LayerFillService extends Service implements IProgressor {
                 }
             }
         }
-        return START_STICKY;
+        boolean drainRunning;
+        synchronized (mQueueLock) {
+            drainRunning = mDrainRunning;
+        }
+        if (!drainRunning) {
+            ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
+            releaseProjectOperationLease();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                stopForeground(true);
+            } else if (mNotifyManager != null) {
+                mNotifyManager.cancel(FILL_NOTIFICATION_ID);
+            }
+            stopSelf(startId);
+        }
+        return START_NOT_STICKY;
     }
 
     /**

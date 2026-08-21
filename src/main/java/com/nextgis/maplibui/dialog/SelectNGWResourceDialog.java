@@ -490,10 +490,24 @@ public class SelectNGWResourceDialog
                 collector.getRemoteId(),
                 collector.getName(),
                 collector.getProjectDistrict());
-        LayerGroup projectWorkspace = CollectorProjectRegistry.prepareCollectorProjectWorkspace(
-                context,
-                metadata);
+        CollectorProjectRegistry.PrepareWorkspaceResult prepareResult =
+                CollectorProjectRegistry.prepareCollectorProjectWorkspaceResult(
+                        context,
+                        metadata);
+        LayerGroup projectWorkspace = prepareResult.getWorkspace();
         if (projectWorkspace == null) {
+            if (prepareResult.isBusy()) {
+                HyperLog.w(Constants.TAG,
+                        "Collector import (dialog): workspace switch blocked by active operation"
+                                + " remoteId=" + collector.getRemoteId()
+                                + " account=" + connection.getName());
+                new AlertDialog.Builder(context)
+                        .setTitle(R.string.ngw_collector_import_busy_title)
+                        .setMessage(R.string.ngw_collector_import_busy_message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
+                return false;
+            }
             HyperLog.e(Constants.TAG, "Collector import (dialog): failed to prepare isolated workspace remoteId="
                     + collector.getRemoteId() + " account=" + connection.getName());
             Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();

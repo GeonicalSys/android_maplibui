@@ -193,7 +193,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
 
     @Override
     public void onBackPressed() {
-        if (!mListAdapter.isAccountsDisabled())
+        if (mListAdapter != null && mListAdapter.canGoUp())
             mListAdapter.goUp();
         else
             super.onBackPressed();
@@ -222,7 +222,10 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int i = item.getItemId();
-        if (i == R.id.menu_new_group) {
+        if (i == android.R.id.home) {
+            onBackPressed();
+            return true;
+        } else if (i == R.id.menu_new_group) {
             View view = View.inflate(this, R.layout.dialog_edittext, null);
             final EditText editText = view.findViewById(R.id.edit1);
             final AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -471,10 +474,23 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 collector.getRemoteId(),
                 collector.getName(),
                 collector.getProjectDistrict());
-        LayerGroup projectWorkspace = CollectorProjectRegistry.prepareCollectorProjectWorkspace(
-                this,
-                metadata);
+        CollectorProjectRegistry.PrepareWorkspaceResult prepareResult =
+                CollectorProjectRegistry.prepareCollectorProjectWorkspaceResult(
+                        this,
+                        metadata);
+        LayerGroup projectWorkspace = prepareResult.getWorkspace();
         if (projectWorkspace == null) {
+            if (prepareResult.isBusy()) {
+                HyperLog.w(TAG, "Collector import: workspace switch blocked by active operation"
+                        + " remoteId=" + collector.getRemoteId()
+                        + " account=" + connection.getName());
+                new AlertDialog.Builder(this)
+                        .setTitle(R.string.ngw_collector_import_busy_title)
+                        .setMessage(R.string.ngw_collector_import_busy_message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
+                return false;
+            }
             HyperLog.e(TAG, "Collector import: failed to prepare isolated workspace remoteId="
                     + collector.getRemoteId() + " account=" + connection.getName());
             Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();

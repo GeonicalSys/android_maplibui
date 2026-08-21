@@ -87,6 +87,8 @@ import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
 import com.nextgis.maplibui.util.LayerBackupManager;
 import com.nextgis.maplibui.util.LayerUtil;
+import com.nextgis.maplibui.util.ProjectOperationCoordinator;
+import com.nextgis.maplibui.util.SchemaRebuildRetryGuard;
 import com.nextgis.maplibui.util.SettingsConstantsUI;
 
 import java.io.ByteArrayInputStream;
@@ -102,6 +104,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -164,6 +168,10 @@ public abstract class GISApplication extends Application
     private volatile boolean mLayerFillDeferHeavyMapReload;
 
     private volatile boolean mLayerFillServiceBusy;
+
+    /** Serializes schema-rebuild preparation after the sync lease releases project databases. */
+    private final ExecutorService mSchemaRebuildExecutor =
+            Executors.newSingleThreadExecutor(r -> new Thread(r, "NgwSchemaRebuild"));
 
     private final Object mCollectorImportLock = new Object();
     private int mCollectorGroupId;
@@ -1842,11 +1850,7 @@ public abstract class GISApplication extends Application
                 if (defer) {
                     batchIntent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    ContextCompat.startForegroundService(this, batchIntent);
-                } else {
-                    startService(batchIntent);
-                }
+                LayerFillService.startFillIntent(this, batchIntent);
             }
         }
         HyperLog.w(Constants.TAG, "Standalone fill incomplete: re-queued " + repairCount
@@ -2072,11 +2076,7 @@ public abstract class GISApplication extends Application
                 batchIntent.setAction(LayerFillService.ACTION_ADD_REPAIR_BATCH);
                 batchIntent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
                 batchIntent.putParcelableArrayListExtra(LayerFillService.KEY_REPAIR_BATCH_EXTRAS, repairBundles);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(batchIntent);
-                } else {
-                    startService(batchIntent);
-                }
+                LayerFillService.startFillIntent(this, batchIntent);
             }
         }
         HyperLog.w(Constants.TAG, "Collector import incomplete: re-queued " + repairCount
@@ -2089,146 +2089,214 @@ public abstract class GISApplication extends Application
     }
 
     @Override
-    public void scheduleNgwLayerRebuildAfterSchemaMismatch(final NGWVectorLayer layer) {
+    public void scheduleNgwLayerRebuildAfterSchemaMismatch(
+            final NGWVectorLayer layer,
+            final String mismatchSignature) {
         if (layer == null || mMap == null) {
             return;
         }
-        final String changeTable = layer.getChangeTableName();
-        if (FeatureChanges.isChanges(changeTable)) {
-            SyncResult flushSr = new SyncResult();
-            boolean flushOk = false;
-            try {
-                flushOk = layer.sendLocalChanges(flushSr);
-            } catch (RuntimeException e) {
-                HyperLog.w(Constants.TAG, "NGW schema rebuild: sendLocalChanges crashed for \""
-                        + layer.getName() + "\": " + e.getMessage(), e);
-            }
-            if (!flushOk) {
-                HyperLog.w(Constants.TAG, "NGW schema rebuild: sendLocalChanges reported failure for \""
-                        + layer.getName() + "\"");
-            }
-        }
-        if (FeatureChanges.isChanges(changeTable)) {
-            if (!backupEditableLayerData(layer, LayerBackupManager.REASON_SCHEMA_REBUILD)) {
-                HyperLog.w(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                        + "\" - skipped rebuild because backup gate blocked");
-                return;
-            }
-            postLayerBackupAlert(getString(
-                    com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
-                    layer.getName()));
-            HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                    + "\" - backup created before forced rebuild");
-        }
-
         final String rebuildAccountName = layer.getAccountName();
         final long rebuildRemoteId = layer.getRemoteId();
-        final long rebuildFormId = resolveNgwLayerRebuildFormId(
-                layer, rebuildAccountName, rebuildRemoteId);
-        final LayerOriginMetadata rebuildOrigin = layer.getLayerOriginMetadata();
+        final String workspaceKey = ProjectOperationCoordinator.activeWorkspaceKey(this);
+        final SchemaRebuildRetryGuard.Decision retryDecision =
+                SchemaRebuildRetryGuard.tryRecordAttempt(
+                        this,
+                        workspaceKey,
+                        rebuildAccountName,
+                        rebuildRemoteId,
+                        mismatchSignature);
+        if (retryDecision != SchemaRebuildRetryGuard.Decision.ALLOWED) {
+            HyperLog.w(Constants.TAG, "NGW schema rebuild suppressed decision=" + retryDecision
+                    + " layer=\"" + layer.getName() + "\" remoteId=" + rebuildRemoteId
+                    + " account=" + rebuildAccountName);
+            return;
+        }
+        final ProjectOperationCoordinator.Lease rebuildLease =
+                ProjectOperationCoordinator.tryBegin(
+                        this, ProjectOperationCoordinator.Kind.SCHEMA_REBUILD);
+        if (rebuildLease == null) {
+            HyperLog.w(Constants.TAG, "NGW schema rebuild skipped while project mutation is active"
+                    + " layer=\"" + layer.getName() + "\"");
+            return;
+        }
+        final String changeTable = layer.getChangeTableName();
+        try {
+            mSchemaRebuildExecutor.execute(() -> prepareNgwLayerRebuild(
+                    layer,
+                    changeTable,
+                    rebuildAccountName,
+                    rebuildRemoteId,
+                    rebuildLease));
+        } catch (RuntimeException e) {
+            rebuildLease.close();
+            HyperLog.w(Constants.TAG, "NGW schema rebuild scheduling failed for \""
+                    + layer.getName() + "\": " + e.getMessage(), e);
+        }
+    }
 
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (layer == null || mMap == null) {
+    private void prepareNgwLayerRebuild(
+            NGWVectorLayer layer,
+            String changeTable,
+            String accountName,
+            long remoteId,
+            ProjectOperationCoordinator.Lease rebuildLease) {
+        boolean handedToMainThread = false;
+        try {
+            if (!rebuildLease.awaitDatabaseAccess()) {
+                HyperLog.w(Constants.TAG, "NGW schema rebuild database wait interrupted for \""
+                        + layer.getName() + "\"");
                 return;
             }
-            final String layerName = layer.getName();
-            final String accountName = layer.getAccountName();
-            final long remoteId = layer.getRemoteId();
-            final float minZ = layer.getMinZoom();
-            final float maxZ = layer.getMaxZoom();
-            final boolean visible = layer.isVisible();
-
-            ILayer p = layer.getParent();
-            LayerGroup parentGroup = null;
-            while (p != null) {
-                if (p instanceof LayerGroup) {
-                    parentGroup = (LayerGroup) p;
-                    break;
+            if (FeatureChanges.isChanges(changeTable)) {
+                SyncResult flushResult = new SyncResult();
+                boolean flushOk = false;
+                try {
+                    flushOk = layer.sendLocalChanges(flushResult);
+                } catch (RuntimeException e) {
+                    HyperLog.w(Constants.TAG, "NGW schema rebuild: sendLocalChanges crashed for \""
+                            + layer.getName() + "\": " + e.getMessage(), e);
                 }
-                p = p.getParent();
-            }
-            if (parentGroup == null && mMap instanceof LayerGroup) {
-                parentGroup = (LayerGroup) mMap;
-            }
-            if (parentGroup == null) {
-                HyperLog.w(Constants.TAG, "NGW schema rebuild: no parent LayerGroup for " + layerName);
-                return;
-            }
-            final int groupId = parentGroup.getId();
-            int restoreIndex = parentGroup.getChildLayerIndex(layer);
-            if (restoreIndex < 0) {
-                restoreIndex = parentGroup.getLayerCount();
-            }
-            /*
-             * Do not pass KEY_LAYER_CONFIG_JSON from layer.toJSON() here: that snapshot is the *old*
-             * local layer (often already out of sync with Web GIS). LayerFillService.resolveImportedLayerConfigJson
-             * prefers the intent extra over an HTTP fetch of the resource description — applying stale JSON
-             * after createFromNGW() reverts fields/renderer and causes an endless schema-mismatch loop on
-             * every sync. Zoom/visibility/name/account/remoteId are still carried by other extras; fresh
-             * description is loaded inside NGWVectorLayerFillTask when the extra is absent.
-             */
-            parentGroup.removeLayer(layer);
-            layer.delete(true);
-            mMap.save();
-
-            Intent intent = new Intent(this, LayerFillService.class);
-            intent.setAction(LayerFillService.ACTION_ADD_TASK);
-            intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupId);
-            if (rebuildFormId > 0L) {
-                Account acc = getAccount(accountName);
-                if (acc != null) {
-                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE,
-                            LayerFillService.VECTOR_LAYER_WITH_FORM);
-                    intent.putExtra(LayerFillService.KEY_URI,
-                            Uri.parse(NGWUtil.getFormUrl(getAccountUrl(acc), rebuildFormId)));
-                    intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS,
-                            new long[]{rebuildFormId});
-                } else {
-                    HyperLog.w(Constants.TAG, "NGW schema rebuild: account missing for form restore \""
-                            + layerName + "\" account=" + accountName + " formId=" + rebuildFormId);
-                    intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+                if (!flushOk) {
+                    HyperLog.w(Constants.TAG,
+                            "NGW schema rebuild: sendLocalChanges reported failure for \""
+                                    + layer.getName() + "\"");
                 }
+            }
+            if (FeatureChanges.isChanges(changeTable)) {
+                if (!backupEditableLayerData(layer, LayerBackupManager.REASON_SCHEMA_REBUILD)) {
+                    HyperLog.w(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
+                            + "\" - skipped rebuild because backup gate blocked");
+                    return;
+                }
+                postLayerBackupAlert(getString(
+                        com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
+                        layer.getName()));
+                HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
+                        + "\" - backup created before staged rebuild");
+            }
+
+            long formId = resolveNgwLayerRebuildFormId(layer, accountName, remoteId);
+            LayerOriginMetadata origin = layer.getLayerOriginMetadata();
+            handedToMainThread = new Handler(Looper.getMainLooper()).post(() -> {
+                try {
+                    enqueueNgwLayerRebuild(layer, formId, origin);
+                } catch (RuntimeException e) {
+                    HyperLog.w(Constants.TAG, "NGW schema rebuild enqueue failed for \""
+                            + layer.getName() + "\": " + e.getMessage(), e);
+                } finally {
+                    rebuildLease.close();
+                }
+            });
+        } catch (RuntimeException e) {
+            HyperLog.w(Constants.TAG, "NGW schema rebuild preparation failed for \""
+                    + layer.getName() + "\": " + e.getMessage(), e);
+        } finally {
+            if (!handedToMainThread) {
+                rebuildLease.close();
+            }
+        }
+    }
+
+    private void enqueueNgwLayerRebuild(
+            NGWVectorLayer layer,
+            long rebuildFormId,
+            LayerOriginMetadata rebuildOrigin) {
+        if (layer == null || mMap == null) {
+            return;
+        }
+        final String layerName = layer.getName();
+        final String accountName = layer.getAccountName();
+        final long remoteId = layer.getRemoteId();
+
+        ILayer parent = layer.getParent();
+        LayerGroup parentGroup = null;
+        while (parent != null) {
+            if (parent instanceof LayerGroup) {
+                parentGroup = (LayerGroup) parent;
+                break;
+            }
+            parent = parent.getParent();
+        }
+        if (parentGroup == null && mMap instanceof LayerGroup) {
+            parentGroup = (LayerGroup) mMap;
+        }
+        if (parentGroup == null) {
+            HyperLog.w(Constants.TAG, "NGW schema rebuild: no parent LayerGroup for " + layerName);
+            return;
+        }
+        int restoreIndex = parentGroup.getChildLayerIndex(layer);
+        if (restoreIndex < 0) {
+            restoreIndex = parentGroup.getLayerCount();
+        }
+
+        /*
+         * Do not pass KEY_LAYER_CONFIG_JSON from layer.toJSON(): that is the stale local snapshot
+         * which caused the repeated mismatch. The fill loads a fresh server description instead.
+         */
+        Intent intent = new Intent(this, LayerFillService.class);
+        intent.setAction(LayerFillService.ACTION_ADD_TASK);
+        intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, parentGroup.getId());
+        if (rebuildFormId > 0L) {
+            Account account = getAccount(accountName);
+            if (account != null) {
+                intent.putExtra(LayerFillService.KEY_INPUT_TYPE,
+                        LayerFillService.VECTOR_LAYER_WITH_FORM);
+                intent.putExtra(LayerFillService.KEY_URI,
+                        Uri.parse(NGWUtil.getFormUrl(getAccountUrl(account), rebuildFormId)));
+                intent.putExtra(LayerFillService.KEY_DEFAULT_FORM_IDS,
+                        new long[]{rebuildFormId});
             } else {
+                HyperLog.w(Constants.TAG, "NGW schema rebuild: account missing for form restore \""
+                        + layerName + "\" account=" + accountName + " formId=" + rebuildFormId);
                 intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
             }
-            intent.putExtra(LayerFillService.KEY_NAME, layerName);
-            intent.putExtra(LayerFillService.KEY_ACCOUNT, accountName);
-            intent.putExtra(LayerFillService.KEY_REMOTE_ID, remoteId);
-            intent.putExtra(LayerFillService.KEY_MIN_ZOOM, minZ);
-            intent.putExtra(LayerFillService.KEY_MAX_ZOOM, maxZ);
-            intent.putExtra(LayerFillService.KEY_VISIBLE, visible);
-            intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
-            intent.putExtra(LayerFillService.KEY_LAYER_RESTORE_INSERT_INDEX, restoreIndex);
-            // Collector architecture foundation: keep layer origin through automatic rebuilds.
-            // Future composition/form/tile sync relies on this metadata and should not require
-            // re-importing heavy local data after a schema refresh.
-            if (rebuildOrigin != null) {
-                long originFormId = rebuildFormId > 0L ? rebuildFormId : rebuildOrigin.getFormId();
-                if (originFormId > 0L) {
-                    intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, originFormId);
-                }
-                if (rebuildOrigin.isManagedByProject()
-                        && !TextUtils.isEmpty(rebuildOrigin.getProjectUid())) {
-                    intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_UID,
-                            rebuildOrigin.getProjectUid());
-                    if (rebuildOrigin.getCollectorOrder() >= 0) {
-                        intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX,
-                                rebuildOrigin.getCollectorOrder());
-                    }
-                } else if (LayerOriginMetadata.TYPE_MANUAL_NGW.equals(rebuildOrigin.getType())) {
-                    intent.putExtra(LayerFillService.KEY_MARK_MANUAL_NGW_ORIGIN, true);
-                }
+        } else {
+            intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.NGW_LAYER);
+        }
+        intent.putExtra(LayerFillService.KEY_NAME, layerName);
+        intent.putExtra(LayerFillService.KEY_ACCOUNT, accountName);
+        intent.putExtra(LayerFillService.KEY_REMOTE_ID, remoteId);
+        intent.putExtra(LayerFillService.KEY_MIN_ZOOM, layer.getMinZoom());
+        intent.putExtra(LayerFillService.KEY_MAX_ZOOM, layer.getMaxZoom());
+        intent.putExtra(LayerFillService.KEY_VISIBLE, layer.isVisible());
+        intent.putExtra(LayerFillService.KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
+        intent.putExtra(LayerFillService.KEY_LAYER_RESTORE_INSERT_INDEX, restoreIndex);
+        putLayerRebuildOriginExtras(intent, rebuildFormId, rebuildOrigin);
+
+        if (!LayerFillService.startFillIntent(this, intent)) {
+            HyperLog.w(Constants.TAG, "NGW schema rebuild could not reserve layer fill for \""
+                    + layerName + "\"");
+            return;
+        }
+        Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
+        LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
+        HyperLog.v(Constants.TAG, "NGW schema mismatch: scheduled LayerFillService rebuild for \""
+                + layerName + "\" formId=" + rebuildFormId
+                + " (old layer retained until replacement succeeds)");
+    }
+
+    private void putLayerRebuildOriginExtras(
+            Intent intent,
+            long rebuildFormId,
+            LayerOriginMetadata rebuildOrigin) {
+        if (rebuildOrigin == null) {
+            return;
+        }
+        long originFormId = rebuildFormId > 0L ? rebuildFormId : rebuildOrigin.getFormId();
+        if (originFormId > 0L) {
+            intent.putExtra(LayerFillService.KEY_LAYER_ORIGIN_FORM_ID, originFormId);
+        }
+        if (rebuildOrigin.isManagedByProject()
+                && !TextUtils.isEmpty(rebuildOrigin.getProjectUid())) {
+            intent.putExtra(LayerFillService.KEY_COLLECTOR_PROJECT_UID,
+                    rebuildOrigin.getProjectUid());
+            if (rebuildOrigin.getCollectorOrder() >= 0) {
+                intent.putExtra(LayerFillService.KEY_COLLECTOR_ORDER_INDEX,
+                        rebuildOrigin.getCollectorOrder());
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent);
-            } else {
-                startService(intent);
-            }
-            Activity fillHost = LayerFillProgressDialogFragment.getProgressHostActivity();
-            LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
-            HyperLog.v(Constants.TAG, "NGW schema mismatch: scheduled LayerFillService rebuild for \""
-                    + layerName + "\" formId=" + rebuildFormId);
-        });
+        } else if (LayerOriginMetadata.TYPE_MANUAL_NGW.equals(rebuildOrigin.getType())) {
+            intent.putExtra(LayerFillService.KEY_MARK_MANUAL_NGW_ORIGIN, true);
+        }
     }
 
     /**
@@ -2372,7 +2440,8 @@ public abstract class GISApplication extends Application
 
     private static boolean isManualDeleteReason(String reason) {
         return LayerBackupManager.REASON_MANUAL_LAYER_DELETE.equals(reason)
-                || LayerBackupManager.REASON_MANUAL_FEATURE_DELETE.equals(reason);
+                || LayerBackupManager.REASON_MANUAL_FEATURE_DELETE.equals(reason)
+                || LayerBackupManager.REASON_PROJECT_DELETE.equals(reason);
     }
 
     private void postLayerBackupAlert(String message) {

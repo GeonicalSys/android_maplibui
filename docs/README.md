@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-15
+last_verified: 2026-08-21
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -23,8 +23,18 @@ Collector workspaces и защитные backups.
 - вставка NGRc/raster/vector layers в правильном порядке;
 - deferred reload карты после batch fill, который остаётся pending до фактического
   завершения MapLibre style/source apply;
-- изолированные Collector projects и переключение composition;
-- schema rebuild/removal только после успешного backup;
+- изолированные Web GIS/local projects, atomic registry/sidecar, switch/create/
+  rename/delete и project-wide operation leases; fill заранее резервирует workspace,
+  но ждёт завершения sync перед доступом к SQLite;
+- попытка импортировать новый Collector-проект во время sync/fill не изменяет
+  реестр и показывает отдельное окно с просьбой дождаться завершения операции;
+- staged schema rebuild/removal только после успешного backup, с ограничением
+  повторов неизменного mismatch fingerprint;
+- toolbar Back в NGW resource tree поднимается к родительскому каталогу и
+  закрывает экран только из корня;
+- просмотр вкладок свойств NGW-слоя не меняет направление синхронизации;
+  направление можно вернуть из «только с сервера» в двустороннее по политике
+  владельца слоя, даже если generic mobile `is_editable` у Collector-слоя false;
 - track/edit/form UI и foreground workers/services;
 - фото-вложения по умолчанию получают видимый штамп координат из геометрии объекта;
   оба preference можно выключить в настройках карты;
@@ -35,6 +45,8 @@ Collector workspaces и защитные backups.
   как резерв;
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
+- Polygon и MultiPolygon используют ту же компактную панель вершин, что LineString:
+  без добавления/удаления частей и отверстий, с режимами обхода и касания;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/touch geometry and attribute forms use explicit Continue/Discard recovery;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
@@ -56,7 +68,8 @@ Collector workspaces и защитные backups.
   import и composition sync создают штатные QGIS styles только через
   `CollectorRasterLayerHelper`, в общем порядке с vectors и всегда read-only.
 - Backup failure блокирует destructive mutation.
-- Collector project UID/map path не смешиваются между workspaces.
+- Project UID/map path не смешиваются между workspaces; switch и destructive
+  project mutation запрещены во время sync/fill/rebuild.
 - Карта приложения переоткрывается потокобезопасно, ContentProvider следует активному workspace,
   а project switch запрещён до остановки записываемого трека.
 - `SYNC_NONE` оценивается отдельно для feature data и поддерживаемой config logic.
@@ -89,14 +102,25 @@ Collector workspaces и защитные backups.
 
 - Долгий/зависший fill: `LayerFillService`, notification/foreground lifecycle,
   SQLite transaction и deferred map reload.
+- Повторяется rebuild тяжёлого слоя: проверить mismatch fingerprint в
+  `SchemaRebuildRetryGuard`, staged replacement и число остановленных слоёв в
+  настройках проекта; не удалять старый слой до успешного fill.
 - Fill закончен, identify видит объекты, но слой не отрисован: pending reload
   снимается только callback после проверки MapLibre source/style layer; проверить
   `MapLibre post-load verification`, а не перезапускать приложение как штатный путь.
 - Неверный порядок: insertion index в model и последующий style reload.
 - «Нет редактируемых слоёв»: проверить Collector item `editable`,
   `managed_by_project` и исходящее направление sync.
+- После просмотра «Синхронизация», «Поля» или «Общие» слой стал read-only:
+  проверить no-op guard начального события `Spinner` и доступность направления
+  через `NGWVectorLayer.isSyncDirectionConfigurable()`.
 - Потеря слоя после composition: backup result и removal scheduling.
 - Неверный проект после restart: registry JSON, active project и map path.
+- Импорт во время sync показывает общую «Ошибку»: проверить статус
+  `PrepareWorkspaceResult.BUSY`; блокировка должна сработать до `ensureProject()`
+  и открыть модальное сообщение.
+- После успешного удаления показана ошибка: не открывать fallback-карту из
+  фонового потока удаления; её открывает `MainActivity` после результата.
 - Пустая/чужая история треков после switch: проверить active project preference, создание нового
   `MapDrawable` и перепривязку `LayerContentProvider` к тому же workspace.
 - На скорости перестал расти трек или обход: проверить provider-qualified

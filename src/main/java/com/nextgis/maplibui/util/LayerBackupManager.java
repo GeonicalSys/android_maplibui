@@ -73,6 +73,7 @@ public final class LayerBackupManager {
     public static final String REASON_SYNC_REMOTE_APPLY = "sync_remote_apply";
     public static final String REASON_MANUAL_LAYER_DELETE = "manual_layer_delete";
     public static final String REASON_MANUAL_FEATURE_DELETE = "manual_feature_delete";
+    public static final String REASON_PROJECT_DELETE = "project_delete";
 
     public static final int DEFAULT_BACKUP_MAX_GB = 5;
     public static final long BYTES_PER_GB = 1024L * 1024L * 1024L;

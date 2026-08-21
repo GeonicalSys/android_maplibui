@@ -102,6 +102,12 @@ public class NGWResourcesListAdapter
         return !mShowAccounts && mCurrentResource instanceof Connection;
     }
 
+    public boolean canGoUp() {
+        return mCurrentResource != null
+                && !isAccountsDisabled()
+                && mCurrentResource.getParent() != null;
+    }
+
     public void setConnectionListener(OnConnectionListener connectionListener) {
         mConnectionListener = connectionListener;
     }
@@ -629,6 +635,9 @@ public class NGWResourcesListAdapter
     }
 
     public void goUp() {
+        if (!canGoUp()) {
+            return;
+        }
         INGWResource resource = mCurrentResource.getParent();
         if (resource instanceof Resource) {
             Resource resourceGroup = (Resource) resource;
@@ -639,6 +648,9 @@ public class NGWResourcesListAdapter
 
         mCurrentResource = resource;
         notifyDataSetChanged();
+        if (mPathView != null) {
+            mPathView.onUpdate(mCurrentResource);
+        }
     }
 
     private void goDeep(int position) {
