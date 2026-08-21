@@ -51,7 +51,8 @@ Collector workspaces и защитные backups.
   MapLibre-проекцией, а не устаревающим legacy display. В панели нет overflow и
   дополнения касанием, у полигонов также нет добавления/удаления частей и отверстий.
   Обход вставляет GPS после выбранного узла. Undo/Redo хранит до 100 реальных
-  изменений геометрии и не считает выбор узла или повторный callback отдельным шагом;
+  изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
+  и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
@@ -138,8 +139,8 @@ Collector workspaces и защитные backups.
   что `NGWResourceAsyncTask.onPostExecute()` не передаёт application context в
   `AlertDialog` и пропускает UI после уничтожения Activity.
 - Для отмены одной вершины требуется несколько нажатий: проверить, что
-  `UndoRedoOverlay` отбрасывает подряд идущие одинаковые снимки и не сдвигает
-  курсор истории при недоступном Undo/Redo.
+  `UndoRedoOverlay` отбрасывает подряд идущие снимки с одинаковым координатным
+  WKT, даже если callback обновил CRS, и не сдвигает курсор при недоступном Undo/Redo.
 
 ## Проверки
 

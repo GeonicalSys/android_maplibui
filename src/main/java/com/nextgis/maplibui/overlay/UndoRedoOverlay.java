@@ -137,8 +137,10 @@ public class UndoRedoOverlay extends Overlay {
         GeoGeometry geometry = feature.getGeometry();
         if (mHistoryState >= 0
                 && mHistoryState < mHistory.size()
-                && mHistory.get(mHistoryState).equals(geometry)) {
-            mFeature.setGeometry(mHistory.get(mHistoryState).copy());
+                && hasSameCoordinates(mHistory.get(mHistoryState), geometry)) {
+            GeoGeometry snapshot = geometry.copy();
+            mHistory.set(mHistoryState, snapshot);
+            mFeature.setGeometry(snapshot.copy());
             defineUndoRedo();
             return;
         }
@@ -155,6 +157,11 @@ public class UndoRedoOverlay extends Overlay {
         mHistoryState = mHistory.size() - 1;
         mFeature.setGeometry(mHistory.getLast().copy());
         defineUndoRedo();
+    }
+
+
+    private static boolean hasSameCoordinates(GeoGeometry first, GeoGeometry second) {
+        return first.toWKT(true).equals(second.toWKT(true));
     }
 
 
