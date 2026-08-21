@@ -623,32 +623,44 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
     public static float[] getNewGeometry(int geometryType, float tolerance, MapDrawable map) {
         float[] geoPoints;
-        GeoPoint center = map.getFullScreenBounds().getCenter();
+        PointF center;
+        MapLibreMap mapLibreMap = map.getMaplibreMap();
+        if (mapLibreMap != null) {
+            center = mapLibreMap.getProjection().toScreenLocation(
+                    mapLibreMap.getCameraPosition().target);
+        } else {
+            GeoEnvelope bounds = map.getFullScreenBounds();
+            if (bounds == null || !bounds.isInit()) {
+                return null;
+            }
+            GeoPoint legacyCenter = map.mapToScreen(bounds.getCenter());
+            center = new PointF((float) legacyCenter.getX(), (float) legacyCenter.getY());
+        }
 
         switch (geometryType) {
             case GeoConstants.GTPoint:
             case GeoConstants.GTMultiPoint:
                 geoPoints = new float[2];
-                geoPoints[0] = (float) center.getX();
-                geoPoints[1] = (float) center.getY();
+                geoPoints[0] = center.x;
+                geoPoints[1] = center.y;
                 return geoPoints;
             case GeoConstants.GTLineString:
             case GeoConstants.GTMultiLineString:
             case GeoConstants.GTPolygon:
             case GeoConstants.GTMultiPolygon:
                 geoPoints = new float[2];
-                geoPoints[0] = (float) center.getX();
-                geoPoints[1] = (float) center.getY();
+                geoPoints[0] = center.x;
+                geoPoints[1] = center.y;
                 return geoPoints;
             case GeoConstants.GTLinearRing:
                 float add = tolerance * 2;
                 geoPoints = new float[6];
-                geoPoints[0] = (float) center.getX() + add;
-                geoPoints[1] = (float) center.getY() + add;
-                geoPoints[2] = (float) center.getX() - add;
-                geoPoints[3] = (float) center.getY() + add;
-                geoPoints[4] = (float) center.getX() - add;
-                geoPoints[5] = (float) center.getY() - add;
+                geoPoints[0] = center.x + add;
+                geoPoints[1] = center.y + add;
+                geoPoints[2] = center.x - add;
+                geoPoints[3] = center.y + add;
+                geoPoints[4] = center.x - add;
+                geoPoints[5] = center.y - add;
                 return geoPoints;
             default:
                 return null;

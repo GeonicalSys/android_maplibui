@@ -46,8 +46,9 @@ Collector workspaces и защитные backups.
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
 - LineString, Polygon и Multi-варианты используют tap-скетч с одним стартовым
-  узлом; в панели нет overflow и дополнения касанием, у полигонов также нет
-  добавления/удаления частей и отверстий. Обход вставляет GPS после выбранного узла;
+  узлом, вычисленным через экранную проекцию центра камеры; в панели нет overflow
+  и дополнения касанием, у полигонов также нет добавления/удаления частей и
+  отверстий. Обход вставляет GPS после выбранного узла;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
