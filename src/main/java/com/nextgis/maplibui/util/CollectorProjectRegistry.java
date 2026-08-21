@@ -110,6 +110,39 @@ public final class CollectorProjectRegistry {
         }
     }
 
+    public static final class PrepareWorkspaceResult {
+        public enum Status {
+            SUCCESS,
+            BUSY,
+            INVALID,
+            FAILED
+        }
+
+        private final Status status;
+        private final LayerGroup workspace;
+
+        private PrepareWorkspaceResult(Status status, LayerGroup workspace) {
+            this.status = status;
+            this.workspace = workspace;
+        }
+
+        public boolean isSuccess() {
+            return status == Status.SUCCESS && workspace != null;
+        }
+
+        public boolean isBusy() {
+            return status == Status.BUSY;
+        }
+
+        public Status getStatus() {
+            return status;
+        }
+
+        public LayerGroup getWorkspace() {
+            return workspace;
+        }
+    }
+
     public static final class ProjectInfo {
         private final String projectUid;
         private final ProjectType projectType;
@@ -482,12 +515,6 @@ public final class CollectorProjectRegistry {
                     HyperLog.w(Constants.TAG,
                             "Project deletion: tombstone cleanup deferred " + tombstone.getPath());
                 }
-                if (gisApplication != null) {
-                    MapBase fallbackMap = gisApplication.getMap();
-                    if (fallbackMap != null) {
-                        fallbackMap.save();
-                    }
-                }
                 return new DeleteResult(DeleteResult.Status.SUCCESS,
                         openedFallback.getProjectUid());
             }
@@ -552,7 +579,14 @@ public final class CollectorProjectRegistry {
             return false;
         }
         try {
-            synchronized (LOCK) {
+            return activateProjectUnderLease(context, projectUid);
+        } finally {
+            operationLease.close();
+        }
+    }
+
+    private static boolean activateProjectUnderLease(Context context, String projectUid) {
+        synchronized (LOCK) {
             ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
             ProjectInfo project = findProject(projects, projectUid);
             if (project == null) {
@@ -635,59 +669,68 @@ public final class CollectorProjectRegistry {
             projects.add(opened);
             saveProjectsLocked(context, projects);
             return true;
-            }
-        } finally {
-            operationLease.close();
         }
     }
 
     public static LayerGroup prepareCollectorProjectWorkspace(
             Context context,
             CollectorProjectMetadata metadata) {
+        return prepareCollectorProjectWorkspaceResult(context, metadata).getWorkspace();
+    }
+
+    public static PrepareWorkspaceResult prepareCollectorProjectWorkspaceResult(
+            Context context,
+            CollectorProjectMetadata metadata) {
         if (context == null || metadata == null || !metadata.isValid()) {
-            return null;
+            return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.INVALID, null);
         }
-        ProjectInfo project = ensureProject(context, metadata);
-        if (project == null) {
-            return null;
+        ProjectOperationCoordinator.Lease operationLease =
+                ProjectOperationCoordinator.tryBegin(
+                        context, ProjectOperationCoordinator.Kind.PROJECT_SWITCH);
+        if (operationLease == null) {
+            return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.BUSY, null);
         }
-
-        Context appContext = context.getApplicationContext();
-        if (!(appContext instanceof IGISApplication)) {
-            return null;
-        }
-        IGISApplication app = (IGISApplication) appContext;
         try {
-            MapBase currentMap = app.getMap();
-            if (currentMap != null) {
-                currentMap.save();
+            ProjectInfo project = ensureProject(context, metadata);
+            if (project == null) {
+                return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.FAILED, null);
             }
+
+            Context appContext = context.getApplicationContext();
+            if (!(appContext instanceof IGISApplication)) {
+                return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.FAILED, null);
+            }
+            IGISApplication app = (IGISApplication) appContext;
+            if (!activateProjectUnderLease(context, project.getProjectUid())) {
+                return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.FAILED, null);
+            }
+            MapBase projectMap = app.getMap();
+            if (projectMap == null) {
+                return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.FAILED, null);
+            }
+
+            CollectorProjectMetadata freshMetadata = CollectorProjectMetadata.create(
+                    metadata.getAccountName(),
+                    metadata.getProjectRemoteId(),
+                    metadata.getName(),
+                    metadata.getDistrict());
+            projectMap.setName(!TextUtils.isEmpty(metadata.getName())
+                    ? metadata.getName()
+                    : project.getProjectUid());
+            projectMap.setCollectorProjectMetadata(freshMetadata);
+            if (!projectMap.save()) {
+                return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.FAILED, null);
+            }
+            HyperLog.v(Constants.TAG, "CollectorProjectRegistry: activated workspace uid="
+                    + project.getProjectUid() + " mapPath=" + project.getMapPath());
+            return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.SUCCESS, projectMap);
         } catch (RuntimeException e) {
-            HyperLog.w(Constants.TAG, "CollectorProjectRegistry: current map save before switch failed: "
-                    + e.getMessage(), e);
+            HyperLog.w(Constants.TAG,
+                    "CollectorProjectRegistry: workspace preparation failed: " + e.getMessage(), e);
+            return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.FAILED, null);
+        } finally {
+            operationLease.close();
         }
-
-        if (!activateProject(context, project.getProjectUid())) {
-            return null;
-        }
-        MapBase projectMap = app.getMap();
-        if (projectMap == null) {
-            return null;
-        }
-
-        CollectorProjectMetadata freshMetadata = CollectorProjectMetadata.create(
-                metadata.getAccountName(),
-                metadata.getProjectRemoteId(),
-                metadata.getName(),
-                metadata.getDistrict());
-        projectMap.setName(!TextUtils.isEmpty(metadata.getName())
-                ? metadata.getName()
-                : project.getProjectUid());
-        projectMap.setCollectorProjectMetadata(freshMetadata);
-        projectMap.save();
-        HyperLog.v(Constants.TAG, "CollectorProjectRegistry: activated workspace uid="
-                + project.getProjectUid() + " mapPath=" + project.getMapPath());
-        return projectMap;
     }
 
     private static boolean persistActiveProjectPreferences(

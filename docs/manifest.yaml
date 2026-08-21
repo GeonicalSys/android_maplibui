@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -23,7 +23,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
-    responsibility: Atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local project workspaces with schema-v2 sidecars and backup-gated fallback switching.
+    responsibility: Atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local project workspaces with schema-v2 sidecars, operation-aware import preparation and main-thread fallback opening after backup-gated deletion.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
+    responsibility: Browse and import NGW resources, showing a readable modal wait message when Collector workspace preparation is blocked by synchronization or layer loading.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectOperationCoordinator.java
     responsibility: Hold one active workspace across sync/fill/rebuild stages and make project switch/create/rename/delete mutually exclusive with database background work.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SchemaRebuildRetryGuard.java

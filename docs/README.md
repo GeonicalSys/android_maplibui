@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -26,6 +26,8 @@ Collector workspaces и защитные backups.
 - изолированные Web GIS/local projects, atomic registry/sidecar, switch/create/
   rename/delete и project-wide operation leases; fill заранее резервирует workspace,
   но ждёт завершения sync перед доступом к SQLite;
+- попытка импортировать новый Collector-проект во время sync/fill не изменяет
+  реестр и показывает отдельное окно с просьбой дождаться завершения операции;
 - staged schema rebuild/removal только после успешного backup, с ограничением
   повторов неизменного mismatch fingerprint;
 - toolbar Back в NGW resource tree поднимается к родительскому каталогу и
@@ -114,6 +116,11 @@ Collector workspaces и защитные backups.
   через `NGWVectorLayer.isSyncDirectionConfigurable()`.
 - Потеря слоя после composition: backup result и removal scheduling.
 - Неверный проект после restart: registry JSON, active project и map path.
+- Импорт во время sync показывает общую «Ошибку»: проверить статус
+  `PrepareWorkspaceResult.BUSY`; блокировка должна сработать до `ensureProject()`
+  и открыть модальное сообщение.
+- После успешного удаления показана ошибка: не открывать fallback-карту из
+  фонового потока удаления; её открывает `MainActivity` после результата.
 - Пустая/чужая история треков после switch: проверить active project preference, создание нового
   `MapDrawable` и перепривязку `LayerContentProvider` к тому же workspace.
 - На скорости перестал расти трек или обход: проверить provider-qualified

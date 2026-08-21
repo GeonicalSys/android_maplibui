@@ -474,10 +474,23 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 collector.getRemoteId(),
                 collector.getName(),
                 collector.getProjectDistrict());
-        LayerGroup projectWorkspace = CollectorProjectRegistry.prepareCollectorProjectWorkspace(
-                this,
-                metadata);
+        CollectorProjectRegistry.PrepareWorkspaceResult prepareResult =
+                CollectorProjectRegistry.prepareCollectorProjectWorkspaceResult(
+                        this,
+                        metadata);
+        LayerGroup projectWorkspace = prepareResult.getWorkspace();
         if (projectWorkspace == null) {
+            if (prepareResult.isBusy()) {
+                HyperLog.w(TAG, "Collector import: workspace switch blocked by active operation"
+                        + " remoteId=" + collector.getRemoteId()
+                        + " account=" + connection.getName());
+                new AlertDialog.Builder(this)
+                        .setTitle(R.string.ngw_collector_import_busy_title)
+                        .setMessage(R.string.ngw_collector_import_busy_message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
+                return false;
+            }
             HyperLog.e(TAG, "Collector import: failed to prepare isolated workspace remoteId="
                     + collector.getRemoteId() + " account=" + connection.getName());
             Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
