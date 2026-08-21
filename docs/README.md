@@ -95,7 +95,8 @@ Collector workspaces и защитные backups.
   update, form handoff or recovery Discard.
 - После cold Continue незавершённого дополнения полигона обходом MapLibre должен
   сохранять одну заливку и стабильный красный контур во время GPS-обновлений;
-  скрытые на время обхода вершины снова публикуются сразу после Stop.
+  скрытые на время обхода вершины снова публикуются сразу после Stop. Для
+  LineString/MultiLineString тот же recovery не должен оставлять polygon fill.
 - Успешная серверная авторизация не считается добавлением Веб ГИС, пока
   `AccountManager` не создал и не вернул variant-specific Android account; при
   локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.
