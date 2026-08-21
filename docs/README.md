@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-21
+last_verified: 2026-08-22
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -93,6 +93,9 @@ Collector workspaces и защитные backups.
   service and clears `walkedit_temp`, while an unexpected stop retains it. Normal
   vertex/tap editing keeps `geometry_edit_draft` until explicit Cancel, successful
   update, form handoff or recovery Discard.
+- После cold Continue незавершённого дополнения полигона обходом MapLibre должен
+  сохранять одну заливку и стабильный красный контур во время GPS-обновлений;
+  скрытые на время обхода вершины снова публикуются сразу после Stop.
 - Успешная серверная авторизация не считается добавлением Веб ГИС, пока
   `AccountManager` не создал и не вернул variant-specific Android account; при
   локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.
