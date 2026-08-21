@@ -26,7 +26,7 @@ public final class GeometryEditDraftStore {
 
     /** Values mirror MapFragment modes without introducing an app-module dependency. */
     public static final int MODE_EDIT = 2;
-    public static final int MODE_EDIT_BY_TOUCH = 5;
+    private static final int LEGACY_MODE_EDIT_BY_TOUCH = 5;
 
     private GeometryEditDraftStore() {
     }
@@ -44,7 +44,7 @@ public final class GeometryEditDraftStore {
         public boolean isValid() {
             return layerId != Constants.NOT_FOUND
                     && featureId >= Constants.NOT_FOUND
-                    && (editMode == MODE_EDIT || editMode == MODE_EDIT_BY_TOUCH)
+                    && editMode == MODE_EDIT
                     && geometryWkt != null
                     && !geometryWkt.isEmpty()
                     && mapPath != null
@@ -161,6 +161,9 @@ public final class GeometryEditDraftStore {
         snapshot.layerId = json.optInt("layer_id", Constants.NOT_FOUND);
         snapshot.featureId = json.optLong("feature_id", Constants.NOT_FOUND);
         snapshot.editMode = json.optInt("edit_mode", Constants.NOT_FOUND);
+        if (snapshot.editMode == LEGACY_MODE_EDIT_BY_TOUCH) {
+            snapshot.editMode = MODE_EDIT;
+        }
         snapshot.geometryWkt = json.optString("geometry_wkt", null);
         snapshot.mapPath = json.optString("map_path", null);
         snapshot.updatedAtMs = json.optLong("updated_at", 0L);

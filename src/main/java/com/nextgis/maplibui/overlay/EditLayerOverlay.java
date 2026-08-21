@@ -42,7 +42,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import androidx.core.content.ContextCompat;
-import androidx.core.view.MenuItemCompat;
 import androidx.appcompat.widget.Toolbar;
 import android.util.Log;
 import android.view.MenuItem;
@@ -107,7 +106,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     public final static int MODE_EDIT = 2;
     public final static int MODE_CHANGE = 3;
     public final static int MODE_EDIT_BY_WALK = 4;
-    public final static int MODE_EDIT_BY_TOUCH = 5;
 
     /**
      * edit feature style
@@ -174,6 +172,11 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
     private static final long WALK_STOP_CLEANUP_DELAY_MS = 250L;
     /** While true, {@link #commitWalkGpsLeadToFeature()} may run (walk stop + delayed cleanup only). */
     private boolean mWalkStopTailCommitActive = false;
+    /** Stable insertion target captured when walk mode starts. */
+    private int mWalkTargetGeometryIndex = 0;
+    private int mWalkTargetRingIndex = 0;
+    private int mWalkNextInsertIndex = 0;
+    private boolean mWalkTargetRestored = false;
     private final Runnable mWalkStopCleanupRunnable = new Runnable() {
         @Override
         public void run() {
@@ -459,7 +462,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
             item = mBottomToolbar.getMenu().findItem(R.id.menu_edit_by_walk);
             if (item != null)
-                ControlHelper.setEnabled(item, !hasEdits);
+                ControlHelper.setEnabled(item, true);
         }
     }
 
@@ -547,15 +550,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
                 startGeometryByWalk();
                 break;
-            case MODE_EDIT_BY_TOUCH:
-                // Navigation close is set by MapFragment (cancelEdits).
-                mBottomToolbar.setTitle(R.string.title_edit_by_touch);
-                mBottomToolbar.getMenu().clear();
-                MenuItem apply = mBottomToolbar.getMenu().add(0, 0, 0, R.string.ok);
-                apply.setIcon(R.drawable.ic_action_apply_dark);
-                MenuItemCompat.setShowAsAction(apply, MenuItemCompat.SHOW_AS_ACTION_ALWAYS);
-                mMapViewOverlays.setLockMap(true);
-                break;
         }
 
         hideOverlayPoint();
@@ -608,9 +602,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         else if (id == R.id.menu_edit_by_walk) {
             result = true;
         }
-        else if (id == R.id.menu_edit_by_touch) {
-            result = true;
-        }
 
         if (result)
             update(false);
@@ -632,7 +623,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
     public static float[] getNewGeometry(int geometryType, float tolerance, MapDrawable map) {
         float[] geoPoints;
-        float add = tolerance * 2;
         GeoPoint center = map.getFullScreenBounds().getCenter();
 
         switch (geometryType) {
@@ -644,25 +634,14 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 return geoPoints;
             case GeoConstants.GTLineString:
             case GeoConstants.GTMultiLineString:
-                geoPoints = new float[4];
-                geoPoints[0] = (float) center.getX() - add;
-                geoPoints[1] = (float) center.getY() - add;
-                geoPoints[2] = (float) center.getX() + add;
-                geoPoints[3] = (float) center.getY() + add;
-                return geoPoints;
             case GeoConstants.GTPolygon:
             case GeoConstants.GTMultiPolygon:
-                geoPoints = new float[8];
-                geoPoints[0] = (float) center.getX() - add;
-                geoPoints[1] = (float) center.getY() - add;
-                geoPoints[2] = (float) center.getX() + add;
-                geoPoints[3] = (float) center.getY() - add;
-                geoPoints[4] = (float) center.getX() + add;
-                geoPoints[5] = (float) center.getY() + add;
-                geoPoints[6] = (float) center.getX() - add;
-                geoPoints[7] = (float) center.getY() + add;
+                geoPoints = new float[2];
+                geoPoints[0] = (float) center.getX();
+                geoPoints[1] = (float) center.getY();
                 return geoPoints;
             case GeoConstants.GTLinearRing:
+                float add = tolerance * 2;
                 geoPoints = new float[6];
                 geoPoints[0] = (float) center.getX() + add;
                 geoPoints[1] = (float) center.getY() + add;
@@ -811,20 +790,35 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         }
         mHasEdits = true;
 
-        if (WalkEditService.isServiceRunning(mContext.get()))
+        if (WalkEditService.isServiceRunning(mContext.get())) {
+            mWalkTargetRestored = false;
             return;
+        }
 
         // start service if not started yet
         GeoGeometry geometry = mFeature.getGeometry();
 
-        int selectedGeometry = mDrawItems.indexOf(mSelectedItem);
+        int selectedGeometry = mWalkTargetRestored
+                ? mWalkTargetGeometryIndex : Math.max(0, mDrawItems.indexOf(mSelectedItem));
+        int selectedRing = mWalkTargetRestored
+                ? mWalkTargetRingIndex : mSelectedItem != null ? mSelectedItem.getSelectedRingId() : 0;
+        int selectedVertex = mWalkTargetRestored
+                ? Math.max(0, mWalkNextInsertIndex - 1)
+                : mSelectedItem != null ? mSelectedItem.getSelectedPointId() : 0;
+        if (!mWalkTargetRestored && mMap != null && mMap.editingObject != null) {
+            selectedGeometry = Math.max(0, mMap.editingObject.getSelectedGeometryIndex());
+            selectedRing = Math.max(0, mMap.editingObject.getSelectedRingIndexForWalk());
+            selectedVertex = Math.max(0, mMap.editingObject.getSelectedVertexIndexInPart());
+        }
+        mWalkTargetGeometryIndex = selectedGeometry;
+        mWalkTargetRingIndex = selectedRing;
+        mWalkNextInsertIndex = selectedVertex + 1;
 
         switch (mLayer.getGeometryType()) {
             case GeoConstants.GTLineString:
                 break;
             case GeoConstants.GTPolygon:
                 GeoPolygon polygon = ((GeoPolygon) geometry);
-                int selectedRing = mSelectedItem.getSelectedRingId();
                 geometry = selectedRing == 0 ? polygon.getOuterRing() : polygon.getInnerRing(selectedRing - 1);
                 break;
             case GeoConstants.GTMultiLineString:
@@ -832,8 +826,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 break;
             case GeoConstants.GTMultiPolygon:
                 GeoPolygon selectedPolygon = ((GeoMultiPolygon) geometry).get(selectedGeometry);
-                int selectedRingMP = mSelectedItem.getSelectedRingId();
-                geometry = selectedRingMP == 0 ? selectedPolygon.getOuterRing() : selectedPolygon.getInnerRing(selectedRingMP - 1);
+                geometry = selectedRing == 0 ? selectedPolygon.getOuterRing() : selectedPolygon.getInnerRing(selectedRing - 1);
                 break;
             default:
                 return;
@@ -843,9 +836,11 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         trackerService.setAction(WalkEditService.ACTION_START);
         trackerService.putExtra(ConstantsUI.KEY_LAYER_ID, mLayer.getId());
         trackerService.putExtra(ConstantsUI.KEY_FEATURE_ID, mFeature != null ? mFeature.getId() : Constants.NOT_FOUND);
-        trackerService.putExtra(WalkEditService.KEY_RING_INDEX,
-                mSelectedItem != null ? mSelectedItem.getSelectedRingId() : 0);
+        trackerService.putExtra(WalkEditService.KEY_GEOMETRY_INDEX, mWalkTargetGeometryIndex);
+        trackerService.putExtra(WalkEditService.KEY_RING_INDEX, mWalkTargetRingIndex);
+        trackerService.putExtra(WalkEditService.KEY_INSERT_INDEX, mWalkNextInsertIndex);
         trackerService.putExtra(ConstantsUI.KEY_GEOMETRY, geometry);
+        mWalkTargetRestored = false;
         Context ctx = mContext.get();
         String targetActivity = "";
         if (ctx instanceof Activity)
@@ -947,34 +942,32 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         gpsMerc.setCRS(GeoConstants.CRS_WGS84);
         gpsMerc.project(GeoConstants.CRS_WEB_MERCATOR);
 
-        int selectedGeometry = mDrawItems.indexOf(mSelectedItem);
-        if (selectedGeometry < 0) {
-            selectedGeometry = 0;
-        }
-        int selectedRing = mSelectedItem.getSelectedRingId();
         try {
             switch (mLayer.getGeometryType()) {
                 case GeoConstants.GTLineString:
-                    return appendWalkGpsLeadToLineString((GeoLineString) base, gpsMerc);
+                    return insertWalkGpsLeadToLineString(
+                            (GeoLineString) base, mWalkNextInsertIndex, gpsMerc);
                 case GeoConstants.GTMultiLineString:
                     GeoMultiLineString ml = (GeoMultiLineString) base;
-                    if (selectedGeometry < 0 || selectedGeometry >= ml.size()) {
+                    if (mWalkTargetGeometryIndex < 0 || mWalkTargetGeometryIndex >= ml.size()) {
                         return base;
                     }
                     GeoMultiLineString mlOut = new GeoMultiLineString(ml);
-                    mlOut.set(selectedGeometry,
-                            appendWalkGpsLeadToLineString(ml.get(selectedGeometry), gpsMerc));
+                    mlOut.set(mWalkTargetGeometryIndex, insertWalkGpsLeadToLineString(
+                            ml.get(mWalkTargetGeometryIndex), mWalkNextInsertIndex, gpsMerc));
                     return mlOut;
                 case GeoConstants.GTPolygon:
-                    return appendWalkGpsLeadToPolygon((GeoPolygon) base, selectedRing, gpsMerc);
+                    return insertWalkGpsLeadToPolygon(
+                            (GeoPolygon) base, mWalkTargetRingIndex, mWalkNextInsertIndex, gpsMerc);
                 case GeoConstants.GTMultiPolygon:
                     GeoMultiPolygon mp = (GeoMultiPolygon) base;
-                    if (selectedGeometry < 0 || selectedGeometry >= mp.size()) {
+                    if (mWalkTargetGeometryIndex < 0 || mWalkTargetGeometryIndex >= mp.size()) {
                         return base;
                     }
                     GeoMultiPolygon mpOut = new GeoMultiPolygon(mp);
-                    mpOut.set(selectedGeometry,
-                            appendWalkGpsLeadToPolygon(mp.get(selectedGeometry), selectedRing, gpsMerc));
+                    mpOut.set(mWalkTargetGeometryIndex, insertWalkGpsLeadToPolygon(
+                            mp.get(mWalkTargetGeometryIndex), mWalkTargetRingIndex,
+                            mWalkNextInsertIndex, gpsMerc));
                     return mpOut;
                 default:
                     return base;
@@ -985,33 +978,47 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         }
     }
 
-    private static GeoLineString appendWalkGpsLeadToLineString(GeoLineString src, GeoPoint gpsMerc) {
+    private static GeoLineString insertWalkGpsLeadToLineString(
+            GeoLineString src, int requestedIndex, GeoPoint gpsMerc) {
         GeoLineString out = new GeoLineString(src);
-        if (out.getPointCount() < 1 || walkLeadTooCloseToLast(out.getPoint(out.getPointCount() - 1), gpsMerc)) {
+        int index = Math.max(0, Math.min(requestedIndex, out.getPointCount()));
+        if (walkLeadTooCloseToNeighbours(out, index, gpsMerc)) {
             return out;
         }
-        out.add(gpsMerc);
+        out.getPoints().add(index, gpsMerc);
         return out;
     }
 
-    private static GeoLinearRing appendWalkGpsLeadToLinearRing(GeoLinearRing src, GeoPoint gpsMerc) {
+    private static GeoLinearRing insertWalkGpsLeadToLinearRing(
+            GeoLinearRing src, int requestedIndex, GeoPoint gpsMerc) {
         GeoLinearRing out = new GeoLinearRing(src);
-        if (out.getPointCount() < 1 || walkLeadTooCloseToLast(out.getPoint(out.getPointCount() - 1), gpsMerc)) {
+        int index = Math.max(0, Math.min(requestedIndex, out.getPointCount()));
+        if (walkLeadTooCloseToNeighbours(out, index, gpsMerc)) {
             return out;
         }
-        out.add(gpsMerc);
+        out.getPoints().add(index, gpsMerc);
         return out;
     }
 
-    private static GeoPolygon appendWalkGpsLeadToPolygon(GeoPolygon src, int selectedRing, GeoPoint gpsMerc) {
+    private static GeoPolygon insertWalkGpsLeadToPolygon(
+            GeoPolygon src, int selectedRing, int insertIndex, GeoPoint gpsMerc) {
         GeoPolygon out = new GeoPolygon(src);
         if (selectedRing == 0) {
-            out.setOuterRing(appendWalkGpsLeadToLinearRing(out.getOuterRing(), gpsMerc));
-        } else {
+            out.setOuterRing(insertWalkGpsLeadToLinearRing(
+                    out.getOuterRing(), insertIndex, gpsMerc));
+        } else if (selectedRing - 1 < out.getInnerRingCount()) {
             out.setInnerRing(selectedRing - 1,
-                    appendWalkGpsLeadToLinearRing(out.getInnerRing(selectedRing - 1), gpsMerc));
+                    insertWalkGpsLeadToLinearRing(
+                            out.getInnerRing(selectedRing - 1), insertIndex, gpsMerc));
         }
         return out;
+    }
+
+    private static boolean walkLeadTooCloseToNeighbours(
+            GeoLineString line, int insertIndex, GeoPoint gpsMerc) {
+        return (insertIndex > 0 && walkLeadTooCloseToLast(line.getPoint(insertIndex - 1), gpsMerc))
+                || (insertIndex < line.getPointCount()
+                && walkLeadTooCloseToLast(line.getPoint(insertIndex), gpsMerc));
     }
 
     private static boolean walkLeadTooCloseToLast(GeoPoint lastMerc, GeoPoint gpsMerc) {
@@ -1173,7 +1180,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         for (DrawItem drawItem : drawItems) {
             boolean isSelected = mSelectedItem == drawItem;
 
-            if (mMode != MODE_CHANGE && mMode != MODE_EDIT_BY_TOUCH) {
+            if (mMode != MODE_CHANGE) {
                 drawItem = drawItem.pan(currentMouseOffset);
 
                 if (isSelected) {
@@ -1585,9 +1592,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                     e.getX() + mTempPointOffset.x, e.getY() + mTempPointOffset.y);
         }
 
-        if (mMode == MODE_EDIT_BY_TOUCH) {
-            mSelectedItem.insertNewPoint(mSelectedItem.getSelectedPointId(), e.getX(), e.getY());
-        }
     }
 
 
@@ -1600,8 +1604,6 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             update(false);
         }
 
-        if (mMode == MODE_EDIT_BY_TOUCH)
-            fillGeometry(false);
     }
 
 
@@ -1774,6 +1776,12 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             if (geometry == null)
                 return;
             try {
+                mWalkTargetGeometryIndex = intent.getIntExtra(
+                        WalkEditService.KEY_GEOMETRY_INDEX, mWalkTargetGeometryIndex);
+                mWalkTargetRingIndex = intent.getIntExtra(
+                        WalkEditService.KEY_RING_INDEX, mWalkTargetRingIndex);
+                mWalkNextInsertIndex = intent.getIntExtra(
+                        WalkEditService.KEY_INSERT_INDEX, mWalkNextInsertIndex);
                 setGeometryFromWalkEdit(geometry);
                 if (mWalkStopTailCommitActive) {
                     commitWalkGpsLeadToFeature();
@@ -1792,40 +1800,48 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         if (mDrawItems == null || mSelectedItem == null)
             return;
 
-        int selectedGeometry = mDrawItems.indexOf(mSelectedItem);
-        int selectedRing = mSelectedItem.getSelectedRingId();
-
         switch (mLayer.getGeometryType()) {
             case GeoConstants.GTLineString:
                 mFeature.setGeometry(geometry);
                 break;
             case GeoConstants.GTMultiLineString:
                 GeoMultiLineString multiLine = (GeoMultiLineString) mFeature.getGeometry();
-                multiLine.set(selectedGeometry, geometry);
+                if (mWalkTargetGeometryIndex < 0 || mWalkTargetGeometryIndex >= multiLine.size())
+                    return;
+                multiLine.set(mWalkTargetGeometryIndex, geometry);
                 mFeature.setGeometry(multiLine);
                 break;
             case GeoConstants.GTPolygon:
                 GeoPolygon polygon = (GeoPolygon) mFeature.getGeometry();
 
-                if (selectedRing == 0)
+                if (mWalkTargetRingIndex == 0)
                     polygon.setOuterRing((GeoLinearRing) geometry);
                 else
-                    polygon.setInnerRing(selectedRing - 1, (GeoLinearRing) geometry);
+                    polygon.setInnerRing(mWalkTargetRingIndex - 1, (GeoLinearRing) geometry);
 
                 mFeature.setGeometry(polygon);
                 break;
             case GeoConstants.GTMultiPolygon:
                 GeoMultiPolygon multiPolygon = (GeoMultiPolygon) mFeature.getGeometry();
-                GeoPolygon selectedPolygon = multiPolygon.get(selectedGeometry);
+                if (mWalkTargetGeometryIndex < 0 || mWalkTargetGeometryIndex >= multiPolygon.size())
+                    return;
+                GeoPolygon selectedPolygon = multiPolygon.get(mWalkTargetGeometryIndex);
 
-                if (selectedRing == 0)
+                if (mWalkTargetRingIndex == 0)
                     selectedPolygon.setOuterRing((GeoLinearRing) geometry);
                 else
-                    selectedPolygon.setInnerRing(selectedRing - 1, (GeoLinearRing) geometry);
+                    selectedPolygon.setInnerRing(mWalkTargetRingIndex - 1, (GeoLinearRing) geometry);
 
-                multiPolygon.set(selectedGeometry, selectedPolygon);
+                multiPolygon.set(mWalkTargetGeometryIndex, selectedPolygon);
                 mFeature.setGeometry(multiPolygon);
                 break;
         }
+    }
+
+    public void restoreWalkTarget(int geometryIndex, int ringIndex, int insertIndex) {
+        mWalkTargetGeometryIndex = Math.max(0, geometryIndex);
+        mWalkTargetRingIndex = Math.max(0, ringIndex);
+        mWalkNextInsertIndex = Math.max(0, insertIndex);
+        mWalkTargetRestored = true;
     }
 }

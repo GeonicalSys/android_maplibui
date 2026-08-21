@@ -89,7 +89,9 @@ public class WalkEditService extends Service implements LocationListener
     public static final String EXTRA_CLEAR_DRAFT = "clear_draft";
     public static final String KEY_CLEAR_DRAFT_ON_DESTROY = "clear_draft_on_destroy";
     public static final String KEY_UPDATED_AT = "updated_at";
+    public static final String KEY_GEOMETRY_INDEX = "geometry_index";
     public static final String KEY_RING_INDEX = "ring_index";
+    public static final String KEY_INSERT_INDEX = "insert_index";
 
     /**
      * Type-safe extra read (API 33+) — deprecated getSerializableExtra can fail to return geometry.
@@ -116,7 +118,9 @@ public class WalkEditService extends Service implements LocationListener
     protected GeoGeometry mGeometry;
     protected int mLayerId;
     protected long mFeatureId = Constants.NOT_FOUND;
+    protected int mGeometryIndex;
     protected int mRingIndex;
+    protected int mInsertIndex;
     protected boolean mShowNotification;
     /** When true, onDestroy clears walkedit_temp (explicit Save/Cancel). */
     private boolean mClearDraftOnDestroy;
@@ -191,18 +195,20 @@ public class WalkEditService extends Service implements LocationListener
                         break;
                     case ACTION_START:
                         int layerId = intent.getIntExtra(ConstantsUI.KEY_LAYER_ID, Constants.NOT_FOUND);
-                        if (mLayerId == layerId && mGeometry != null) { // already recording this layer
+                        long featureId = intent.getLongExtra(
+                                ConstantsUI.KEY_FEATURE_ID, Constants.NOT_FOUND);
+                        if (mLayerId == layerId && mFeatureId == featureId && mGeometry != null) {
                             sendGeometryBroadcast();
                         } else {
                             mLayerId = layerId;
-                            mFeatureId = intent.getLongExtra(ConstantsUI.KEY_FEATURE_ID, Constants.NOT_FOUND);
+                            mFeatureId = featureId;
+                            mGeometryIndex = intent.getIntExtra(KEY_GEOMETRY_INDEX, 0);
                             mRingIndex = intent.getIntExtra(KEY_RING_INDEX, 0);
                             mGeometry = readWalkGeometryExtra(intent);
-                            if (mGeometry instanceof GeoLinearRing) {
-                                GeoLinearRing ring = (GeoLinearRing) mGeometry;
-                                if (ring.isClosed())
-                                    ring.remove(ring.getPointCount() - 1);
-                            }
+                            mInsertIndex = intent.hasExtra(KEY_INSERT_INDEX)
+                                    ? intent.getIntExtra(KEY_INSERT_INDEX, 0)
+                                    : getWalkGeometryVertexCount();
+                            normalizeOpenWalkRing();
 
                             mTargetActivity = intent.getStringExtra(ConstantsUI.TARGET_CLASS);
                             mTargetExtras = intent.getBundleExtra(ConstantsUI.TARGET_EXTRAS);
@@ -228,8 +234,13 @@ public class WalkEditService extends Service implements LocationListener
         } else {
             mLayerId = mSharedPreferencesTemp.getInt(ConstantsUI.KEY_LAYER_ID, Constants.NOT_FOUND);
             mFeatureId = mSharedPreferencesTemp.getLong(ConstantsUI.KEY_FEATURE_ID, Constants.NOT_FOUND);
+            mGeometryIndex = mSharedPreferencesTemp.getInt(KEY_GEOMETRY_INDEX, 0);
             mRingIndex = mSharedPreferencesTemp.getInt(KEY_RING_INDEX, 0);
             mGeometry = GeoGeometryFactory.fromWKT(mSharedPreferencesTemp.getString(ConstantsUI.KEY_GEOMETRY, ""), GeoConstants.CRS_WEB_MERCATOR);
+            mInsertIndex = mSharedPreferencesTemp.contains(KEY_INSERT_INDEX)
+                    ? mSharedPreferencesTemp.getInt(KEY_INSERT_INDEX, 0)
+                    : getWalkGeometryVertexCount();
+            normalizeOpenWalkRing();
             mTargetActivity = mSharedPreferencesTemp.getString(ConstantsUI.TARGET_CLASS, "");
             mTargetExtras = loadBundle(mSharedPreferencesTemp);
             mShowNotification = mSharedPreferencesTemp.getBoolean(ConstantsUI.KEY_MESSAGE, true);
@@ -312,8 +323,20 @@ public class WalkEditService extends Service implements LocationListener
         Intent broadcastIntent = new Intent(WALKEDIT_CHANGE);
         broadcastIntent.setPackage(getPackageName());
         broadcastIntent.putExtra(ConstantsUI.KEY_GEOMETRY, mGeometry);
+        broadcastIntent.putExtra(KEY_GEOMETRY_INDEX, mGeometryIndex);
+        broadcastIntent.putExtra(KEY_RING_INDEX, mRingIndex);
+        broadcastIntent.putExtra(KEY_INSERT_INDEX, mInsertIndex);
         broadcastIntent.setPackage(getApplicationContext().getPackageName());
         sendBroadcast(broadcastIntent);
+    }
+
+    private void normalizeOpenWalkRing() {
+        if (!(mGeometry instanceof GeoLinearRing))
+            return;
+        GeoLinearRing ring = (GeoLinearRing) mGeometry;
+        if (ring.getPointCount() > 1 && ring.isClosed())
+            ring.remove(ring.getPointCount() - 1);
+        mInsertIndex = Math.max(0, Math.min(mInsertIndex, ring.getPointCount()));
     }
 
     @Override
@@ -421,11 +444,11 @@ public class WalkEditService extends Service implements LocationListener
         switch (mGeometry.getType()) {
             case GeoConstants.GTLineString:
                 GeoLineString line = (GeoLineString) mGeometry;
-                line.add(point);
+                mInsertIndex = WalkGeometryInsertion.insert(line, mInsertIndex, point);
                 break;
             case GeoConstants.GTLinearRing:
                 GeoLinearRing ring = (GeoLinearRing) mGeometry;
-                ring.add(point);
+                mInsertIndex = WalkGeometryInsertion.insert(ring, mInsertIndex, point);
                 break;
             default:
                 HyperLog.w(Constants.TAG, "WalkEditService: unsupported geometry type "
@@ -446,10 +469,12 @@ public class WalkEditService extends Service implements LocationListener
         edit.putString(ConstantsUI.KEY_GEOMETRY, mGeometry.toWKT(true));
         edit.putLong(KEY_UPDATED_AT, System.currentTimeMillis());
         edit.putBoolean(KEY_CLEAR_DRAFT_ON_DESTROY, false);
+        edit.putInt(KEY_GEOMETRY_INDEX, mGeometryIndex);
+        edit.putInt(KEY_RING_INDEX, mRingIndex);
+        edit.putInt(KEY_INSERT_INDEX, mInsertIndex);
         if (includeMeta) {
             edit.putInt(ConstantsUI.KEY_LAYER_ID, mLayerId);
             edit.putLong(ConstantsUI.KEY_FEATURE_ID, mFeatureId);
-            edit.putInt(KEY_RING_INDEX, mRingIndex);
             edit.putString(ConstantsUI.TARGET_CLASS, mTargetActivity);
             edit.putBoolean(ConstantsUI.KEY_MESSAGE, mShowNotification);
             saveBundle(edit, mTargetExtras);
@@ -495,17 +520,25 @@ public class WalkEditService extends Service implements LocationListener
         SharedPreferences prefs = getDraftPreferences(context);
         int layerId = prefs.getInt(ConstantsUI.KEY_LAYER_ID, Constants.NOT_FOUND);
         long featureId = prefs.getLong(ConstantsUI.KEY_FEATURE_ID, Constants.NOT_FOUND);
+        int geometryIndex = prefs.getInt(KEY_GEOMETRY_INDEX, 0);
         int ringIndex = prefs.getInt(KEY_RING_INDEX, 0);
         GeoGeometry geometry = GeoGeometryFactory.fromWKT(
                 prefs.getString(ConstantsUI.KEY_GEOMETRY, ""), GeoConstants.CRS_WEB_MERCATOR);
         if (geometry == null || layerId == Constants.NOT_FOUND)
             return false;
+        int insertIndex = prefs.contains(KEY_INSERT_INDEX)
+                ? prefs.getInt(KEY_INSERT_INDEX, 0)
+                : geometry instanceof GeoLineString
+                ? ((GeoLineString) geometry).getPointCount()
+                : 0;
 
         Intent intent = new Intent(context, WalkEditService.class);
         intent.setAction(ACTION_START);
         intent.putExtra(ConstantsUI.KEY_LAYER_ID, layerId);
         intent.putExtra(ConstantsUI.KEY_FEATURE_ID, featureId);
+        intent.putExtra(KEY_GEOMETRY_INDEX, geometryIndex);
         intent.putExtra(KEY_RING_INDEX, ringIndex);
+        intent.putExtra(KEY_INSERT_INDEX, insertIndex);
         intent.putExtra(ConstantsUI.KEY_GEOMETRY, geometry);
         intent.putExtra(ConstantsUI.KEY_MESSAGE, true);
         if (!TextUtils.isEmpty(targetActivity))
@@ -659,7 +692,7 @@ public class WalkEditService extends Service implements LocationListener
                 if (c < 1) {
                     return null;
                 }
-                p = line.getPoint(c - 1);
+                p = line.getPoint(Math.max(0, Math.min(mInsertIndex - 1, c - 1)));
                 break;
             }
             case GeoConstants.GTLinearRing: {
@@ -668,7 +701,7 @@ public class WalkEditService extends Service implements LocationListener
                 if (c < 1) {
                     return null;
                 }
-                p = ring.getPoint(c - 1);
+                p = ring.getPoint(Math.max(0, Math.min(mInsertIndex - 1, c - 1)));
                 break;
             }
             default:
