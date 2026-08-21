@@ -1118,18 +1118,18 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 break;
             case GeoConstants.GTLineString:
                 geometry = new GeoLineString();
-                geoPoints = map.screenToMap(drawItem.getRing(0));
+                geoPoints = screenToMap(map, drawItem.getRing(0));
                 for (GeoPoint geoPoint : geoPoints)
                     ((GeoLineString) geometry).add(geoPoint);
                 break;
             case GeoConstants.GTPolygon:
                 geometry = new GeoPolygon();
-                geoPoints = map.screenToMap(drawItem.getRing(0));
+                geoPoints = screenToMap(map, drawItem.getRing(0));
                 for (GeoPoint geoPoint : geoPoints)
                     ((GeoPolygon) geometry).add(geoPoint);
 
                 for (int i = 1; i < drawItem.getRingCount(); i++) {
-                    geoPoints = map.screenToMap(drawItem.getRing(i));
+                    geoPoints = screenToMap(map, drawItem.getRing(i));
                     GeoLinearRing ring = new GeoLinearRing();
                     ring.setCRS(GeoConstants.CRS_WEB_MERCATOR);
                     for (GeoPoint geoPoint : geoPoints)
@@ -1147,6 +1147,22 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
             geometry.setCRS(GeoConstants.CRS_WEB_MERCATOR);
 
         return geometry;
+    }
+
+
+    private static GeoPoint[] screenToMap(MapDrawable map, float[] screenPoints) {
+        MapLibreMap mapLibreMap = map.getMaplibreMap();
+        if (mapLibreMap == null) {
+            return map.screenToMap(screenPoints);
+        }
+
+        GeoPoint[] result = new GeoPoint[screenPoints.length / 2];
+        for (int i = 0; i < screenPoints.length; i += 2) {
+            result[i / 2] = geoPointFromLatLng(
+                    mapLibreMap.getProjection().fromScreenLocation(
+                            new PointF(screenPoints[i], screenPoints[i + 1])));
+        }
+        return result;
     }
 
 
