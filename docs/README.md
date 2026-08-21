@@ -50,7 +50,8 @@ Collector workspaces и защитные backups.
   преобразование экранных координат линий и полигонов также выполняется текущей
   MapLibre-проекцией, а не устаревающим legacy display. В панели нет overflow и
   дополнения касанием, у полигонов также нет добавления/удаления частей и отверстий.
-  Обход вставляет GPS после выбранного узла;
+  Обход вставляет GPS после выбранного узла. Undo/Redo хранит до 100 реальных
+  изменений геометрии и не считает выбор узла или повторный callback отдельным шагом;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
@@ -136,6 +137,9 @@ Collector workspaces и защитные backups.
 - Сервер NGW отвечает `5xx`, а приложение падает с `BadTokenException`: проверить,
   что `NGWResourceAsyncTask.onPostExecute()` не передаёт application context в
   `AlertDialog` и пропускает UI после уничтожения Activity.
+- Для отмены одной вершины требуется несколько нажатий: проверить, что
+  `UndoRedoOverlay` отбрасывает подряд идущие одинаковые снимки и не сдвигает
+  курсор истории при недоступном Undo/Redo.
 
 ## Проверки
 
