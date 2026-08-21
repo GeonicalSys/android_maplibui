@@ -34,12 +34,23 @@ public class GeometryEditDraftStoreTest {
     }
 
     @Test
-    public void newFeatureAndTouchModeAreValid() {
+    public void newFeatureInEditModeIsValid() {
         GeometryEditDraftStore.Snapshot snapshot = validSnapshot();
         snapshot.featureId = -1L;
-        snapshot.editMode = GeometryEditDraftStore.MODE_EDIT_BY_TOUCH;
 
         assertTrue(snapshot.isValid());
+    }
+
+    @Test
+    public void legacyTouchDraftMigratesToEditMode() throws Exception {
+        JSONObject legacy = GeometryEditDraftStore.encode(validSnapshot())
+                .put("edit_mode", 5);
+
+        GeometryEditDraftStore.Snapshot restored = GeometryEditDraftStore.decode(legacy);
+
+        assertNotNull(restored);
+        assertEquals(GeometryEditDraftStore.MODE_EDIT, restored.editMode);
+        assertTrue(restored.isValid());
     }
 
     @Test

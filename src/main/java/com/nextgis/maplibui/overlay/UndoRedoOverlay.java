@@ -45,10 +45,10 @@ public class UndoRedoOverlay extends Overlay {
     private static final String BUNDLE_KEY_HISTORY_SIZE = "history_size";
     private static final String BUNDLE_KEY_HISTORY_STATE = "history_state";
 
-    private final static int MAX_UNDO = 10;
+    static final int MAX_UNDO = 100;
 
     private Toolbar mTopToolbar;
-    private int mHistoryState;
+    private int mHistoryState = -1;
     private LinkedList<GeoGeometry> mHistory;
     private Feature mFeature;
 
@@ -91,13 +91,26 @@ public class UndoRedoOverlay extends Overlay {
 
     @Override
     public void onRestoreState(Bundle bundle) {
-        mHistoryState = bundle.getInt(BUNDLE_KEY_HISTORY_STATE, mHistoryState);
-        for (int i = 0; i < bundle.getInt(BUNDLE_KEY_HISTORY_SIZE, mHistory.size()); i++)
+        mHistory.clear();
+        int restoredState = bundle.getInt(BUNDLE_KEY_HISTORY_STATE, -1);
+        for (int i = 0; i < bundle.getInt(BUNDLE_KEY_HISTORY_SIZE, 0); i++)
             try {
-                mHistory.add(GeoGeometryFactory.fromBlob(bundle.getByteArray(BUNDLE_KEY_HISTORY + i)));
+                byte[] blob = bundle.getByteArray(BUNDLE_KEY_HISTORY + i);
+                if (blob != null) {
+                    mHistory.add(GeoGeometryFactory.fromBlob(blob));
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+        mHistoryState = mHistory.isEmpty()
+                ? -1
+                : Math.max(0, Math.min(restoredState, mHistory.size() - 1));
+        if (mHistoryState >= 0) {
+            mFeature.setGeometry(mHistory.get(mHistoryState).copy());
+        } else {
+            mFeature.setGeometry(null);
+        }
 
         super.onRestoreState(bundle);
     }
@@ -105,9 +118,9 @@ public class UndoRedoOverlay extends Overlay {
 
     public boolean onOptionsItemSelected(int id) {
         if (id == R.id.menu_edit_undo) {
-            return restoreFromHistory(--mHistoryState);
+            return restoreFromHistory(mHistoryState - 1);
         } else if (id == R.id.menu_edit_redo) {
-            return restoreFromHistory(++mHistoryState);
+            return restoreFromHistory(mHistoryState + 1);
         }
 
         return false;
@@ -121,16 +134,34 @@ public class UndoRedoOverlay extends Overlay {
         if (null == feature || null == feature.getGeometry())
             return;
 
+        GeoGeometry geometry = feature.getGeometry();
+        if (mHistoryState >= 0
+                && mHistoryState < mHistory.size()
+                && hasSameCoordinates(mHistory.get(mHistoryState), geometry)) {
+            GeoGeometry snapshot = geometry.copy();
+            mHistory.set(mHistoryState, snapshot);
+            mFeature.setGeometry(snapshot.copy());
+            defineUndoRedo();
+            return;
+        }
+
         for (int i = mHistory.size() - 1; i > mHistoryState; i--)
             mHistory.remove(i);
 
-        if (mHistory.size() >= MAX_UNDO + 1)
+        if (mHistory.size() >= MAX_UNDO + 1) {
             mHistory.removeFirst();
+            mHistoryState--;
+        }
 
-        mHistoryState++;
-        mHistory.add(feature.getGeometry().copy());
-        mFeature.setGeometry(mHistory.getLast());
+        mHistory.add(geometry.copy());
+        mHistoryState = mHistory.size() - 1;
+        mFeature.setGeometry(mHistory.getLast().copy());
         defineUndoRedo();
+    }
+
+
+    private static boolean hasSameCoordinates(GeoGeometry first, GeoGeometry second) {
+        return first.toWKT(true).equals(second.toWKT(true));
     }
 
 
@@ -138,6 +169,7 @@ public class UndoRedoOverlay extends Overlay {
         if (id < 0 || id >= mHistory.size())
             return false;
 
+        mHistoryState = id;
         mFeature.setGeometry(mHistory.get(id).copy());
         defineUndoRedo();
 
@@ -148,6 +180,7 @@ public class UndoRedoOverlay extends Overlay {
     public void clearHistory() {
         mHistory.clear();
         mHistoryState = -1;
+        mFeature.setGeometry(null);
     }
 
 

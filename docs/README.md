@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-21
+last_verified: 2026-08-22
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -45,10 +45,16 @@ Collector workspaces и защитные backups.
   как резерв;
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
-- Polygon и MultiPolygon используют ту же компактную панель вершин, что LineString:
-  без добавления/удаления частей и отверстий, с режимами обхода и касания;
+- LineString, Polygon и Multi-варианты используют tap-скетч с одним стартовым
+  узлом, вычисленным через экранную проекцию актуального центра камеры; обратное
+  преобразование экранных координат линий и полигонов также выполняется текущей
+  MapLibre-проекцией, а не устаревающим legacy display. В панели нет overflow и
+  дополнения касанием, у полигонов также нет добавления/удаления частей и отверстий.
+  Обход вставляет GPS после выбранного узла. Undo/Redo хранит до 100 реальных
+  изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
+  и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
 - durable crash journals: track recording resumes silently, while walk geometry,
-  normal vertex/touch geometry and attribute forms use explicit Continue/Discard recovery;
+  normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
   attribute form gated by layer edit policy in `app`; «Поля → метка» сохраняет
   `feature_label_field` слоя;
@@ -85,8 +91,12 @@ Collector workspaces и защитные backups.
 - Successful form Save/Discard is terminal before `Activity.finish()`; its trailing
   `onPause()` must not recreate `feature_form_draft`. Walk Save/Cancel stops the
   service and clears `walkedit_temp`, while an unexpected stop retains it. Normal
-  vertex/touch editing keeps `geometry_edit_draft` until explicit Cancel, successful
+  vertex/tap editing keeps `geometry_edit_draft` until explicit Cancel, successful
   update, form handoff or recovery Discard.
+- После cold Continue незавершённого дополнения полигона обходом MapLibre должен
+  сохранять одну заливку и стабильный красный контур во время GPS-обновлений;
+  скрытые на время обхода вершины снова публикуются сразу после Stop. Для
+  LineString/MultiLineString тот же recovery не должен оставлять polygon fill.
 - Успешная серверная авторизация не считается добавлением Веб ГИС, пока
   `AccountManager` не создал и не вернул variant-specific Android account; при
   локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.
@@ -132,6 +142,9 @@ Collector workspaces и защитные backups.
 - Сервер NGW отвечает `5xx`, а приложение падает с `BadTokenException`: проверить,
   что `NGWResourceAsyncTask.onPostExecute()` не передаёт application context в
   `AlertDialog` и пропускает UI после уничтожения Activity.
+- Для отмены одной вершины требуется несколько нажатий: проверить, что
+  `UndoRedoOverlay` отбрасывает подряд идущие снимки с одинаковым координатным
+  WKT, даже если callback обновил CRS, и не сдвигает курсор при недоступном Undo/Redo.
 
 ## Проверки
 
