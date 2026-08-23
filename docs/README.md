@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-22
+last_verified: 2026-08-23
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -10,7 +10,8 @@ last_verified: 2026-08-22
 
 UI-библиотека и runtime orchestration: выбор NGW resources, создание/настройка
 слоёв, batch fill, layer list/reorder, edit overlays, sync/account UI,
-Collector workspaces и защитные backups.
+Collector workspaces и защитные backups. MapLibre Android `13.0.2` подключён
+через явный OpenGL-артефакт, согласованный с `app` и `maplib`.
 
 ## Основные сценарии
 
@@ -65,6 +66,9 @@ Collector workspaces и защитные backups.
 ## Ограничения
 
 - Нет compile dependency на `app`.
+- MapLibre dependency совпадает с `app` и `maplib`:
+  `org.maplibre.gl:android-sdk-opengl:13.0.2`; generic MapLibre 13 artifact
+  использует Vulkan и не допускается в production dependency graph.
 - UI не выбирает типы для topology repair: решение разрешено только app/maplib
   для точного `GTMultiPolygon`; Polygon и линии сохраняют прежнее поведение.
 - LayerGroup index `0` — bottom; UI и MapLibre должны совпадать.
@@ -112,6 +116,9 @@ Collector workspaces и защитные backups.
 
 - Долгий/зависший fill: `LayerFillService`, notification/foreground lifecycle,
   SQLite transaction и deferred map reload.
+- Crash `No Vulkan compatible GPU found` до появления карты означает, что в
+  runtime dependency graph вернулся generic/Vulkan MapLibre artifact вместо
+  согласованного `android-sdk-opengl`.
 - Повторяется rebuild тяжёлого слоя: проверить mismatch fingerprint в
   `SchemaRebuildRetryGuard`, staged replacement и число остановленных слоёв в
   настройках проекта; не удалять старый слой до успешного fill.
