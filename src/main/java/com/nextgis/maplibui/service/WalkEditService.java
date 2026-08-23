@@ -222,15 +222,17 @@ public class WalkEditService extends Service implements LocationListener
                             if (mGeometry == null) {
                                 Log.e(Constants.TAG, "WalkEditService: KEY_GEOMETRY missing");
                                 initTargetIntent(mTargetActivity);
-                                foregroundStopMissingLocationPermission();
-                                break;
+                                stopWithoutLocationForeground("missing-geometry");
+                                return START_NOT_STICKY;
                             }
 
                             mWalkLocationFilter.reset();
                             mWalkProviderArbiter.reset();
                             mLastWalkLocationRaw = null;
                             mLastVertexWallTimeMs = 0L;
-                            startWalkEdit();
+                            if (!startWalkEdit()) {
+                                return START_NOT_STICKY;
+                            }
                             persistWalkDraftSnapshot(true);
                         }
                         break;
@@ -255,7 +257,9 @@ public class WalkEditService extends Service implements LocationListener
             mLastWalkLocationRaw = null;
             mLastVertexWallTimeMs = 0L;
             if (mGeometry != null && mLayerId != Constants.NOT_FOUND) {
-                startWalkEdit();
+                if (!startWalkEdit()) {
+                    return START_NOT_STICKY;
+                }
             } else {
                 HyperLog.w(Constants.TAG, "WalkEditService sticky restart: invalid draft");
                 removeNotification();
@@ -267,7 +271,7 @@ public class WalkEditService extends Service implements LocationListener
 
     }
 
-    private void startWalkEdit() {
+    private boolean startWalkEdit() {
         SharedPreferences sharedPreferences = getSharedPreferences(getPackageName() + "_preferences", MODE_MULTI_PROCESS);
 
         String minTimeStr = sharedPreferences.getString(SettingsConstants.KEY_PREF_LOCATION_MIN_TIME, "2");
@@ -278,8 +282,9 @@ public class WalkEditService extends Service implements LocationListener
         initTargetIntent(mTargetActivity);
 
         if (!PermissionUtil.hasLocationPermissions(this)) {
-            foregroundStopMissingLocationPermission();
-            return;
+            HyperLog.w(Constants.TAG, "WalkEditService: missing location permission");
+            stopWithoutLocationForeground("missing-permission");
+            return false;
         }
 
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -287,40 +292,46 @@ public class WalkEditService extends Service implements LocationListener
 //        }else
 //            mLocationManager.addGpsStatusListener(this);
 
-        String provider = LocationManager.GPS_PROVIDER;
-        if (mLocationManager.getAllProviders().contains(provider)
-                && isProviderAllowedForWalk(provider)) {
-            mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
-            HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
-                    + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
-        }
+        try {
+            String provider = LocationManager.GPS_PROVIDER;
+            if (mLocationManager.getAllProviders().contains(provider)
+                    && isProviderAllowedForWalk(provider)) {
+                mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
+                HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
+                        + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
+            }
 
-        provider = LocationManager.NETWORK_PROVIDER;
-        if (mLocationManager.getAllProviders().contains(provider)
-                && isProviderAllowedForWalk(provider)) {
-            mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
-            HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
-                    + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
+            provider = LocationManager.NETWORK_PROVIDER;
+            if (mLocationManager.getAllProviders().contains(provider)
+                    && isProviderAllowedForWalk(provider)) {
+                mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
+                HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
+                        + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
+            }
+        } catch (SecurityException ex) {
+            HyperLog.w(Constants.TAG, "WalkEditService location request rejected: "
+                    + ex.getMessage(), ex);
+            stopWithoutLocationForeground("request-location");
+            return false;
         }
 
         NotificationHelper.showLocationInfo(this);
-        addNotification();
+        return addNotification();
     }
 
     /**
      * startForegroundService requires a timely startForeground; stop if we cannot access location.
      */
-    private void foregroundStopMissingLocationPermission() {
-        NotificationCompat.Builder builder = createBuilder(this, R.string.title_edit_by_walk);
-        builder.setSmallIcon(mSmallIcon)
-                .setContentTitle(getString(R.string.title_edit_by_walk))
-                .setContentText(getString(R.string.error_no_location))
-                .setWhen(System.currentTimeMillis())
-                .setAutoCancel(true)
-                .setOngoing(false);
-        if (mOpenActivity != null)
-            builder.setContentIntent(mOpenActivity);
-        startForeground(WALK_NOTIFICATION_ID, builder.build());
+    private void stopWithoutLocationForeground(String stage) {
+        HyperLog.w(Constants.TAG, "WalkEditService stopped without location foreground stage="
+                + stage + "; draft retained");
+        try {
+            stopForeground(true);
+        } catch (RuntimeException ex) {
+            HyperLog.w(Constants.TAG, "WalkEditService stopForeground stage=" + stage
+                    + ": " + ex.getMessage(), ex);
+        }
+        mNotificationManager.cancel(WALK_NOTIFICATION_ID);
         stopSelf();
     }
 
@@ -381,7 +392,12 @@ public class WalkEditService extends Service implements LocationListener
         }
 
         if (PermissionUtil.hasLocationPermissions(this)) {
-            mLocationManager.removeUpdates(this);
+            try {
+                mLocationManager.removeUpdates(this);
+            } catch (SecurityException ex) {
+                HyperLog.w(Constants.TAG, "WalkEditService.removeUpdates permission revoked: "
+                        + ex.getMessage(), ex);
+            }
         }
 
         if (mRecordingSoundMonitor != null)
@@ -749,7 +765,7 @@ public class WalkEditService extends Service implements LocationListener
 //    public void onGpsStatusChanged(int event) {
 //    }
 
-    private void addNotification() {
+    private boolean addNotification() {
         if (!mShowNotification) {
             NotificationCompat.Builder minimal = createBuilder(this, R.string.title_edit_by_walk);
             minimal.setSmallIcon(mSmallIcon)
@@ -760,8 +776,7 @@ public class WalkEditService extends Service implements LocationListener
                     .setOngoing(true);
             if (mOpenActivity != null)
                 minimal.setContentIntent(mOpenActivity);
-            startForeground(WALK_NOTIFICATION_ID, minimal.build());
-            return;
+            return startLocationForegroundSafely(minimal.build(), "minimal-recording");
         }
 
         MapBase map = MapBase.getInstance();
@@ -788,7 +803,20 @@ public class WalkEditService extends Service implements LocationListener
         builder.addAction(R.drawable.ic_location, getString(R.string.tracks_open), mOpenActivity);
 
         mNotificationManager.notify(WALK_NOTIFICATION_ID, builder.build());
-        startForeground(WALK_NOTIFICATION_ID, builder.build());
+        return startLocationForegroundSafely(builder.build(), "recording");
+    }
+
+    private boolean startLocationForegroundSafely(
+            android.app.Notification notification, String stage) {
+        try {
+            startForeground(WALK_NOTIFICATION_ID, notification);
+            return true;
+        } catch (SecurityException ex) {
+            HyperLog.w(Constants.TAG, "WalkEditService location foreground rejected stage="
+                    + stage + ": " + ex.getMessage(), ex);
+            stopWithoutLocationForeground(stage);
+            return false;
+        }
     }
 
     private void removeNotification() {

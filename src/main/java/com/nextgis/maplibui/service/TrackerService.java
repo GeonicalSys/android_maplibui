@@ -338,7 +338,9 @@ public class TrackerService extends Service
                                     .setContentText(title)
                                     .setOngoing(true);
 
-                            startForeground(TRACK_NOTIFICATION_ID, builder.build());
+                            if (!startLocationForegroundSafely(builder.build(), "sync")) {
+                                return START_NOT_STICKY;
+                            }
                         }
 
                         mLocationSenderThread = createLocationSenderThread(500L);
@@ -353,13 +355,17 @@ public class TrackerService extends Service
                         HyperLog.v(Constants.TAG, "TrackerService.ACTION_SPLIT trackId=" + mTrackId);
                         stopTrack("ACTION_SPLIT");
                         initTargetIntent(targetActivity);
-                        addStartingNotification();
+                        if (!addStartingNotification()) {
+                            return START_NOT_STICKY;
+                        }
                         if (!startTrack()) {
                             removeNotification();
                             stopSelf();
                             return START_NOT_STICKY;
                         }
-                        addNotification();
+                        if (!addNotification()) {
+                            return START_NOT_STICKY;
+                        }
                         return START_STICKY;
                 }
             }
@@ -368,13 +374,14 @@ public class TrackerService extends Service
         if (!mIsRunning) {
             if (!PermissionUtil.hasLocationPermissions(this)) {
                 HyperLog.w(Constants.TAG, "TrackerService: missing location permission, stop startId=" + startId);
-                foregroundStopMissingLocationPermission();
-                stopSelf();
+                stopForMissingLocationPermission("start");
                 return START_NOT_STICKY;
             }
 
             initTargetIntent(targetActivity);
-            addStartingNotification();
+            if (!addStartingNotification()) {
+                return START_NOT_STICKY;
+            }
 
             registerGpsStatusListenerSafely();
 
@@ -414,7 +421,9 @@ public class TrackerService extends Service
             mLocationSenderThread = createLocationSenderThread(minTime);
             mLocationSenderThread.start();
 
-            addNotification();
+            if (!addNotification()) {
+                return START_NOT_STICKY;
+            }
         }
 
         return START_STICKY;
@@ -625,7 +634,7 @@ public class TrackerService extends Service
         mAlarmManager.set(AlarmManager.RTC, today.getTimeInMillis(), mSplitService);
     }
 
-    private void addNotification() {
+    private boolean addNotification() {
         String name = "";
         String selection = TrackLayer.FIELD_ID + " = ?";
         String[] proj = new String[]{TrackLayer.FIELD_NAME};
@@ -663,8 +672,11 @@ public class TrackerService extends Service
         builder.addAction(resource, getString(R.string.tracks_stop), stopService);
 
         mNotificationManager.notify(TRACK_NOTIFICATION_ID, builder.build());
-        startForeground(TRACK_NOTIFICATION_ID, builder.build());
-        Toast.makeText(this, title, Toast.LENGTH_SHORT).show();
+        boolean started = startLocationForegroundSafely(builder.build(), "recording");
+        if (started) {
+            Toast.makeText(this, title, Toast.LENGTH_SHORT).show();
+        }
+        return started;
     }
 
 
@@ -675,7 +687,7 @@ public class TrackerService extends Service
             mNotificationManager.cancel(TRACK_NOTIFICATION_ID);
     }
 
-    private void addStartingNotification() {
+    private boolean addStartingNotification() {
         NotificationCompat.Builder builder = createBuilder(this, R.string.tracks_running);
         builder.setSmallIcon(mSmallIcon)
                 .setLargeIcon(mLargeIcon)
@@ -687,19 +699,33 @@ public class TrackerService extends Service
                 .setOngoing(true);
         if (mOpenActivity != null)
             builder.setContentIntent(mOpenActivity);
-        startForeground(TRACK_NOTIFICATION_ID, builder.build());
+        return startLocationForegroundSafely(builder.build(), "starting");
     }
 
-    private void foregroundStopMissingLocationPermission() {
-        NotificationCompat.Builder builder = createBuilder(this, R.string.tracks_running);
-        builder.setSmallIcon(mSmallIcon)
-                .setContentTitle(getString(R.string.tracks_running))
-                .setContentText(getString(R.string.error_no_location))
-                .setWhen(System.currentTimeMillis())
-                .setAutoCancel(true)
-                .setOngoing(false);
-        startForeground(TRACK_NOTIFICATION_ID, builder.build());
-        stopForeground(true);
+    private boolean startLocationForegroundSafely(
+            android.app.Notification notification, String stage) {
+        try {
+            startForeground(TRACK_NOTIFICATION_ID, notification);
+            return true;
+        } catch (SecurityException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService location foreground rejected stage="
+                    + stage + ": " + ex.getMessage(), ex);
+            stopForMissingLocationPermission(stage);
+            return false;
+        }
+    }
+
+    private void stopForMissingLocationPermission(String stage) {
+        HyperLog.w(Constants.TAG, "TrackerService stopped without location foreground stage="
+                + stage + "; recording intent retained");
+        try {
+            stopForeground(true);
+        } catch (RuntimeException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService stopForeground stage=" + stage
+                    + ": " + ex.getMessage(), ex);
+        }
+        mNotificationManager.cancel(TRACK_NOTIFICATION_ID);
+        stopSelf();
     }
 
 

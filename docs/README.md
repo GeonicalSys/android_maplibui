@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-23
+last_verified: 2026-08-24
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -46,8 +46,10 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   безопасные счётчики причин отбрасывания; при двух разрешённых источниках свежий
   пригодный GPS подавляет Network на 12 секунд, после чего Network снова работает
   как резерв; `BackgroundRecordingSoundMonitor` после фактического insert/commit
-  даёт при скрытом UI короткий notification-stream pulse не чаще раза в 30 секунд,
+  даёт при скрытом UI короткий notification-stream pulse не чаще раза в 10 секунд,
   отдельно ограничивает сигнал ошибки минутой и остаётся полностью выключаемым;
+  отзыв location permission останавливает запрещённый location-FGS без краша:
+  намерение записи трека и черновик обхода сохраняются до возврата разрешения;
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
 - LineString, Polygon и Multi-варианты используют tap-скетч с одним стартовым
@@ -62,6 +64,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   в настройки. Undo/Redo хранит до 100 реальных
   изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
   и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
+  инструмент линейки показывает те же кнопки и записывает в эту историю каждое
+  добавление или завершённый перенос измерительной точки;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
   walk и manual geometry не остаются двумя параллельными черновиками одного скетча;

@@ -8,7 +8,7 @@ package com.nextgis.maplibui.util;
  * Throttles background recording sounds without depending on Android APIs.
  */
 public final class BackgroundRecordingSoundPolicy {
-    public static final long HEARTBEAT_INTERVAL_MS = 30_000L;
+    public static final long HEARTBEAT_INTERVAL_MS = 10_000L;
     public static final long ERROR_INTERVAL_MS = 60_000L;
 
     private long mLastHeartbeatAt = Long.MIN_VALUE;

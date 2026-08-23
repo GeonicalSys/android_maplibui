@@ -124,6 +124,24 @@ public class RulerOverlay extends Overlay implements MapViewEventListener {
         return 0;
     }
 
+    public GeoLineString getGeometry() {
+        if (mRulerString == null)
+            return null;
+
+        return (GeoLineString) mRulerString.copy();
+    }
+
+    public void setGeometry(GeoLineString geometry) {
+        if (!mMeasuring || geometry == null)
+            return;
+
+        mRulerString = (GeoLineString) geometry.copy();
+        fillDrawItem();
+        fillGeometry();
+        mMapViewOverlays.buffer();
+        mMapViewOverlays.postInvalidate();
+    }
+
     protected void fillDrawItem() {
         GeoPoint[] geoPoints = mRulerString.getPoints().toArray(new GeoPoint[mRulerString.getPointCount()]);
         if (geoPoints.length == 0)
@@ -157,7 +175,7 @@ public class RulerOverlay extends Overlay implements MapViewEventListener {
             if (mListener != null)
                 mListener.onLengthChanged(getLength());
 
-            if (mListener != null && geoPoints.length > 2)
+            if (mListener != null)
                 mListener.onAreaChanged(getArea());
         }
     }

@@ -12,8 +12,8 @@ public class BackgroundRecordingSoundPolicyTest {
 
         assertTrue(policy.shouldPlayHeartbeat(true, true, 10_000L));
         policy.recordHeartbeat(10_000L);
-        assertFalse(policy.shouldPlayHeartbeat(true, true, 39_999L));
-        assertTrue(policy.shouldPlayHeartbeat(true, true, 40_000L));
+        assertFalse(policy.shouldPlayHeartbeat(true, true, 19_999L));
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 20_000L));
     }
 
     @Test
