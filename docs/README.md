@@ -51,11 +51,14 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   преобразование экранных координат линий и полигонов также выполняется текущей
   MapLibre-проекцией, а не устаревающим legacy display. В панели нет overflow и
   дополнения касанием, у полигонов также нет добавления/удаления частей и отверстий.
-  Обход вставляет GPS после выбранного узла. Undo/Redo хранит до 100 реальных
+  Обход вставляет GPS после выбранного узла; его правая нижняя кнопка с иконкой
+  идущего человека завершает запись через штатный Save/Stop path вместо перехода
+  в настройки. Undo/Redo хранит до 100 реальных
   изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
   и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
+  walk и manual geometry не остаются двумя параллельными черновиками одного скетча;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
   attribute form gated by layer edit policy in `app`; «Поля → метка» сохраняет
   `feature_label_field` слоя;
@@ -101,6 +104,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   сохранять одну заливку и стабильный красный контур во время GPS-обновлений;
   скрытые на время обхода вершины снова публикуются сразу после Stop. Для
   LineString/MultiLineString тот же recovery не должен оставлять polygon fill.
+- Правая кнопка активного обхода обязана вызывать `onFinishEditByWalkSession()`;
+  меню настроек местоположения в этой панели отсутствует.
 - Успешная серверная авторизация не считается добавлением Веб ГИС, пока
   `AccountManager` не создал и не вернул variant-specific Android account; при
   локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.

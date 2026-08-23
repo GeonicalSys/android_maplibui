@@ -51,7 +51,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
     responsibility: Persist the latest non-walk geometry with map/layer/feature identity until explicit completion or Discard.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/EditLayerOverlay.java
-    responsibility: Build the first sketch node from the current MapLibre camera centre, convert line and polygon screen vertices through the current MapLibre projection, and orchestrate manual/walk edit toolbars.
+    responsibility: Build the first sketch node from the current MapLibre camera centre, convert line and polygon screen vertices through the current MapLibre projection, orchestrate manual/walk edit toolbars, and route the active-walk walking-person action to the existing Save/Stop callback instead of location settings.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/UndoRedoOverlay.java
     responsibility: Retain up to 100 coordinate-distinct geometry snapshots, ignore CRS-only callback differences when allocating steps, and move Undo or Redo by exactly one real edit without corrupting history at its boundaries.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/ModifyAttributesActivity.java

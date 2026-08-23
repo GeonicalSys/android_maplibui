@@ -84,7 +84,6 @@ import com.nextgis.maplibui.mapui.MapViewOverlays;
 import com.nextgis.maplibui.service.WalkEditService;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
-import com.nextgis.maplibui.util.SettingsConstantsUI;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -538,9 +537,10 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                         new BottomToolbar.OnMenuItemClickListener() {
                             @Override
                             public boolean onMenuItemClick(MenuItem menuItem) {
-                                if (menuItem.getItemId() == R.id.menu_settings) {
-                                    IGISApplication app = (IGISApplication) ((Activity) mContext.get()).getApplication();
-                                    app.showSettings(SettingsConstantsUI.ACTION_PREFS_LOCATION, -1, null);
+                                if (menuItem.getItemId() == R.id.menu_edit_save) {
+                                    for (EditEventListener listener : mListeners) {
+                                        listener.onFinishEditByWalkSession();
+                                    }
                                 }
 
                                 return true;
