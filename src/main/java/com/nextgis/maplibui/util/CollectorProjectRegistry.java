@@ -51,8 +51,8 @@ public final class CollectorProjectRegistry {
     private static final String WORKSPACES_DIR_NAME = "collector_projects";
     private static final String WORKSPACE_MAP_NAME = "map";
     private static final String WORKSPACE_INFO_NAME = "project.json";
-    private static final String INITIAL_LOCAL_PROJECT_UID = "local:autonomous";
-    private static final String INITIAL_LOCAL_WORKSPACE_NAME = "local_autonomous";
+    private static final String INITIAL_LOCAL_PROJECT_UID = "local:initial";
+    private static final String INITIAL_LOCAL_WORKSPACE_NAME = "local_initial";
     private static final String KEY_INITIAL_LOCAL_PROJECT_CREATED =
             "collector_initial_local_project_created_v1";
 

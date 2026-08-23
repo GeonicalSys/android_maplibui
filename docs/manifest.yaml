@@ -25,7 +25,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
-    responsibility: Before the first map open, create and activate the initial autonomous workspace or non-destructively adopt the legacy standalone map; atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local projects with schema-v2 sidecars, operation-aware import preparation and main-thread fallback opening after backup-gated deletion.
+    responsibility: Before the first map open, create and activate the initial local workspace or non-destructively adopt the legacy standalone map; atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local projects with schema-v2 sidecars, operation-aware import preparation and main-thread fallback opening after backup-gated deletion.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LegacyMapWorkspaceCopier.java
     responsibility: Copy only the legacy map config, referenced layer directories and track database into the initial isolated workspace while rejecting path traversal and retaining the source as rollback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java

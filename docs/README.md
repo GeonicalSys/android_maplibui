@@ -26,7 +26,7 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   завершения MapLibre style/source apply;
 - изолированные Web GIS/local projects, atomic registry/sidecar, switch/create/
   rename/delete и project-wide operation leases; до первого открытия карты
-  создаётся автономный local workspace, а прежняя штатная standalone-карта один
+  создаётся начальный local workspace, а прежняя штатная standalone-карта один
   раз копируется в него без удаления оригинала; fill заранее резервирует
   workspace, но ждёт завершения sync перед доступом к SQLite;
 - попытка импортировать новый Collector-проект во время sync/fill не изменяет
@@ -87,7 +87,7 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Backup failure блокирует destructive mutation.
 - Project UID/map path не смешиваются между workspaces; switch и destructive
   project mutation запрещены во время sync/fill/rebuild.
-- Чистая установка до первого `MapDrawable` публикует active UID автономного
+- Чистая установка до первого `MapDrawable` публикует active UID локального
   проекта; legacy migration копирует только map-owned layer paths и track DB,
   не захватывая соседние файлы или каталог остальных проектов.
 - Карта приложения переоткрывается потокобезопасно, ContentProvider следует активному workspace,

@@ -22,7 +22,7 @@ public class LegacyMapWorkspaceCopierTest {
     @Test
     public void copiesOnlyMapOwnedLayersAndTrackDatabase() throws Exception {
         File source = temporaryFolder.newFolder("legacy");
-        File destination = temporaryFolder.newFolder("autonomous");
+        File destination = temporaryFolder.newFolder("local_project");
         File layer = new File(source, "field_layer");
         assertTrue(layer.mkdir());
         write(new File(layer, "config.json"), "{\"name\":\"Field\"}");
@@ -50,7 +50,7 @@ public class LegacyMapWorkspaceCopierTest {
     @Test(expected = IOException.class)
     public void rejectsLayerPathOutsideLegacyMapDirectory() throws Exception {
         File source = temporaryFolder.newFolder("legacy_traversal");
-        File destination = temporaryFolder.newFolder("autonomous_traversal");
+        File destination = temporaryFolder.newFolder("local_project_traversal");
         JSONObject map = new JSONObject().put("layers", new JSONArray()
                 .put(new JSONObject().put("path", "../outside")));
         File sourceMap = new File(source, "default.ngm");
