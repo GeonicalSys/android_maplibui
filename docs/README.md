@@ -65,7 +65,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
   и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
   инструмент линейки показывает те же кнопки и записывает в эту историю каждое
-  добавление или завершённый перенос измерительной точки;
+  добавление или завершённый перенос измерительной точки, используя активную
+  MapLibre-геометрию из `MapDrawable`, а не legacy `RulerOverlay`;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
   walk и manual geometry не остаются двумя параллельными черновиками одного скетча;

@@ -61,7 +61,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/UndoRedoOverlay.java
     responsibility: Retain up to 100 coordinate-distinct geometry snapshots for sketch and ruler workflows, ignore CRS-only callback differences when allocating steps, and move Undo or Redo by exactly one real edit without corrupting history at its boundaries.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/RulerOverlay.java
-    responsibility: Build and restore measurement geometry while publishing completed point additions and moves to the shared Undo/Redo history and refreshing length and area after restoration.
+    responsibility: Retain measurement-mode lifecycle and legacy canvas fallback state; the active MapLibre ruler geometry and Undo/Redo snapshots are owned by MapDrawable and the app host.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/ModifyAttributesActivity.java
     responsibility: Attribute form and photo attachment processing, including shared enabled-by-default coordinate-overlay preferences.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/VectorLayerSettingsActivity.java
