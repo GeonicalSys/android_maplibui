@@ -398,11 +398,16 @@ public class TrackerService extends Service
             long minTime = Long.parseLong(minTimeStr) * 1000;
             float minDistance = Float.parseFloat(minDistanceStr);
 
+            List<String> healthProviders = new ArrayList<>();
             String provider = LocationManager.GPS_PROVIDER;
-            requestTrackLocationUpdates(provider, minTime, minDistance);
+            if (requestTrackLocationUpdates(provider, minTime, minDistance)) {
+                healthProviders.add(provider);
+            }
 
             provider = LocationManager.NETWORK_PROVIDER;
-            requestTrackLocationUpdates(provider, minTime, minDistance);
+            if (requestTrackLocationUpdates(provider, minTime, minDistance)) {
+                healthProviders.add(provider);
+            }
 
             NotificationHelper.showLocationInfo(this);
 
@@ -417,6 +422,9 @@ public class TrackerService extends Service
             } else {
                 targetActivity = mSharedPreferencesTemp.getString(ConstantsUI.TARGET_CLASS, "");
             }
+
+            mRecordingSoundMonitor.start(
+                    mLocationManager, healthProviders.toArray(new String[0]));
 
             mLocationSenderThread = createLocationSenderThread(minTime);
             mLocationSenderThread.start();
@@ -855,7 +863,6 @@ public class TrackerService extends Service
                 mInsertedPointCount++;
                 mLastInsertedTrackLocation = new Location(location);
                 sendTrackPointBroadcast();
-                mRecordingSoundMonitor.onPointPersisted();
                 return true;
             }
             mInsertFailCount++;
@@ -895,24 +902,26 @@ public class TrackerService extends Service
         return LocationUtil.isProviderEnabled(this, provider, true);
     }
 
-    private void requestTrackLocationUpdates(String provider, long minTime, float minDistance) {
+    private boolean requestTrackLocationUpdates(String provider, long minTime, float minDistance) {
         try {
             if (!mLocationManager.getAllProviders().contains(provider)) {
                 HyperLog.d(Constants.TAG, "TrackerService provider unavailable: " + provider);
-                return;
+                return false;
             }
             if (!isProviderAllowedForTrack(provider)) {
                 HyperLog.d(Constants.TAG, "TrackerService provider disabled by prefs: " + provider);
-                return;
+                return false;
             }
             mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
             HyperLog.v(Constants.TAG, "TrackerService request location updates provider=" + provider
                     + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
             if (Constants.DEBUG_MODE)
                 Log.d(Constants.TAG, "Tracker service request location updates for " + provider);
+            return true;
         } catch (Exception ex) {
             HyperLog.w(Constants.TAG, "TrackerService.requestLocationUpdates " + provider + ": "
                     + ex.getMessage(), ex);
+            return false;
         }
     }
 

@@ -7,21 +7,39 @@ import static org.junit.Assert.assertTrue;
 
 public class BackgroundRecordingSoundPolicyTest {
     @Test
-    public void heartbeatIsImmediateInBackgroundAndThenThrottled() {
+    public void heartbeatRequiresFreshLocationAndThenIsThrottled() {
         BackgroundRecordingSoundPolicy policy = new BackgroundRecordingSoundPolicy();
 
-        assertTrue(policy.shouldPlayHeartbeat(true, true, 10_000L));
+        assertFalse(policy.shouldPlayHeartbeat(true, true, Long.MIN_VALUE, 10_000L));
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 9_000L, 10_000L));
         policy.recordHeartbeat(10_000L);
-        assertFalse(policy.shouldPlayHeartbeat(true, true, 19_999L));
-        assertTrue(policy.shouldPlayHeartbeat(true, true, 20_000L));
+        assertFalse(policy.shouldPlayHeartbeat(true, true, 19_000L, 19_999L));
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 19_000L, 20_000L));
     }
 
     @Test
     public void foregroundAndDisabledSettingSuppressHeartbeat() {
         BackgroundRecordingSoundPolicy policy = new BackgroundRecordingSoundPolicy();
 
-        assertFalse(policy.shouldPlayHeartbeat(true, false, 10_000L));
-        assertFalse(policy.shouldPlayHeartbeat(false, true, 10_000L));
+        assertFalse(policy.shouldPlayHeartbeat(true, false, 9_000L, 10_000L));
+        assertFalse(policy.shouldPlayHeartbeat(false, true, 9_000L, 10_000L));
+    }
+
+    @Test
+    public void stationaryButFreshCallbacksKeepHeartbeatAlive() {
+        BackgroundRecordingSoundPolicy policy = new BackgroundRecordingSoundPolicy();
+
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 9_500L, 10_000L));
+        policy.recordHeartbeat(10_000L);
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 19_500L, 20_000L));
+    }
+
+    @Test
+    public void staleCoordinatesSuppressHeartbeat() {
+        BackgroundRecordingSoundPolicy policy = new BackgroundRecordingSoundPolicy();
+
+        assertFalse(policy.shouldPlayHeartbeat(true, true, 1_999L, 10_000L));
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 2_000L, 10_000L));
     }
 
     @Test
@@ -32,7 +50,7 @@ public class BackgroundRecordingSoundPolicyTest {
         policy.recordError(1_000L);
         assertFalse(policy.shouldPlayError(true, true, 60_999L));
         assertTrue(policy.shouldPlayError(true, true, 61_000L));
-        assertTrue(policy.shouldPlayHeartbeat(true, true, 1_001L));
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 1_000L, 1_001L));
     }
 
     @Test
@@ -40,6 +58,6 @@ public class BackgroundRecordingSoundPolicyTest {
         BackgroundRecordingSoundPolicy policy = new BackgroundRecordingSoundPolicy();
         policy.recordHeartbeat(100_000L);
 
-        assertTrue(policy.shouldPlayHeartbeat(true, true, 500L));
+        assertTrue(policy.shouldPlayHeartbeat(true, true, 499L, 500L));
     }
 }

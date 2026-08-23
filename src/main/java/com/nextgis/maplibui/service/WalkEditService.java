@@ -68,6 +68,7 @@ import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.BackgroundRecordingSoundMonitor;
 import com.nextgis.maplibui.util.NotificationHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -293,10 +294,12 @@ public class WalkEditService extends Service implements LocationListener
 //            mLocationManager.addGpsStatusListener(this);
 
         try {
+            List<String> healthProviders = new ArrayList<>();
             String provider = LocationManager.GPS_PROVIDER;
             if (mLocationManager.getAllProviders().contains(provider)
                     && isProviderAllowedForWalk(provider)) {
                 mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
+                healthProviders.add(provider);
                 HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
                         + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
             }
@@ -305,9 +308,12 @@ public class WalkEditService extends Service implements LocationListener
             if (mLocationManager.getAllProviders().contains(provider)
                     && isProviderAllowedForWalk(provider)) {
                 mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
+                healthProviders.add(provider);
                 HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
                         + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
             }
+            mRecordingSoundMonitor.start(
+                    mLocationManager, healthProviders.toArray(new String[0]));
         } catch (SecurityException ex) {
             HyperLog.w(Constants.TAG, "WalkEditService location request rejected: "
                     + ex.getMessage(), ex);
@@ -507,9 +513,7 @@ public class WalkEditService extends Service implements LocationListener
     }
 
     private void reportWalkPersistence(boolean persisted) {
-        if (persisted) {
-            mRecordingSoundMonitor.onPointPersisted();
-        } else {
+        if (!persisted) {
             HyperLog.w(Constants.TAG, "WalkEditService: failed to persist walk geometry");
             mRecordingSoundMonitor.onPersistenceFailed();
         }
