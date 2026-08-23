@@ -25,7 +25,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
-    responsibility: Atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local project workspaces with schema-v2 sidecars, operation-aware import preparation and main-thread fallback opening after backup-gated deletion.
+    responsibility: Before the first map open, create and activate the initial autonomous workspace or non-destructively adopt the legacy standalone map; atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local projects with schema-v2 sidecars, operation-aware import preparation and main-thread fallback opening after backup-gated deletion.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/LegacyMapWorkspaceCopier.java
+    responsibility: Copy only the legacy map config, referenced layer directories and track database into the initial isolated workspace while rejecting path traversal and retaining the source as rollback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
     responsibility: Browse and import NGW resources, showing a readable modal wait message when Collector workspace preparation is blocked by synchronization or layer loading.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectOperationCoordinator.java
@@ -73,9 +75,11 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, walkedit_temp, geometry_edit_draft, feature_form_draft]
+settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, walkedit_temp, geometry_edit_draft, feature_form_draft]
 storage_contracts:
   - id: collector-registry
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
+  - id: collector-initial-local-project
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
   - id: collector-import-journal
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorImportJournal.java
