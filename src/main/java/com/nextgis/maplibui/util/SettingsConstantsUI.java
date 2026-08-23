@@ -63,6 +63,7 @@ public interface SettingsConstantsUI
     boolean DEFAULT_PHOTO_OVERLAY_USE_OBJECT = true;
 
     String KEY_PREF_OFFLINE_SYNC_ON     = "offline_sync_on";
+    String KEY_PREF_BACKGROUND_RECORDING_SOUND = "background_recording_sound";
     /** Max size of LayerBackups/ directory in gigabytes (ListPreference string value). */
     String KEY_PREF_LAYER_BACKUP_MAX_GB = "layer_backup_max_gb";
 

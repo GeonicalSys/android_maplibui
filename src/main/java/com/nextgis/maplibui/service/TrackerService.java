@@ -82,6 +82,7 @@ import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.GISApplication;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.util.ConstantsUI;
+import com.nextgis.maplibui.util.BackgroundRecordingSoundMonitor;
 import com.nextgis.maplibui.util.NotificationHelper;
 
 import org.json.JSONArray;
@@ -152,6 +153,7 @@ public class TrackerService extends Service
     private long mBufferedOrDroppedFixCount;
     private long mInsertedPointCount;
     private long mInsertFailCount;
+    private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
 
     @Override
     public void onCreate() {
@@ -178,6 +180,7 @@ public class TrackerService extends Service
         String name = getPackageName() + "_preferences";
         mSharedPreferences = getSharedPreferences(name, MODE_MULTI_PROCESS);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE);
+        mRecordingSoundMonitor = new BackgroundRecordingSoundMonitor(this, mSharedPreferences);
 
         mTicker = getString(R.string.tracks_running);
         mSmallIcon = R.drawable.ic_action_maps_directions_walk;
@@ -744,6 +747,9 @@ public class TrackerService extends Service
         if (mLocationSenderThread != null)
             mLocationSenderThread.interrupt();
 
+        if (mRecordingSoundMonitor != null)
+            mRecordingSoundMonitor.release();
+
         super.onDestroy();
     }
 
@@ -823,14 +829,17 @@ public class TrackerService extends Service
                 mInsertedPointCount++;
                 mLastInsertedTrackLocation = new Location(location);
                 sendTrackPointBroadcast();
+                mRecordingSoundMonitor.onPointPersisted();
                 return true;
             }
             mInsertFailCount++;
             HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint returned null trackId=" + mTrackId);
+            mRecordingSoundMonitor.onPersistenceFailed();
         } catch (Exception ex) {
             mInsertFailCount++;
             Log.e(TrackerService.class.getName(), "onLocation EXCEPTION!!" + ex.getMessage());
             HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint: " + ex.getMessage(), ex);
+            mRecordingSoundMonitor.onPersistenceFailed();
         }
         return false;
     }

@@ -45,9 +45,13 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
     responsibility: Export layer data before destructive rebuild or removal.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
-    responsibility: Persist the user's recording intent, record validated movement through 160 km/h using tracks-only provider settings and GPS-first/network-fallback arbitration, flush delayed fixes, and silently resume after process death or reboot.
+    responsibility: Persist the user's recording intent, record validated movement through 160 km/h using tracks-only provider settings and GPS-first/network-fallback arbitration, flush delayed fixes, emit background sound feedback only after a successful point insert, and silently resume after process death or reboot.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
-    responsibility: Journal unfinished walk geometry plus stable part/ring/insertion target and geometry identity for type-correct cold UI reconstruction without polygon fill on lines, insert validated movement after the selected node through 160 km/h using ordinary-location provider settings and GPS-first/network-fallback arbitration, flush delayed vertices, and distinguish explicit Save/Cancel from unexpected termination.
+    responsibility: Journal unfinished walk geometry plus stable part/ring/insertion target and geometry identity for type-correct cold UI reconstruction without polygon fill on lines, insert validated movement after the selected node through 160 km/h using ordinary-location provider settings and GPS-first/network-fallback arbitration, flush delayed vertices, emit background sound feedback only after a successful draft commit, and distinguish explicit Save/Cancel from unexpected termination.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
+    responsibility: Detect a hidden main UI process or screen-off state and play notification-stream success/error tones under independent throttles and the shared user preference.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundPolicy.java
+    responsibility: Provide Android-independent 30-second success and one-minute failure throttling for background recording feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
     responsibility: Persist typed form control state, geometry and pending photo paths until explicit Save or Discard.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
@@ -75,7 +79,7 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, walkedit_temp, geometry_edit_draft, feature_form_draft]
+settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft]
 storage_contracts:
   - id: collector-registry
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
