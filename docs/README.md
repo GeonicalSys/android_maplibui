@@ -115,6 +115,14 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Каждая параллельная fill-задача получает заранее зарезервированный уникальный
   каталог. Ошибка первого SQL insert откатывает и удаляет неполный слой вместо
   продолжения партии по заведомо неверной таблице.
+- Новый каталог fill получает marker незавершённой публикации до первого
+  обращения к данным. После process death приложение удаляет только помеченные
+  и не указанные в загруженной карте stages вместе с их таблицами; помеченный,
+  но уже опубликованный слой сохраняется, а старые непомеченные каталоги никогда
+  не считаются автоматически удаляемым мусором.
+- Collector journal закреплён за project UID. Если после restart активен другой
+  workspace, repair сохраняется и ждёт открытия целевого проекта; layer и все
+  его SQLite-операции заранее привязываются к target group.
 - KML/GPX fill не восстанавливает исходную геометрию или стиль: он сохраняет
   только упорядоченные точки и доступные name/time/elevation.
 - Сравнение сохранённых строковых значений формы с typed controls выполняется по
@@ -147,7 +155,11 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 ## Диагностика
 
 - Долгий/зависший fill: `LayerFillService`, notification/foreground lifecycle,
-  SQLite transaction и deferred map reload.
+  SQLite transaction, project UID, `.layer-fill-partial` и deferred map reload.
+- После прерывания появились лишние `layer_*`: автоматически удаляются только
+  новые каталоги с `.layer-fill-partial`, которых нет в `LayerGroup`. Legacy
+  каталоги без marker требуют отдельной диагностики и явного решения, поскольку
+  среди них могут быть тяжёлые MBTiles или пользовательские данные.
 - Crash `No Vulkan compatible GPU found` до появления карты означает, что в
   runtime dependency graph вернулся generic/Vulkan MapLibre artifact вместо
   согласованного `android-sdk-opengl`.

@@ -86,6 +86,7 @@ import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.HyperLogCrashHandler;
 import com.nextgis.maplibui.util.LayerBackupManager;
+import com.nextgis.maplibui.util.LayerFillStaging;
 import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.ProjectOperationCoordinator;
 import com.nextgis.maplibui.util.SchemaRebuildRetryGuard;
@@ -402,6 +403,11 @@ public abstract class GISApplication extends Application
         }
 
         checkTracksLayerExist();
+
+        if (hasCollectorImportBatchRegistered()) {
+            new Handler(Looper.getMainLooper()).postDelayed(
+                    this::resumeCollectorImportAfterProcessRestartIfNeeded, 500L);
+        }
 
         return mMap;
     }
@@ -1938,23 +1944,28 @@ public abstract class GISApplication extends Application
         final int expectedCount = remoteIds.length;
         MapBase map = getMap();
         if (map == null) {
-            // Cannot verify/repair without a map; clear so the batch is not left orphaned forever.
-            HyperLog.w(Constants.TAG, "Collector verify: map is null; clearing orphaned import batch");
-            synchronized (mCollectorImportLock) {
-                clearCollectorImportFieldsLocked();
-            }
+            HyperLog.w(Constants.TAG, "Collector verify postponed: target map is not loaded");
             return;
         }
         ILayer groupLayer = map.getLayerById(groupId);
         if (!(groupLayer instanceof LayerGroup)) {
             HyperLog.w(Constants.TAG, "Collector verify: layer group id " + groupId
-                    + " not found; clearing orphaned import batch");
-            synchronized (mCollectorImportLock) {
-                clearCollectorImportFieldsLocked();
-            }
+                    + " not found in active project; preserving import journal");
             return;
         }
         LayerGroup group = (LayerGroup) groupLayer;
+        if (!TextUtils.isEmpty(collectorProjectUid)) {
+            com.nextgis.maplib.map.CollectorProjectMetadata metadata =
+                    group.getCollectorProjectMetadata();
+            String activeProjectUid = metadata != null ? metadata.getProjectUid() : null;
+            if (!TextUtils.equals(collectorProjectUid, activeProjectUid)) {
+                HyperLog.w(Constants.TAG, "Collector verify postponed: journal project does not"
+                        + " match active group project");
+                return;
+            }
+        }
+
+        LayerFillStaging.cleanupIncomplete(group);
 
         ArrayList<Integer> brokenIndices = new ArrayList<>();
         ArrayList<String> repaired = new ArrayList<>();

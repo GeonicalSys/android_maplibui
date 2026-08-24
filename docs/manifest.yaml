@@ -17,9 +17,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/RebuildCacheService.java
     responsibility: Rebuild vector cache with mobile or Collector notification behavior selected by the application contract rather than package name.
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
-    responsibility: Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; keep post-fill map reload pending until MapLibre confirms style/source application.
+    responsibility: Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; resume a durable Collector journal only in its matching project, clean only app-marked unpublished layer stages, and keep post-fill map reload pending until MapLibre confirms style/source application.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
-    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, Collector-item edit policy application, fail-fast cleanup of incomplete layers, durable timeout recovery, staged replacement and ordered local-underlay insertion above OSM and below the user stack.
+    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, target-project identity verification before file or SQLite access, early parent binding to the owning workspace, Collector-item edit policy application, crash-tracked fail-fast cleanup of incomplete layers, durable timeout recovery, staged replacement and ordered local-underlay insertion above OSM and below the user stack.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LayerFactoryUI.java
     responsibility: Route local GeoJSON, KML, GPX, NGRc and raster MBTiles documents to their matching fill task while preserving the standard layer naming dialog.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
@@ -40,6 +40,8 @@ key_components:
     responsibility: Create and update authenticated project-managed read-only raster layers for already-supported QGIS style resources.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorImportJournal.java
     responsibility: Persist unfinished Collector batches for verify-and-repair after process death.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerFillStaging.java
+    responsibility: Mark unpublished layer directories and clean only marked unreferenced stages plus their owning-workspace tables after process death, preserving referenced and every unmarked legacy directory.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
     responsibility: Install or recover the form and metadata sidecars as one validated transaction.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
@@ -89,6 +91,8 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
   - id: collector-import-journal
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorImportJournal.java
+  - id: layer-fill-staging
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerFillStaging.java
   - id: ngw-schema-rebuild-guard
     path: maplibui/src/main/java/com/nextgis/maplibui/util/SchemaRebuildRetryGuard.java
   - id: collector-form-transaction
