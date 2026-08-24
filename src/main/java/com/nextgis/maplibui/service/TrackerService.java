@@ -109,6 +109,7 @@ public class TrackerService extends Service
 
     public static final  String TEMP_PREFERENCES      = "tracks_temp";
     private static final String TRACK_URI             = "track_uri";
+    private static final String ACTION_START          = "com.nextgis.maplibui.TRACK_START";
     public static final String ACTION_SYNC            = "com.nextgis.maplibui.TRACK_SYNC";
     public static final String ACTION_STOP            = "com.nextgis.maplibui.TRACK_STOP";
     private static final String ACTION_SPLIT          = "com.nextgis.maplibui.TRACK_SPLIT";
@@ -178,7 +179,9 @@ public class TrackerService extends Service
         mTrackProviderArbiter = new LocationProviderArbiter();
 
         String name = getPackageName() + "_preferences";
-        mSharedPreferences = getSharedPreferences(name, MODE_MULTI_PROCESS);
+        // TrackerService intentionally shares the default app process with its menu owner.
+        // MODE_MULTI_PROCESS is deprecated and cannot make start/stop state atomic.
+        mSharedPreferences = getSharedPreferences(name, MODE_PRIVATE);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE);
         mRecordingSoundMonitor = new BackgroundRecordingSoundMonitor(this, mSharedPreferences);
 
@@ -227,6 +230,7 @@ public class TrackerService extends Service
 
     public static Pair<Integer, Integer> start_stop_tracking_GetIconWithTitle(Context context) {
         Intent trackerServiceIntent = new Intent(context, TrackerService.class);
+        trackerServiceIntent.setAction(ACTION_START);
         trackerServiceIntent.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
 
         int title = R.string.track_start, icon = R.drawable.ic_action_maps_directions_walk;
@@ -239,6 +243,7 @@ public class TrackerService extends Service
             setTrackRecordingEnabled(context, false);
             if (isTrackerServiceRunning(context)) {
                 trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
+                HyperLog.v(Constants.TAG, "TrackerService stop requested source=menu");
                 context.startService(trackerServiceIntent);
             } else if (hasUnfinishedTracks(context)) {
                 closeUnfinishedTracksBeforeRestart(context);
@@ -247,11 +252,13 @@ public class TrackerService extends Service
             // Crash recovery path: keep points, close unfinished session, start a new track.
             closeUnfinishedTracksBeforeRestart(context);
             setTrackRecordingEnabled(context, true);
+            HyperLog.v(Constants.TAG, "TrackerService start requested source=menu recovery=true");
             ContextCompat.startForegroundService(context, trackerServiceIntent);
             title = R.string.track_stop;
             icon = R.drawable.ic_action_maps_directions_walk_rec;
         } else {
             setTrackRecordingEnabled(context, true);
+            HyperLog.v(Constants.TAG, "TrackerService start requested source=menu recovery=false");
             ContextCompat.startForegroundService(context, trackerServiceIntent);
             title = R.string.track_stop;
             icon = R.drawable.ic_action_maps_directions_walk_rec;
@@ -302,9 +309,10 @@ public class TrackerService extends Service
             closeUnfinishedTracksBeforeRestart(context);
         }
         Intent trackerService = new Intent(context, TrackerService.class);
+        trackerService.setAction(ACTION_START);
         trackerService.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
         ContextCompat.startForegroundService(context, trackerService);
-        HyperLog.v(Constants.TAG, "TrackerService.ensureRecordingRunningIfEnabled: started");
+        HyperLog.v(Constants.TAG, "TrackerService start requested source=resume");
     }
 
 
@@ -314,6 +322,15 @@ public class TrackerService extends Service
         String actionForLog = intent != null ? intent.getAction() : "null";
         HyperLog.v(Constants.TAG, "TrackerService.onStartCommand startId=" + startId
                 + " action=" + actionForLog + " running=" + mIsRunning);
+
+        boolean isRecordingStart = intent == null || ACTION_START.equals(intent.getAction());
+        if (isRecordingStart && !isTrackRecordingEnabled(this)) {
+            // A delayed start must not create an empty track after the user has already stopped.
+            HyperLog.w(Constants.TAG,
+                    "TrackerService ignored stale start because recording intent is disabled");
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
 
         if (intent != null) {
             targetActivity = intent.getStringExtra(ConstantsUI.TARGET_CLASS);
