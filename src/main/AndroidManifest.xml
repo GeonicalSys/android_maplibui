@@ -112,11 +112,11 @@
             android:foregroundServiceType="dataSync"
             />
 
+        <!-- Keep track start/stop lifecycle ordered with the toolbar in the default process. -->
         <service
             android:name="com.nextgis.maplibui.service.TrackerService"
             android:enabled="true"
             android:exported="true"
-            android:process=":tracks"
             android:foregroundServiceType="location"/>
 
         <service
@@ -138,7 +138,6 @@
             android:name=".service.TrackerReceiver"
             android:exported="true"
             android:enabled="true"
-            android:process=":tracks"
             >
             <intent-filter>
                 <action android:name="com.example.ACTION_TRACKER_MESSAGE" />
