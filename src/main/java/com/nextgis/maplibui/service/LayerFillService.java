@@ -81,6 +81,7 @@ import com.nextgis.maplibui.mapui.NGWVectorLayerUI;
 import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.LayerUtil;
+import com.nextgis.maplibui.util.LayerFillStaging;
 import com.nextgis.maplibui.util.ProjectOperationCoordinator;
 import com.hypertrack.hyperlog.HyperLog;
 
@@ -716,7 +717,13 @@ public class LayerFillService extends Service implements IProgressor {
         progressor.setValue(0);
         HyperLog.d(Constants.TAG, "LayerFillService: start "
                 + task.getClass().getSimpleName() + " " + task.logContext());
-        boolean result = task.execute(progressor);
+        boolean result;
+        if (!task.mTargetWorkspaceMatches || !task.mStagingTracked) {
+            task.setError(getString(com.nextgis.maplib.R.string.error_download_data), progressor);
+            result = false;
+        } else {
+            result = task.execute(progressor);
+        }
         if (!result && !mIsCanceled) {
             HyperLog.w(Constants.TAG, "LayerFillService: fill task failed "
                     + task.getClass().getSimpleName() + " — " + mProgressMessage);
@@ -756,7 +763,8 @@ public class LayerFillService extends Service implements IProgressor {
         if (result) {
             ILayer filled = task.getLayer();
             if (filled != null) {
-                if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
+                if (task instanceof LocalTMSFillTask
+                        && ((LocalTMSFillTask) task).isLocalUnderlay()) {
                     /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
                     final String osmPathName = "osm";
                     ILayer osm = task.mLayerGroup.getLayerByPathName(osmPathName);
@@ -791,7 +799,13 @@ public class LayerFillService extends Service implements IProgressor {
                 } else {
                     task.mLayerGroup.addLayer(filled);
                 }
-                task.mLayerGroup.save();
+                boolean layerPublished = task.mLayerGroup.save();
+                if (layerPublished) {
+                    LayerFillStaging.complete(task.mLayerGroup, task.mLayerPath);
+                } else {
+                    HyperLog.w(Constants.TAG, "LayerFillService: filled layer was not durably"
+                            + " published " + task.logContext());
+                }
                 registerStandaloneLayerFillVerifyIfNeeded(task, filled);
             }
         } else {
@@ -1299,6 +1313,10 @@ public class LayerFillService extends Service implements IProgressor {
         protected long[] mCollectorProjectRemoteIds;
         /** {@code >= 0}: insert filled layer at this index in {@link #mLayerGroup}; {@code -1}: append via {@link LayerGroup#addLayer}. */
         protected int mLayerRestoreInsertIndex = -1;
+        /** False only when a new unpublished folder could not be made crash-trackable. */
+        protected boolean mStagingTracked = true;
+        /** Collector journal/task ownership must match the group loaded from the active map. */
+        protected boolean mTargetWorkspaceMatches = true;
 
         LayerFillTask(Bundle bundle) {
             mLayerGroup = LayerFillService.this.mLayerGroup;
@@ -1319,6 +1337,19 @@ public class LayerFillService extends Service implements IProgressor {
             }
             if (bundle.containsKey(KEY_LAYER_RESTORE_INSERT_INDEX)) {
                 mLayerRestoreInsertIndex = bundle.getInt(KEY_LAYER_RESTORE_INSERT_INDEX, -1);
+            }
+
+            String requestedProjectUid = bundle.getString(KEY_COLLECTOR_PROJECT_UID);
+            if (!TextUtils.isEmpty(requestedProjectUid)) {
+                com.nextgis.maplib.map.CollectorProjectMetadata metadata =
+                        mLayerGroup.getCollectorProjectMetadata();
+                String groupProjectUid = metadata != null ? metadata.getProjectUid() : null;
+                mTargetWorkspaceMatches = TextUtils.equals(
+                        requestedProjectUid, groupProjectUid);
+                if (!mTargetWorkspaceMatches) {
+                    HyperLog.w(Constants.TAG, "LayerFillService: target project mismatch; task"
+                            + " will not touch SQLite");
+                }
             }
 
             long[] idsArray = bundle.getLongArray(KEY_DEFAULT_FORM_IDS);
@@ -1347,6 +1378,17 @@ public class LayerFillService extends Service implements IProgressor {
             mLayer.setVisible(mVisible);
             mLayer.setMinZoom(mMinZoom);
             mLayer.setMaxZoom(mMaxZoom);
+            bindLayerToTargetWorkspace();
+        }
+
+        void bindLayerToTargetWorkspace() {
+            mLayer.setParent(mLayerGroup);
+            mStagingTracked = mTargetWorkspaceMatches
+                    && LayerFillStaging.mark(mLayerGroup, mLayerPath);
+            if (!mStagingTracked) {
+                HyperLog.w(Constants.TAG, "LayerFillService: staging marker unavailable "
+                        + logContext());
+            }
         }
 
         public abstract boolean execute(IProgressor progressor);
@@ -1465,6 +1507,14 @@ public class LayerFillService extends Service implements IProgressor {
             mAccount = bundle.getString(KEY_ACCOUNT, "");
             startLayerFill = bundle.getBoolean(KEY_START_LAYER_FILL, true);
             isNGFPOpen  = bundle.getBoolean(KEY_IS_NGFP_OPEN, false);
+            if (startLayerFill) {
+                mStagingTracked = mTargetWorkspaceMatches
+                        && LayerFillStaging.mark(mLayerGroup, mLayerPath);
+                if (!mStagingTracked) {
+                    HyperLog.w(Constants.TAG, "LayerFillService: form staging marker unavailable "
+                            + logContext());
+                }
+            }
         }
 
         @Override
@@ -1745,18 +1795,23 @@ public class LayerFillService extends Service implements IProgressor {
 
     private class LocalTMSFillTask extends LayerFillTask{
         boolean mIsNgrc;
+        boolean mIsMbTiles;
 
         LocalTMSFillTask(Bundle bundle) {
             super(bundle);
             mLayer = new LocalTMSLayerUI(mLayerGroup.getContext(), mLayerPath);
             mIsNgrc = !bundle.containsKey(KEY_TMS_TYPE);
+            mIsMbTiles = bundle.getInt(KEY_TMS_TYPE, Constants.NOT_FOUND)
+                    == GeoConstants.TMSTYPE_MBTILES_RASTER;
             ((LocalTMSLayerUI) mLayer).setCacheSizeMultiply(bundle.getInt(KEY_TMS_CACHE));
 
             if (!mIsNgrc) { // it's zip
                 ((LocalTMSLayerUI) mLayer).setTMSType(bundle.getInt(KEY_TMS_TYPE));
                 initLayer();
-            } else
+            } else {
                 mLayerName = mUri.getLastPathSegment();
+                bindLayerToTargetWorkspace();
+            }
         }
 
         @Override
@@ -1766,7 +1821,9 @@ public class LayerFillService extends Service implements IProgressor {
                 if (null == tmsLayer)
                     return false;
 
-                if (mIsNgrc) {
+                if (mIsMbTiles) {
+                    tmsLayer.fillFromMBTiles(mUri, progressor);
+                } else if (mIsNgrc) {
                     tmsLayer.fillFromNgrc(mUri, progressor);
                     tmsLayer.setNgrcImportProvenance(
                             mLayerName, tmsLayer.getLastArchiveSha256());
@@ -1783,6 +1840,10 @@ public class LayerFillService extends Service implements IProgressor {
             }
 
             return true;
+        }
+
+        boolean isLocalUnderlay() {
+            return mIsNgrc || mIsMbTiles;
         }
 
         @Override

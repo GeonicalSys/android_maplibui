@@ -17,6 +17,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.util.Constants;
@@ -35,6 +37,8 @@ public final class BackgroundRecordingSoundMonitor implements LocationListener {
     private static final int TONE_VOLUME_PERCENT = 45;
     private static final int HEARTBEAT_DURATION_MS = 90;
     private static final int ERROR_DURATION_MS = 350;
+    private static final long HEARTBEAT_VIBRATION_MS = 80L;
+    private static final long[] ERROR_VIBRATION_PATTERN = {0L, 80L, 70L, 80L};
     private static final long HEALTH_LOCATION_INTERVAL_MS = 2_000L;
 
     private final Context mContext;
@@ -91,7 +95,7 @@ public final class BackgroundRecordingSoundMonitor implements LocationListener {
         if (!mPolicy.shouldPlayError(enabled, background, nowMs)) {
             return;
         }
-        if (playTone(ToneGenerator.TONE_PROP_NACK, ERROR_DURATION_MS)) {
+        if (emitSignal(ToneGenerator.TONE_PROP_NACK, ERROR_DURATION_MS, true)) {
             mPolicy.recordError(nowMs);
         }
     }
@@ -150,7 +154,7 @@ public final class BackgroundRecordingSoundMonitor implements LocationListener {
         syncWakeLock();
         if (mPolicy.shouldPlayHeartbeat(
                 isEnabled(), isAppUiHidden(), mLastUsableLocationAtMs, nowMs)
-                && playTone(ToneGenerator.TONE_PROP_BEEP, HEARTBEAT_DURATION_MS)) {
+                && emitSignal(ToneGenerator.TONE_PROP_BEEP, HEARTBEAT_DURATION_MS, false)) {
             mPolicy.recordHeartbeat(nowMs);
         }
 
@@ -265,17 +269,64 @@ public final class BackgroundRecordingSoundMonitor implements LocationListener {
         return true;
     }
 
-    private boolean playTone(int tone, int durationMs) {
+    private boolean emitSignal(int tone, int durationMs, boolean error) {
+        AudioManager audioManager =
+                (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        boolean alarmMuted = true;
+        int alarmVolume = 0;
+        if (audioManager != null) {
+            try {
+                alarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
+                alarmMuted = audioManager.isStreamMute(AudioManager.STREAM_ALARM);
+            } catch (RuntimeException ex) {
+                HyperLog.w(Constants.TAG,
+                        "BackgroundRecordingSoundMonitor alarm volume failure: "
+                                + ex.getMessage(), ex);
+            }
+        }
+        if (BackgroundRecordingSoundPolicy.shouldVibrate(alarmVolume, alarmMuted)) {
+            return vibrate(error);
+        }
+        if (playAlarmTone(tone, durationMs)) {
+            return true;
+        }
+        return vibrate(error);
+    }
+
+    private boolean playAlarmTone(int tone, int durationMs) {
         try {
             if (mToneGenerator == null) {
                 mToneGenerator = new ToneGenerator(
-                        AudioManager.STREAM_NOTIFICATION, TONE_VOLUME_PERCENT);
+                        AudioManager.STREAM_ALARM, TONE_VOLUME_PERCENT);
             }
             return mToneGenerator.startTone(tone, durationMs);
         } catch (RuntimeException ex) {
             HyperLog.w(Constants.TAG,
                     "BackgroundRecordingSoundMonitor audio failure: " + ex.getMessage(), ex);
-            release();
+            if (mToneGenerator != null) {
+                mToneGenerator.release();
+                mToneGenerator = null;
+            }
+            return false;
+        }
+    }
+
+    private boolean vibrate(boolean error) {
+        Vibrator vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            return false;
+        }
+        try {
+            VibrationEffect effect = error
+                    ? VibrationEffect.createWaveform(ERROR_VIBRATION_PATTERN, -1)
+                    : VibrationEffect.createOneShot(
+                    HEARTBEAT_VIBRATION_MS, VibrationEffect.DEFAULT_AMPLITUDE);
+            vibrator.vibrate(effect);
+            return true;
+        } catch (RuntimeException ex) {
+            HyperLog.w(Constants.TAG,
+                    "BackgroundRecordingSoundMonitor vibration failure: "
+                            + ex.getMessage(), ex);
             return false;
         }
     }

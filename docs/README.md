@@ -22,6 +22,10 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - локальный KML/GPX направляется в отдельную fill-задачу, которая создаёт один
   редактируемый точечный слой и удаляет его целиком при ошибке разбора/записи;
 - вставка NGRc/raster/vector layers в правильном порядке;
+- импорт `.mbtiles` и ZIP с `.mbtiles` через local-underlay pipeline; raster
+  добавляется над OSM, получает обычный hot reload и сохраняет порядок;
+- lease `UNDERLAY_MIGRATION` исключает одновременные switch/sync/fill операции,
+  пока приложение потоково собирает подложки старого Debug в активном проекте;
 - deferred reload карты после batch fill, который остаётся pending до фактического
   завершения MapLibre style/source apply;
 - изолированные Web GIS/local projects, atomic registry/sidecar, switch/create/
@@ -45,11 +49,16 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   160 км/ч, выгружают последние буферизированные точки при остановке и публикуют
   безопасные счётчики причин отбрасывания; при двух разрешённых источниках свежий
   пригодный GPS подавляет Network на 12 секунд, после чего Network снова работает
-  как резерв; `BackgroundRecordingSoundMonitor` использует отдельную подписку с
-  нулевым порогом перемещения и при скрытом UI даёт notification-stream pulse по
+  как резерв; `TrackerService` работает в основном процессе приложения, поэтому
+  команда Stop из панели не может обогнать ещё не исполненную команду Start
+  отдельного процесса, а durable-флаг читается без межпроцессного кэша;
+  `BackgroundRecordingSoundMonitor` использует отдельную подписку с
+  нулевым порогом перемещения и при скрытом UI даёт alarm-stream pulse по
   фиксированному 10-секундному расписанию, пока пригодные координаты остаются
-  свежими. Неподвижность не гасит pulse, прекращение доставки координат гасит;
-  сигнал ошибки сохранения отдельно ограничен минутой, весь контроль выключаемый;
+  свежими. Громкость уведомлений на него не влияет; нулевая/выключенная громкость
+  будильника переключает heartbeat на короткую вибрацию, а ошибку — на двойную.
+  Неподвижность не гасит pulse, прекращение доставки координат гасит; сигнал
+  ошибки сохранения отдельно ограничен минутой, весь контроль выключаемый;
   отзыв location permission останавливает запрещённый location-FGS без краша:
   намерение записи трека и черновик обхода сохраняются до возврата разрешения;
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
@@ -88,6 +97,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - UI не выбирает типы для topology repair: решение разрешено только app/maplib
   для точного `GTMultiPolygon`; Polygon и линии сохраняют прежнее поведение.
 - LayerGroup index `0` — bottom; UI и MapLibre должны совпадать.
+- Raster MBTiles и migrated underlay остаются manual local layers и не попадают
+  под destructive Collector composition sync.
 - Collector fill вставляет project-managed слои ниже «Мои треки» и применяет
   editable-флаг элемента проекта отдельно от общего mobile config.
 - Activity и Dialog используют единый `CollectorProjectImportHelper`; initial
@@ -107,6 +118,14 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Каждая параллельная fill-задача получает заранее зарезервированный уникальный
   каталог. Ошибка первого SQL insert откатывает и удаляет неполный слой вместо
   продолжения партии по заведомо неверной таблице.
+- Новый каталог fill получает marker незавершённой публикации до первого
+  обращения к данным. После process death приложение удаляет только помеченные
+  и не указанные в загруженной карте stages вместе с их таблицами; помеченный,
+  но уже опубликованный слой сохраняется, а старые непомеченные каталоги никогда
+  не считаются автоматически удаляемым мусором.
+- Collector journal закреплён за project UID. Если после restart активен другой
+  workspace, repair сохраняется и ждёт открытия целевого проекта; layer и все
+  его SQLite-операции заранее привязываются к target group.
 - KML/GPX fill не восстанавливает исходную геометрию или стиль: он сохраняет
   только упорядоченные точки и доступные name/time/elevation.
 - Сравнение сохранённых строковых значений формы с typed controls выполняется по
@@ -139,7 +158,11 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 ## Диагностика
 
 - Долгий/зависший fill: `LayerFillService`, notification/foreground lifecycle,
-  SQLite transaction и deferred map reload.
+  SQLite transaction, project UID, `.layer-fill-partial` и deferred map reload.
+- После прерывания появились лишние `layer_*`: автоматически удаляются только
+  новые каталоги с `.layer-fill-partial`, которых нет в `LayerGroup`. Legacy
+  каталоги без marker требуют отдельной диагностики и явного решения, поскольку
+  среди них могут быть тяжёлые MBTiles или пользовательские данные.
 - Crash `No Vulkan compatible GPU found` до появления карты означает, что в
   runtime dependency graph вернулся generic/Vulkan MapLibre artifact вместо
   согласованного `android-sdk-opengl`.

@@ -60,4 +60,11 @@ public class BackgroundRecordingSoundPolicyTest {
 
         assertTrue(policy.shouldPlayHeartbeat(true, true, 499L, 500L));
     }
+
+    @Test
+    public void zeroOrMutedAlarmUsesVibrationFallback() {
+        assertTrue(BackgroundRecordingSoundPolicy.shouldVibrate(0, false));
+        assertTrue(BackgroundRecordingSoundPolicy.shouldVibrate(5, true));
+        assertFalse(BackgroundRecordingSoundPolicy.shouldVibrate(1, false));
+    }
 }
