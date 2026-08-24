@@ -2,6 +2,7 @@ package com.nextgis.maplibui.overlay;
 
 import com.nextgis.maplib.datasource.Feature;
 import com.nextgis.maplib.datasource.GeoLinearRing;
+import com.nextgis.maplib.datasource.GeoLineString;
 import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.datasource.GeoPolygon;
 import com.nextgis.maplib.util.GeoConstants;
@@ -73,6 +74,25 @@ public class UndoRedoOverlayTest {
         assertCurrentX(history, 51);
     }
 
+    @Test
+    public void newRulerPointAfterUndoClearsRedoBranch() {
+        UndoRedoOverlay history = new UndoRedoOverlay(null, null);
+        Feature feature = new Feature();
+
+        saveLine(history, feature, 0);
+        saveLine(history, feature, 0, 1);
+        saveLine(history, feature, 0, 1, 2);
+
+        assertTrue(history.onOptionsItemSelected(R.id.menu_edit_undo));
+        saveLine(history, feature, 0, 1, 99);
+
+        assertFalse(history.onOptionsItemSelected(R.id.menu_edit_redo));
+        assertTrue(history.onOptionsItemSelected(R.id.menu_edit_undo));
+        GeoLineString restored = (GeoLineString) history.getFeature().getGeometry();
+        assertEquals(2, restored.getPointCount());
+        assertEquals(1, restored.getPoint(1).getX(), 0.0);
+    }
+
     private static void savePoint(UndoRedoOverlay history, Feature feature, double x) {
         savePoint(history, feature, x, GeoConstants.CRS_WEB_MERCATOR);
     }
@@ -97,6 +117,17 @@ public class UndoRedoOverlayTest {
         polygon.setCRS(crs);
         polygon.setOuterRing(ring);
         feature.setGeometry(polygon);
+        history.saveToHistory(feature);
+    }
+
+    private static void saveLine(
+            UndoRedoOverlay history, Feature feature, double... coordinates) {
+        GeoLineString line = new GeoLineString();
+        line.setCRS(GeoConstants.CRS_WEB_MERCATOR);
+        for (double coordinate : coordinates) {
+            line.add(point(coordinate, 0, GeoConstants.CRS_WEB_MERCATOR));
+        }
+        feature.setGeometry(line);
         history.saveToHistory(feature);
     }
 

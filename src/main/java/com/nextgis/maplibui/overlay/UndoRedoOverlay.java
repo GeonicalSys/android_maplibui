@@ -183,6 +183,10 @@ public class UndoRedoOverlay extends Overlay {
         mFeature.setGeometry(null);
     }
 
+    public boolean hasHistory() {
+        return !mHistory.isEmpty();
+    }
+
 
     public void defineUndoRedo() {
         if (mTopToolbar == null)

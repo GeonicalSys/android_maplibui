@@ -51,6 +51,10 @@ public final class CollectorProjectRegistry {
     private static final String WORKSPACES_DIR_NAME = "collector_projects";
     private static final String WORKSPACE_MAP_NAME = "map";
     private static final String WORKSPACE_INFO_NAME = "project.json";
+    private static final String INITIAL_LOCAL_PROJECT_UID = "local:initial";
+    private static final String INITIAL_LOCAL_WORKSPACE_NAME = "local_initial";
+    private static final String KEY_INITIAL_LOCAL_PROJECT_CREATED =
+            "collector_initial_local_project_created_v1";
 
     private static final String JSON_SCHEMA_VERSION = "schema_version";
     private static final String JSON_PROJECTS = "projects";
@@ -327,6 +331,98 @@ public final class CollectorProjectRegistry {
         }
         synchronized (LOCK) {
             return findProject(loadProjectsLocked(context), activeUid);
+        }
+    }
+
+    /**
+     * Ensures that map startup always belongs to a registered project. On upgrade, the legacy
+     * standalone map is copied into the initial local workspace once and remains untouched as a
+     * rollback copy. This method must run before GISApplication opens its first MapDrawable.
+     */
+    public static ProjectInfo ensureInitialLocalProject(Context context, String requestedName) {
+        if (context == null || TextUtils.isEmpty(requestedName)
+                || TextUtils.isEmpty(requestedName.trim())) {
+            return null;
+        }
+        synchronized (LOCK) {
+            SharedPreferences preferences =
+                    PreferenceManager.getDefaultSharedPreferences(context);
+            ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
+            ProjectInfo active = resolveConfiguredProject(preferences, projects);
+            boolean alreadyInitialized = preferences.getBoolean(
+                    KEY_INITIAL_LOCAL_PROJECT_CREATED, false);
+
+            ProjectInfo initial = findProject(projects, INITIAL_LOCAL_PROJECT_UID);
+            if (!alreadyInitialized && initial == null) {
+                initial = buildInitialLocalProjectInfoLocked(
+                        context, projects, requestedName.trim());
+                if (initial == null) {
+                    return active;
+                }
+                File legacyMap = findLegacyMap(context, preferences);
+                if (legacyMap != null) {
+                    try {
+                        LegacyMapWorkspaceCopier.copy(
+                                legacyMap, new File(initial.getMapPath()), initial.getMapName());
+                        HyperLog.i(Constants.TAG,
+                                "CollectorProjectRegistry: legacy map copied into initial local project");
+                    } catch (IOException | JSONException | RuntimeException e) {
+                        HyperLog.w(Constants.TAG,
+                                "CollectorProjectRegistry: legacy map migration failed: "
+                                        + e.getMessage(), e);
+                        try {
+                            FileUtil.deleteRecursive(new File(initial.getMapPath()));
+                        } catch (RuntimeException cleanupError) {
+                            HyperLog.w(Constants.TAG,
+                                    "CollectorProjectRegistry: incomplete migration cleanup failed: "
+                                            + cleanupError.getMessage(), cleanupError);
+                        }
+                        return active;
+                    }
+                }
+                projects.add(initial);
+            }
+
+            if (alreadyInitialized && initial == null && projects.isEmpty()) {
+                initial = buildInitialLocalProjectInfoLocked(
+                        context, projects, requestedName.trim());
+                if (initial == null) {
+                    return null;
+                }
+                projects.add(initial);
+            }
+
+            ProjectInfo startupProject = active;
+            if (startupProject == null) {
+                startupProject = initial != null
+                        ? initial : mostRecentlyOpenedProjectExcept(projects, null);
+            }
+            if (startupProject == null) {
+                return null;
+            }
+
+            projects.remove(startupProject);
+            ProjectInfo opened = copyProject(
+                    startupProject, startupProject.getName(), System.currentTimeMillis());
+            projects.add(opened);
+            if (!saveProjectsLocked(context, projects)) {
+                return active;
+            }
+
+            SharedPreferences.Editor editor = preferences.edit()
+                    .putBoolean(KEY_INITIAL_LOCAL_PROJECT_CREATED, true);
+            if (active == null) {
+                editor.putString(SettingsConstants.KEY_PREF_MAP_PATH, opened.getMapPath())
+                        .putString(SettingsConstantsUI.KEY_PREF_MAP_NAME, opened.getMapName())
+                        .putString(SettingsConstants.KEY_PREF_ACTIVE_COLLECTOR_PROJECT_UID,
+                                opened.getProjectUid());
+            }
+            if (!editor.commit()) {
+                HyperLog.w(Constants.TAG,
+                        "CollectorProjectRegistry: failed to persist initial project preferences");
+                return active;
+            }
+            return opened;
         }
     }
 
@@ -805,6 +901,75 @@ public final class CollectorProjectRegistry {
                 WORKSPACE_MAP_NAME,
                 now,
                 0L);
+    }
+
+    private static ProjectInfo buildInitialLocalProjectInfoLocked(
+            Context context,
+            List<ProjectInfo> projects,
+            String requestedName) {
+        File workspaceDir = new File(
+                getWorkspacesRootDir(context), INITIAL_LOCAL_WORKSPACE_NAME);
+        try {
+            FileUtil.createDir(workspaceDir);
+        } catch (RuntimeException e) {
+            HyperLog.w(Constants.TAG, "Initial local project workspace creation failed: "
+                    + e.getMessage(), e);
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        String displayName = uniqueDisplayName(
+                projects, requestedName, INITIAL_LOCAL_PROJECT_UID);
+        return new ProjectInfo(
+                INITIAL_LOCAL_PROJECT_UID,
+                ProjectType.LOCAL,
+                null,
+                0L,
+                displayName,
+                displayName,
+                null,
+                workspaceDir.getAbsolutePath(),
+                WORKSPACE_MAP_NAME,
+                now,
+                0L);
+    }
+
+    private static ProjectInfo resolveConfiguredProject(
+            SharedPreferences preferences,
+            List<ProjectInfo> projects) {
+        String activeUid = preferences.getString(
+                SettingsConstants.KEY_PREF_ACTIVE_COLLECTOR_PROJECT_UID, "");
+        ProjectInfo active = findProject(projects, activeUid);
+        if (active != null) {
+            return active;
+        }
+        String mapPath = preferences.getString(SettingsConstants.KEY_PREF_MAP_PATH, "");
+        String mapName = preferences.getString(SettingsConstantsUI.KEY_PREF_MAP_NAME, "");
+        for (ProjectInfo project : projects) {
+            if (project != null && project.getMapPath().equals(mapPath)
+                    && project.getMapName().equals(mapName)) {
+                return project;
+            }
+        }
+        return null;
+    }
+
+    private static File findLegacyMap(
+            Context context,
+            SharedPreferences preferences) {
+        File defaultMapRoot = context.getExternalFilesDir(KEY_PREF_MAP);
+        if (defaultMapRoot == null) {
+            defaultMapRoot = new File(context.getFilesDir(), KEY_PREF_MAP);
+        }
+        String configuredPath = preferences.getString(
+                SettingsConstants.KEY_PREF_MAP_PATH, defaultMapRoot.getPath());
+        String configuredName = preferences.getString(
+                SettingsConstantsUI.KEY_PREF_MAP_NAME, "default");
+        File configuredMap = new File(configuredPath, configuredName + Constants.MAP_EXT);
+        if (!isWorkspacePathSafe(context, configuredPath) && configuredMap.isFile()) {
+            return configuredMap;
+        }
+        File defaultMap = new File(defaultMapRoot, "default" + Constants.MAP_EXT);
+        return defaultMap.isFile() ? defaultMap : null;
     }
 
     private static ProjectInfo copyProject(

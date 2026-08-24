@@ -65,8 +65,10 @@ import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.util.ConstantsUI;
+import com.nextgis.maplibui.util.BackgroundRecordingSoundMonitor;
 import com.nextgis.maplibui.util.NotificationHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -131,6 +133,7 @@ public class WalkEditService extends Service implements LocationListener
     private Location mLastWalkLocationRaw;
     /** Wall time when the last vertex was appended (flush or live); for closing motion bound. */
     private long mLastVertexWallTimeMs;
+    private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
 
     private static final float CLOSING_SNAP_MIN_DIST_M = 0.12f;
     private static final float CLOSING_REF_ACCURACY_M = 25f;
@@ -147,6 +150,9 @@ public class WalkEditService extends Service implements LocationListener
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_MULTI_PROCESS);
+        SharedPreferences defaultPreferences = getSharedPreferences(
+                getPackageName() + "_preferences", MODE_MULTI_PROCESS);
+        mRecordingSoundMonitor = new BackgroundRecordingSoundMonitor(this, defaultPreferences);
 
         mTicker = getString(R.string.walkedit_title);
         mSmallIcon = R.drawable.ic_action_maps_directions_walk;
@@ -217,15 +223,17 @@ public class WalkEditService extends Service implements LocationListener
                             if (mGeometry == null) {
                                 Log.e(Constants.TAG, "WalkEditService: KEY_GEOMETRY missing");
                                 initTargetIntent(mTargetActivity);
-                                foregroundStopMissingLocationPermission();
-                                break;
+                                stopWithoutLocationForeground("missing-geometry");
+                                return START_NOT_STICKY;
                             }
 
                             mWalkLocationFilter.reset();
                             mWalkProviderArbiter.reset();
                             mLastWalkLocationRaw = null;
                             mLastVertexWallTimeMs = 0L;
-                            startWalkEdit();
+                            if (!startWalkEdit()) {
+                                return START_NOT_STICKY;
+                            }
                             persistWalkDraftSnapshot(true);
                         }
                         break;
@@ -250,7 +258,9 @@ public class WalkEditService extends Service implements LocationListener
             mLastWalkLocationRaw = null;
             mLastVertexWallTimeMs = 0L;
             if (mGeometry != null && mLayerId != Constants.NOT_FOUND) {
-                startWalkEdit();
+                if (!startWalkEdit()) {
+                    return START_NOT_STICKY;
+                }
             } else {
                 HyperLog.w(Constants.TAG, "WalkEditService sticky restart: invalid draft");
                 removeNotification();
@@ -262,7 +272,7 @@ public class WalkEditService extends Service implements LocationListener
 
     }
 
-    private void startWalkEdit() {
+    private boolean startWalkEdit() {
         SharedPreferences sharedPreferences = getSharedPreferences(getPackageName() + "_preferences", MODE_MULTI_PROCESS);
 
         String minTimeStr = sharedPreferences.getString(SettingsConstants.KEY_PREF_LOCATION_MIN_TIME, "2");
@@ -273,8 +283,9 @@ public class WalkEditService extends Service implements LocationListener
         initTargetIntent(mTargetActivity);
 
         if (!PermissionUtil.hasLocationPermissions(this)) {
-            foregroundStopMissingLocationPermission();
-            return;
+            HyperLog.w(Constants.TAG, "WalkEditService: missing location permission");
+            stopWithoutLocationForeground("missing-permission");
+            return false;
         }
 
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -282,40 +293,51 @@ public class WalkEditService extends Service implements LocationListener
 //        }else
 //            mLocationManager.addGpsStatusListener(this);
 
-        String provider = LocationManager.GPS_PROVIDER;
-        if (mLocationManager.getAllProviders().contains(provider)
-                && isProviderAllowedForWalk(provider)) {
-            mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
-            HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
-                    + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
-        }
+        try {
+            List<String> healthProviders = new ArrayList<>();
+            String provider = LocationManager.GPS_PROVIDER;
+            if (mLocationManager.getAllProviders().contains(provider)
+                    && isProviderAllowedForWalk(provider)) {
+                mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
+                healthProviders.add(provider);
+                HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
+                        + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
+            }
 
-        provider = LocationManager.NETWORK_PROVIDER;
-        if (mLocationManager.getAllProviders().contains(provider)
-                && isProviderAllowedForWalk(provider)) {
-            mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
-            HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
-                    + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
+            provider = LocationManager.NETWORK_PROVIDER;
+            if (mLocationManager.getAllProviders().contains(provider)
+                    && isProviderAllowedForWalk(provider)) {
+                mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
+                healthProviders.add(provider);
+                HyperLog.v(Constants.TAG, "WalkEditService request location updates provider="
+                        + provider + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
+            }
+            mRecordingSoundMonitor.start(
+                    mLocationManager, healthProviders.toArray(new String[0]));
+        } catch (SecurityException ex) {
+            HyperLog.w(Constants.TAG, "WalkEditService location request rejected: "
+                    + ex.getMessage(), ex);
+            stopWithoutLocationForeground("request-location");
+            return false;
         }
 
         NotificationHelper.showLocationInfo(this);
-        addNotification();
+        return addNotification();
     }
 
     /**
      * startForegroundService requires a timely startForeground; stop if we cannot access location.
      */
-    private void foregroundStopMissingLocationPermission() {
-        NotificationCompat.Builder builder = createBuilder(this, R.string.title_edit_by_walk);
-        builder.setSmallIcon(mSmallIcon)
-                .setContentTitle(getString(R.string.title_edit_by_walk))
-                .setContentText(getString(R.string.error_no_location))
-                .setWhen(System.currentTimeMillis())
-                .setAutoCancel(true)
-                .setOngoing(false);
-        if (mOpenActivity != null)
-            builder.setContentIntent(mOpenActivity);
-        startForeground(WALK_NOTIFICATION_ID, builder.build());
+    private void stopWithoutLocationForeground(String stage) {
+        HyperLog.w(Constants.TAG, "WalkEditService stopped without location foreground stage="
+                + stage + "; draft retained");
+        try {
+            stopForeground(true);
+        } catch (RuntimeException ex) {
+            HyperLog.w(Constants.TAG, "WalkEditService stopForeground stage=" + stage
+                    + ": " + ex.getMessage(), ex);
+        }
+        mNotificationManager.cancel(WALK_NOTIFICATION_ID);
         stopSelf();
     }
 
@@ -376,8 +398,16 @@ public class WalkEditService extends Service implements LocationListener
         }
 
         if (PermissionUtil.hasLocationPermissions(this)) {
-            mLocationManager.removeUpdates(this);
+            try {
+                mLocationManager.removeUpdates(this);
+            } catch (SecurityException ex) {
+                HyperLog.w(Constants.TAG, "WalkEditService.removeUpdates permission revoked: "
+                        + ex.getMessage(), ex);
+            }
         }
+
+        if (mRecordingSoundMonitor != null)
+            mRecordingSoundMonitor.release();
 
         super.onDestroy();
     }
@@ -407,11 +437,10 @@ public class WalkEditService extends Service implements LocationListener
         }
         boolean changed = false;
         for (Location loc : accepted) {
-            appendWalkGeometryPoint(loc);
-            changed = true;
+            changed |= appendWalkGeometryPoint(loc);
         }
         if (changed) {
-            persistWalkGeometryToTempPrefs();
+            reportWalkPersistence(persistWalkGeometryToTempPrefs());
             sendGeometryBroadcast();
         }
     }
@@ -436,7 +465,7 @@ public class WalkEditService extends Service implements LocationListener
                 + mWalkProviderArbiter.getSuppressedNetworkFixCount());
     }
 
-    private void appendWalkGeometryPoint(Location location) {
+    private boolean appendWalkGeometryPoint(Location location) {
         GeoPoint point = new GeoPoint(location.getLongitude(), location.getLatitude());
         point.setCRS(GeoConstants.CRS_WGS84);
         point.project(GeoConstants.CRS_WEB_MERCATOR);
@@ -453,18 +482,19 @@ public class WalkEditService extends Service implements LocationListener
             default:
                 HyperLog.w(Constants.TAG, "WalkEditService: unsupported geometry type "
                         + mGeometry.getType() + ", ignoring location update");
-                return;
+                return false;
         }
         mLastVertexWallTimeMs = System.currentTimeMillis();
+        return true;
     }
 
-    private void persistWalkGeometryToTempPrefs() {
-        persistWalkDraftSnapshot(false);
+    private boolean persistWalkGeometryToTempPrefs() {
+        return persistWalkDraftSnapshot(false);
     }
 
-    private void persistWalkDraftSnapshot(boolean includeMeta) {
+    private boolean persistWalkDraftSnapshot(boolean includeMeta) {
         if (mGeometry == null)
-            return;
+            return false;
         SharedPreferences.Editor edit = mSharedPreferencesTemp.edit();
         edit.putString(ConstantsUI.KEY_GEOMETRY, mGeometry.toWKT(true));
         edit.putLong(KEY_UPDATED_AT, System.currentTimeMillis());
@@ -479,7 +509,14 @@ public class WalkEditService extends Service implements LocationListener
             edit.putBoolean(ConstantsUI.KEY_MESSAGE, mShowNotification);
             saveBundle(edit, mTargetExtras);
         }
-        edit.commit();
+        return edit.commit();
+    }
+
+    private void reportWalkPersistence(boolean persisted) {
+        if (!persisted) {
+            HyperLog.w(Constants.TAG, "WalkEditService: failed to persist walk geometry");
+            mRecordingSoundMonitor.onPersistenceFailed();
+        }
     }
 
     /** True when walkedit_temp holds a usable interrupted walk draft. */
@@ -579,14 +616,13 @@ public class WalkEditService extends Service implements LocationListener
             return;
         boolean changed = false;
         for (Location loc : mWalkLocationFilter.flushRemaining()) {
-            appendWalkGeometryPoint(loc);
-            changed = true;
+            changed |= appendWalkGeometryPoint(loc);
         }
         if (appendClosingWalkSnapIfNeeded(pickBestClosingLocation())) {
             changed = true;
         }
         if (changed) {
-            persistWalkGeometryToTempPrefs();
+            reportWalkPersistence(persistWalkGeometryToTempPrefs());
             sendGeometryBroadcast();
         }
     }
@@ -642,8 +678,7 @@ public class WalkEditService extends Service implements LocationListener
         }
         int n = getWalkGeometryVertexCount();
         if (n <= 0) {
-            appendWalkGeometryPoint(lastRaw);
-            return true;
+            return appendWalkGeometryPoint(lastRaw);
         }
         Location refLoc = buildLocationFromLastVertex();
         if (refLoc == null) {
@@ -665,8 +700,7 @@ public class WalkEditService extends Service implements LocationListener
         if (dist > maxDist) {
             return false;
         }
-        appendWalkGeometryPoint(lastRaw);
-        return true;
+        return appendWalkGeometryPoint(lastRaw);
     }
 
     private int getWalkGeometryVertexCount() {
@@ -735,7 +769,7 @@ public class WalkEditService extends Service implements LocationListener
 //    public void onGpsStatusChanged(int event) {
 //    }
 
-    private void addNotification() {
+    private boolean addNotification() {
         if (!mShowNotification) {
             NotificationCompat.Builder minimal = createBuilder(this, R.string.title_edit_by_walk);
             minimal.setSmallIcon(mSmallIcon)
@@ -746,8 +780,7 @@ public class WalkEditService extends Service implements LocationListener
                     .setOngoing(true);
             if (mOpenActivity != null)
                 minimal.setContentIntent(mOpenActivity);
-            startForeground(WALK_NOTIFICATION_ID, minimal.build());
-            return;
+            return startLocationForegroundSafely(minimal.build(), "minimal-recording");
         }
 
         MapBase map = MapBase.getInstance();
@@ -774,7 +807,20 @@ public class WalkEditService extends Service implements LocationListener
         builder.addAction(R.drawable.ic_location, getString(R.string.tracks_open), mOpenActivity);
 
         mNotificationManager.notify(WALK_NOTIFICATION_ID, builder.build());
-        startForeground(WALK_NOTIFICATION_ID, builder.build());
+        return startLocationForegroundSafely(builder.build(), "recording");
+    }
+
+    private boolean startLocationForegroundSafely(
+            android.app.Notification notification, String stage) {
+        try {
+            startForeground(WALK_NOTIFICATION_ID, notification);
+            return true;
+        } catch (SecurityException ex) {
+            HyperLog.w(Constants.TAG, "WalkEditService location foreground rejected stage="
+                    + stage + ": " + ex.getMessage(), ex);
+            stopWithoutLocationForeground(stage);
+            return false;
+        }
     }
 
     private void removeNotification() {
