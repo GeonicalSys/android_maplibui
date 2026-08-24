@@ -157,7 +157,7 @@ public class RulerOverlay extends Overlay implements MapViewEventListener {
             if (mListener != null)
                 mListener.onLengthChanged(getLength());
 
-            if (mListener != null && geoPoints.length > 2)
+            if (mListener != null)
                 mListener.onAreaChanged(getArea());
         }
     }

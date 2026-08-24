@@ -82,6 +82,7 @@ import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.GISApplication;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.util.ConstantsUI;
+import com.nextgis.maplibui.util.BackgroundRecordingSoundMonitor;
 import com.nextgis.maplibui.util.NotificationHelper;
 
 import org.json.JSONArray;
@@ -152,6 +153,7 @@ public class TrackerService extends Service
     private long mBufferedOrDroppedFixCount;
     private long mInsertedPointCount;
     private long mInsertFailCount;
+    private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
 
     @Override
     public void onCreate() {
@@ -178,6 +180,7 @@ public class TrackerService extends Service
         String name = getPackageName() + "_preferences";
         mSharedPreferences = getSharedPreferences(name, MODE_MULTI_PROCESS);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE);
+        mRecordingSoundMonitor = new BackgroundRecordingSoundMonitor(this, mSharedPreferences);
 
         mTicker = getString(R.string.tracks_running);
         mSmallIcon = R.drawable.ic_action_maps_directions_walk;
@@ -335,7 +338,9 @@ public class TrackerService extends Service
                                     .setContentText(title)
                                     .setOngoing(true);
 
-                            startForeground(TRACK_NOTIFICATION_ID, builder.build());
+                            if (!startLocationForegroundSafely(builder.build(), "sync")) {
+                                return START_NOT_STICKY;
+                            }
                         }
 
                         mLocationSenderThread = createLocationSenderThread(500L);
@@ -350,13 +355,17 @@ public class TrackerService extends Service
                         HyperLog.v(Constants.TAG, "TrackerService.ACTION_SPLIT trackId=" + mTrackId);
                         stopTrack("ACTION_SPLIT");
                         initTargetIntent(targetActivity);
-                        addStartingNotification();
+                        if (!addStartingNotification()) {
+                            return START_NOT_STICKY;
+                        }
                         if (!startTrack()) {
                             removeNotification();
                             stopSelf();
                             return START_NOT_STICKY;
                         }
-                        addNotification();
+                        if (!addNotification()) {
+                            return START_NOT_STICKY;
+                        }
                         return START_STICKY;
                 }
             }
@@ -365,13 +374,14 @@ public class TrackerService extends Service
         if (!mIsRunning) {
             if (!PermissionUtil.hasLocationPermissions(this)) {
                 HyperLog.w(Constants.TAG, "TrackerService: missing location permission, stop startId=" + startId);
-                foregroundStopMissingLocationPermission();
-                stopSelf();
+                stopForMissingLocationPermission("start");
                 return START_NOT_STICKY;
             }
 
             initTargetIntent(targetActivity);
-            addStartingNotification();
+            if (!addStartingNotification()) {
+                return START_NOT_STICKY;
+            }
 
             registerGpsStatusListenerSafely();
 
@@ -388,11 +398,16 @@ public class TrackerService extends Service
             long minTime = Long.parseLong(minTimeStr) * 1000;
             float minDistance = Float.parseFloat(minDistanceStr);
 
+            List<String> healthProviders = new ArrayList<>();
             String provider = LocationManager.GPS_PROVIDER;
-            requestTrackLocationUpdates(provider, minTime, minDistance);
+            if (requestTrackLocationUpdates(provider, minTime, minDistance)) {
+                healthProviders.add(provider);
+            }
 
             provider = LocationManager.NETWORK_PROVIDER;
-            requestTrackLocationUpdates(provider, minTime, minDistance);
+            if (requestTrackLocationUpdates(provider, minTime, minDistance)) {
+                healthProviders.add(provider);
+            }
 
             NotificationHelper.showLocationInfo(this);
 
@@ -408,10 +423,15 @@ public class TrackerService extends Service
                 targetActivity = mSharedPreferencesTemp.getString(ConstantsUI.TARGET_CLASS, "");
             }
 
+            mRecordingSoundMonitor.start(
+                    mLocationManager, healthProviders.toArray(new String[0]));
+
             mLocationSenderThread = createLocationSenderThread(minTime);
             mLocationSenderThread.start();
 
-            addNotification();
+            if (!addNotification()) {
+                return START_NOT_STICKY;
+            }
         }
 
         return START_STICKY;
@@ -622,7 +642,7 @@ public class TrackerService extends Service
         mAlarmManager.set(AlarmManager.RTC, today.getTimeInMillis(), mSplitService);
     }
 
-    private void addNotification() {
+    private boolean addNotification() {
         String name = "";
         String selection = TrackLayer.FIELD_ID + " = ?";
         String[] proj = new String[]{TrackLayer.FIELD_NAME};
@@ -660,8 +680,11 @@ public class TrackerService extends Service
         builder.addAction(resource, getString(R.string.tracks_stop), stopService);
 
         mNotificationManager.notify(TRACK_NOTIFICATION_ID, builder.build());
-        startForeground(TRACK_NOTIFICATION_ID, builder.build());
-        Toast.makeText(this, title, Toast.LENGTH_SHORT).show();
+        boolean started = startLocationForegroundSafely(builder.build(), "recording");
+        if (started) {
+            Toast.makeText(this, title, Toast.LENGTH_SHORT).show();
+        }
+        return started;
     }
 
 
@@ -672,7 +695,7 @@ public class TrackerService extends Service
             mNotificationManager.cancel(TRACK_NOTIFICATION_ID);
     }
 
-    private void addStartingNotification() {
+    private boolean addStartingNotification() {
         NotificationCompat.Builder builder = createBuilder(this, R.string.tracks_running);
         builder.setSmallIcon(mSmallIcon)
                 .setLargeIcon(mLargeIcon)
@@ -684,19 +707,33 @@ public class TrackerService extends Service
                 .setOngoing(true);
         if (mOpenActivity != null)
             builder.setContentIntent(mOpenActivity);
-        startForeground(TRACK_NOTIFICATION_ID, builder.build());
+        return startLocationForegroundSafely(builder.build(), "starting");
     }
 
-    private void foregroundStopMissingLocationPermission() {
-        NotificationCompat.Builder builder = createBuilder(this, R.string.tracks_running);
-        builder.setSmallIcon(mSmallIcon)
-                .setContentTitle(getString(R.string.tracks_running))
-                .setContentText(getString(R.string.error_no_location))
-                .setWhen(System.currentTimeMillis())
-                .setAutoCancel(true)
-                .setOngoing(false);
-        startForeground(TRACK_NOTIFICATION_ID, builder.build());
-        stopForeground(true);
+    private boolean startLocationForegroundSafely(
+            android.app.Notification notification, String stage) {
+        try {
+            startForeground(TRACK_NOTIFICATION_ID, notification);
+            return true;
+        } catch (SecurityException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService location foreground rejected stage="
+                    + stage + ": " + ex.getMessage(), ex);
+            stopForMissingLocationPermission(stage);
+            return false;
+        }
+    }
+
+    private void stopForMissingLocationPermission(String stage) {
+        HyperLog.w(Constants.TAG, "TrackerService stopped without location foreground stage="
+                + stage + "; recording intent retained");
+        try {
+            stopForeground(true);
+        } catch (RuntimeException ex) {
+            HyperLog.w(Constants.TAG, "TrackerService stopForeground stage=" + stage
+                    + ": " + ex.getMessage(), ex);
+        }
+        mNotificationManager.cancel(TRACK_NOTIFICATION_ID);
+        stopSelf();
     }
 
 
@@ -743,6 +780,9 @@ public class TrackerService extends Service
 
         if (mLocationSenderThread != null)
             mLocationSenderThread.interrupt();
+
+        if (mRecordingSoundMonitor != null)
+            mRecordingSoundMonitor.release();
 
         super.onDestroy();
     }
@@ -827,10 +867,12 @@ public class TrackerService extends Service
             }
             mInsertFailCount++;
             HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint returned null trackId=" + mTrackId);
+            mRecordingSoundMonitor.onPersistenceFailed();
         } catch (Exception ex) {
             mInsertFailCount++;
             Log.e(TrackerService.class.getName(), "onLocation EXCEPTION!!" + ex.getMessage());
             HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint: " + ex.getMessage(), ex);
+            mRecordingSoundMonitor.onPersistenceFailed();
         }
         return false;
     }
@@ -860,24 +902,26 @@ public class TrackerService extends Service
         return LocationUtil.isProviderEnabled(this, provider, true);
     }
 
-    private void requestTrackLocationUpdates(String provider, long minTime, float minDistance) {
+    private boolean requestTrackLocationUpdates(String provider, long minTime, float minDistance) {
         try {
             if (!mLocationManager.getAllProviders().contains(provider)) {
                 HyperLog.d(Constants.TAG, "TrackerService provider unavailable: " + provider);
-                return;
+                return false;
             }
             if (!isProviderAllowedForTrack(provider)) {
                 HyperLog.d(Constants.TAG, "TrackerService provider disabled by prefs: " + provider);
-                return;
+                return false;
             }
             mLocationManager.requestLocationUpdates(provider, minTime, minDistance, this);
             HyperLog.v(Constants.TAG, "TrackerService request location updates provider=" + provider
                     + " minTimeMs=" + minTime + " minDistanceM=" + minDistance);
             if (Constants.DEBUG_MODE)
                 Log.d(Constants.TAG, "Tracker service request location updates for " + provider);
+            return true;
         } catch (Exception ex) {
             HyperLog.w(Constants.TAG, "TrackerService.requestLocationUpdates " + provider + ": "
                     + ex.getMessage(), ex);
+            return false;
         }
     }
 

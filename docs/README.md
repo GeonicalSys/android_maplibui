@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-23
+last_verified: 2026-08-24
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -25,8 +25,10 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - deferred reload карты после batch fill, который остаётся pending до фактического
   завершения MapLibre style/source apply;
 - изолированные Web GIS/local projects, atomic registry/sidecar, switch/create/
-  rename/delete и project-wide operation leases; fill заранее резервирует workspace,
-  но ждёт завершения sync перед доступом к SQLite;
+  rename/delete и project-wide operation leases; до первого открытия карты
+  создаётся начальный local workspace, а прежняя штатная standalone-карта один
+  раз копируется в него без удаления оригинала; fill заранее резервирует
+  workspace, но ждёт завершения sync перед доступом к SQLite;
 - попытка импортировать новый Collector-проект во время sync/fill не изменяет
   реестр и показывает отдельное окно с просьбой дождаться завершения операции;
 - staged schema rebuild/removal только после успешного backup, с ограничением
@@ -43,7 +45,13 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   160 км/ч, выгружают последние буферизированные точки при остановке и публикуют
   безопасные счётчики причин отбрасывания; при двух разрешённых источниках свежий
   пригодный GPS подавляет Network на 12 секунд, после чего Network снова работает
-  как резерв;
+  как резерв; `BackgroundRecordingSoundMonitor` использует отдельную подписку с
+  нулевым порогом перемещения и при скрытом UI даёт notification-stream pulse по
+  фиксированному 10-секундному расписанию, пока пригодные координаты остаются
+  свежими. Неподвижность не гасит pulse, прекращение доставки координат гасит;
+  сигнал ошибки сохранения отдельно ограничен минутой, весь контроль выключаемый;
+  отзыв location permission останавливает запрещённый location-FGS без краша:
+  намерение записи трека и черновик обхода сохраняются до возврата разрешения;
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
 - LineString, Polygon и Multi-варианты используют tap-скетч с одним стартовым
@@ -51,11 +59,19 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   преобразование экранных координат линий и полигонов также выполняется текущей
   MapLibre-проекцией, а не устаревающим legacy display. В панели нет overflow и
   дополнения касанием, у полигонов также нет добавления/удаления частей и отверстий.
-  Обход вставляет GPS после выбранного узла. Undo/Redo хранит до 100 реальных
+  Перед тапом или запуском обхода MapLibre показывает выбранный узел красным,
+  следующую вершину и сегмент внутри той же части/кольца — оранжевыми. Обход
+  вставляет GPS после выбранного узла; его правая нижняя кнопка с иконкой
+  идущего человека завершает запись через штатный Save/Stop path вместо перехода
+  в настройки. Undo/Redo хранит до 100 реальных
   изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
   и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
+  инструмент линейки показывает те же кнопки и записывает в эту историю каждое
+  добавление или завершённый перенос измерительной точки, используя активную
+  MapLibre-геометрию из `MapDrawable`, а не legacy `RulerOverlay`;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
+  walk и manual geometry не остаются двумя параллельными черновиками одного скетча;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
   attribute form gated by layer edit policy in `app`; «Поля → метка» сохраняет
   `feature_label_field` слоя;
@@ -80,6 +96,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Backup failure блокирует destructive mutation.
 - Project UID/map path не смешиваются между workspaces; switch и destructive
   project mutation запрещены во время sync/fill/rebuild.
+- Чистая установка до первого `MapDrawable` публикует active UID локального
+  проекта; legacy migration копирует только map-owned layer paths и track DB,
+  не захватывая соседние файлы или каталог остальных проектов.
 - Карта приложения переоткрывается потокобезопасно, ContentProvider следует активному workspace,
   а project switch запрещён до остановки записываемого трека.
 - `SYNC_NONE` оценивается отдельно для feature data и поддерживаемой config logic.
@@ -101,6 +120,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   сохранять одну заливку и стабильный красный контур во время GPS-обновлений;
   скрытые на время обхода вершины снова публикуются сразу после Stop. Для
   LineString/MultiLineString тот же recovery не должен оставлять polygon fill.
+- Правая кнопка активного обхода обязана вызывать `onFinishEditByWalkSession()`;
+  меню настроек местоположения в этой панели отсутствует.
 - Успешная серверная авторизация не считается добавлением Веб ГИС, пока
   `AccountManager` не создал и не вернул variant-specific Android account; при
   локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.
