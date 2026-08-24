@@ -67,6 +67,7 @@ import static com.nextgis.maplib.util.Constants.LAYERTYPE_NGW_WEBMAP;
 import static com.nextgis.maplib.util.Constants.LAYERTYPE_REMOTE_TMS;
 import static com.nextgis.maplib.util.Constants.LAYERTYPE_TRACKS;
 import static com.nextgis.maplib.util.Constants.TAG;
+import static com.nextgis.maplib.util.GeoConstants.TMSTYPE_MBTILES_RASTER;
 
 
 public class LayerFactoryUI
@@ -160,6 +161,22 @@ public class LayerFactoryUI
             }
 
             AtomicReference<Uri> temp = new AtomicReference<>(uri);
+            boolean isMbTiles = ext.equals(".mbtiles");
+            if (!isMbTiles) {
+                isMbTiles = MapUtil.isZippedWithExtension(context, temp, ".mbtiles");
+            }
+            if (isMbTiles) {
+                Intent intent = new Intent(context, LayerFillService.class);
+                intent.setAction(LayerFillService.ACTION_ADD_TASK);
+                intent.putExtra(LayerFillService.KEY_URI, temp.get());
+                intent.putExtra(LayerFillService.KEY_NAME, layerName);
+                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.TMS_LAYER);
+                intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupLayer.getId());
+                intent.putExtra(LayerFillService.KEY_TMS_TYPE, TMSTYPE_MBTILES_RASTER);
+                LayerFillProgressDialogFragment.startFill(intent);
+                return;
+            }
+
             if (MapUtil.isZippedGeoJSON(context, temp)) {
                 createNewVectorLayer(context, groupLayer, temp.get());
                 return;

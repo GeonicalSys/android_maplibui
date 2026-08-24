@@ -38,6 +38,10 @@ public final class BackgroundRecordingSoundPolicy {
         mLastErrorAt = nowMs;
     }
 
+    public static boolean shouldVibrate(int alarmVolume, boolean alarmMuted) {
+        return alarmVolume <= 0 || alarmMuted;
+    }
+
     private static boolean isDue(long lastAt, long nowMs, long intervalMs) {
         if (lastAt == Long.MIN_VALUE) {
             return true;

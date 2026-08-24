@@ -33,6 +33,7 @@ public final class ProjectOperationCoordinator {
         PROJECT_SWITCH(true),
         PROJECT_CREATE(true),
         PROJECT_RENAME(true),
+        UNDERLAY_MIGRATION(true),
         PROJECT_DELETE(true);
 
         private final boolean projectMutation;
