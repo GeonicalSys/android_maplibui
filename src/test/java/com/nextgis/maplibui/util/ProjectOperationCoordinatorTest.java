@@ -60,6 +60,19 @@ public class ProjectOperationCoordinatorTest {
     }
 
     @Test
+    public void underlayMigrationIsExclusiveProjectMutation() {
+        ProjectOperationCoordinator.Lease migration = ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.UNDERLAY_MIGRATION, "project-a");
+
+        assertNotNull(migration);
+        assertNull(ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a"));
+        assertNull(ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.PROJECT_SWITCH, "project-b"));
+        migration.close();
+    }
+
+    @Test
     public void duplicateDataSyncIsRejectedButDependentFillIsAllowed() {
         ProjectOperationCoordinator.Lease sync = ProjectOperationCoordinator.tryBegin(
                 ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a");

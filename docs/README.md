@@ -22,6 +22,10 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - локальный KML/GPX направляется в отдельную fill-задачу, которая создаёт один
   редактируемый точечный слой и удаляет его целиком при ошибке разбора/записи;
 - вставка NGRc/raster/vector layers в правильном порядке;
+- импорт `.mbtiles` и ZIP с `.mbtiles` через local-underlay pipeline; raster
+  добавляется над OSM, получает обычный hot reload и сохраняет порядок;
+- lease `UNDERLAY_MIGRATION` исключает одновременные switch/sync/fill операции,
+  пока приложение потоково собирает подложки старого Debug в активном проекте;
 - deferred reload карты после batch fill, который остаётся pending до фактического
   завершения MapLibre style/source apply;
 - изолированные Web GIS/local projects, atomic registry/sidecar, switch/create/
@@ -46,10 +50,12 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   безопасные счётчики причин отбрасывания; при двух разрешённых источниках свежий
   пригодный GPS подавляет Network на 12 секунд, после чего Network снова работает
   как резерв; `BackgroundRecordingSoundMonitor` использует отдельную подписку с
-  нулевым порогом перемещения и при скрытом UI даёт notification-stream pulse по
+  нулевым порогом перемещения и при скрытом UI даёт alarm-stream pulse по
   фиксированному 10-секундному расписанию, пока пригодные координаты остаются
-  свежими. Неподвижность не гасит pulse, прекращение доставки координат гасит;
-  сигнал ошибки сохранения отдельно ограничен минутой, весь контроль выключаемый;
+  свежими. Громкость уведомлений на него не влияет; нулевая/выключенная громкость
+  будильника переключает heartbeat на короткую вибрацию, а ошибку — на двойную.
+  Неподвижность не гасит pulse, прекращение доставки координат гасит; сигнал
+  ошибки сохранения отдельно ограничен минутой, весь контроль выключаемый;
   отзыв location permission останавливает запрещённый location-FGS без краша:
   намерение записи трека и черновик обхода сохраняются до возврата разрешения;
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
@@ -88,6 +94,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - UI не выбирает типы для topology repair: решение разрешено только app/maplib
   для точного `GTMultiPolygon`; Polygon и линии сохраняют прежнее поведение.
 - LayerGroup index `0` — bottom; UI и MapLibre должны совпадать.
+- Raster MBTiles и migrated underlay остаются manual local layers и не попадают
+  под destructive Collector composition sync.
 - Collector fill вставляет project-managed слои ниже «Мои треки» и применяет
   editable-флаг элемента проекта отдельно от общего mobile config.
 - Activity и Dialog используют единый `CollectorProjectImportHelper`; initial

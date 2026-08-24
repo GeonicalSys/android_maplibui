@@ -756,7 +756,8 @@ public class LayerFillService extends Service implements IProgressor {
         if (result) {
             ILayer filled = task.getLayer();
             if (filled != null) {
-                if (task instanceof LocalTMSFillTask && ((LocalTMSFillTask) task).mIsNgrc) {
+                if (task instanceof LocalTMSFillTask
+                        && ((LocalTMSFillTask) task).isLocalUnderlay()) {
                     /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
                     final String osmPathName = "osm";
                     ILayer osm = task.mLayerGroup.getLayerByPathName(osmPathName);
@@ -1745,11 +1746,14 @@ public class LayerFillService extends Service implements IProgressor {
 
     private class LocalTMSFillTask extends LayerFillTask{
         boolean mIsNgrc;
+        boolean mIsMbTiles;
 
         LocalTMSFillTask(Bundle bundle) {
             super(bundle);
             mLayer = new LocalTMSLayerUI(mLayerGroup.getContext(), mLayerPath);
             mIsNgrc = !bundle.containsKey(KEY_TMS_TYPE);
+            mIsMbTiles = bundle.getInt(KEY_TMS_TYPE, Constants.NOT_FOUND)
+                    == GeoConstants.TMSTYPE_MBTILES_RASTER;
             ((LocalTMSLayerUI) mLayer).setCacheSizeMultiply(bundle.getInt(KEY_TMS_CACHE));
 
             if (!mIsNgrc) { // it's zip
@@ -1766,7 +1770,9 @@ public class LayerFillService extends Service implements IProgressor {
                 if (null == tmsLayer)
                     return false;
 
-                if (mIsNgrc) {
+                if (mIsMbTiles) {
+                    tmsLayer.fillFromMBTiles(mUri, progressor);
+                } else if (mIsNgrc) {
                     tmsLayer.fillFromNgrc(mUri, progressor);
                     tmsLayer.setNgrcImportProvenance(
                             mLayerName, tmsLayer.getLastArchiveSha256());
@@ -1783,6 +1789,10 @@ public class LayerFillService extends Service implements IProgressor {
             }
 
             return true;
+        }
+
+        boolean isLocalUnderlay() {
+            return mIsNgrc || mIsMbTiles;
         }
 
         @Override
