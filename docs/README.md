@@ -112,7 +112,10 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Сравнение сохранённых строковых значений формы с typed controls выполняется по
   строковому представлению, чтобы число `42` не считалось ложной правкой к `"42"`.
 - Successful form Save/Discard is terminal before `Activity.finish()`; its trailing
-  `onPause()` must not recreate `feature_form_draft`. Walk Save/Cancel stops the
+  `onPause()` must not recreate `feature_form_draft`. A successful Save result carries
+  enough layer/feature/new-row identity for the app host to reload the persisted feature,
+  terminate either creation or existing-feature editing and clear selection back to the
+  normal map screen. Walk Save/Cancel stops the
   service and clears `walkedit_temp`, while an unexpected stop retains it. Normal
   vertex/tap editing keeps `geometry_edit_draft` until explicit Cancel, successful
   update, form handoff or recovery Discard.
