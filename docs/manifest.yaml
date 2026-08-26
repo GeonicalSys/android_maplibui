@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -45,7 +45,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorFormFileTransaction.java
     responsibility: Install or recover the form and metadata sidecars as one validated transaction.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
-    responsibility: Export layer data before destructive rebuild or removal.
+    responsibility: Export layer tables and only attachment files physically present on this device before destructive rebuild or removal, without downloading server-only payloads.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
     responsibility: Run in the default application process so toolbar Start is executed before a later Stop, reject stale delayed starts after the durable intent was disabled, persist that intent without cross-process preference caching, record validated movement through 160 km/h using tracks-only provider settings and GPS-first/network-fallback arbitration, flush delayed fixes, run fresh-location-gated fixed-rate background sound health feedback independently of point inserts, stop safely without starting a forbidden location foreground service when permission is revoked, and silently resume after process death, reboot or restored permission.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java

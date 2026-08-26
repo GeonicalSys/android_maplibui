@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -37,6 +37,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   реестр и показывает отдельное окно с просьбой дождаться завершения операции;
 - staged schema rebuild/removal только после успешного backup, с ограничением
   повторов неизменного mismatch fingerprint;
+- backup сохраняет таблицы слоя и только файлы вложений, физически
+  имеющиеся на этом устройстве; server-only payload не скачивается и не
+  блокирует удаление;
 - перед account sync одинаковые managed layers группируются по
   `account + project_uid + remote_id`: без pending changes лишние копии
   backup-гейтятся и удаляются одним map commit, с правками sync блокируется;
@@ -110,7 +113,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Activity и Dialog используют единый `CollectorProjectImportHelper`; initial
   import и composition sync создают штатные QGIS styles только через
   `CollectorRasterLayerHelper`, в общем порядке с vectors и всегда read-only.
-- Backup failure блокирует destructive mutation.
+- Backup failure блокирует destructive mutation; отсутствие локальной копии
+  server-only вложения не является failure.
 - Project UID/map path не смешиваются между workspaces; switch и destructive
   project mutation запрещены во время sync/fill/rebuild.
 - Чистая установка до первого `MapDrawable` публикует active UID локального
