@@ -58,6 +58,11 @@ public final class LayerFillStaging {
         }
     }
 
+    /** True when a layer directory still carries the app-owned unpublished-fill marker. */
+    public static boolean isMarked(File layerPath) {
+        return layerPath != null && marker(layerPath).isFile();
+    }
+
     /**
      * Removes only unpublished directories carrying the staging marker. A marked directory that
      * is already referenced by the loaded map is preserved and merely committed by removing the

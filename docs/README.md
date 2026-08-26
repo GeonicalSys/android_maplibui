@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-24
+last_verified: 2026-08-26
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -37,6 +37,12 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   реестр и показывает отдельное окно с просьбой дождаться завершения операции;
 - staged schema rebuild/removal только после успешного backup, с ограничением
   повторов неизменного mismatch fingerprint;
+- перед account sync одинаковые managed layers группируются по
+  `account + project_uid + remote_id`: без pending changes лишние копии
+  backup-гейтятся и удаляются одним map commit, с правками sync блокируется;
+- staged replacement на main thread одним сохранением одновременно вставляет
+  replacement и убирает старые ссылки; storage удаляется только после commit,
+  а слой другого проекта или manual origin не затрагивается;
 - toolbar Back в NGW resource tree поднимается к родительскому каталогу и
   закрывает экран только из корня;
 - просмотр вкладок свойств NGW-слоя не меняет направление синхронизации;

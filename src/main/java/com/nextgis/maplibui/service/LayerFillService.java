@@ -763,6 +763,7 @@ public class LayerFillService extends Service implements IProgressor {
         if (result) {
             ILayer filled = task.getLayer();
             if (filled != null) {
+                boolean layerPublished;
                 if (task instanceof LocalTMSFillTask
                         && ((LocalTMSFillTask) task).isLocalUnderlay()) {
                     /* Above OSM when present (LayerGroup index 0 = bottom of stack). No OSM → index 0. */
@@ -774,39 +775,37 @@ public class LayerFillService extends Service implements IProgressor {
                         insertAt = osmIdx >= 0 ? osmIdx + 1 : 0;
                     }
                     task.mLayerGroup.insertLayer(insertAt, filled);
+                    layerPublished = task.mLayerGroup.save();
                 } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
                         && filled instanceof NGWVectorLayer) {
                     NGWVectorLayer nv = (NGWVectorLayer) filled;
-                    int insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
-                            task.mLayerGroup,
-                            nv.getAccountName(),
-                            task.mCollectorProjectRemoteIds,
-                            task.mCollectorOrderIndex);
-                    task.mLayerGroup.insertLayer(insertAt, filled);
-                    // Persist the fully built replacement before retiring the working copy.
-                    task.mLayerGroup.save();
-                    replaceExistingNgwLayerAfterSuccessfulFill(task, nv);
+                    layerPublished = replaceExistingNgwLayerAfterSuccessfulFill(task, nv);
                 } else if (task.mLayerRestoreInsertIndex >= 0) {
-                    int insertAt = Math.min(
-                            task.mLayerRestoreInsertIndex, task.mLayerGroup.getLayerCount());
-                    task.mLayerGroup.insertLayer(insertAt, filled);
-                    // The old layer remains readable until this save succeeds.
-                    task.mLayerGroup.save();
                     if (filled instanceof NGWVectorLayer) {
-                        replaceExistingNgwLayerAfterSuccessfulFill(
+                        layerPublished = replaceExistingNgwLayerAfterSuccessfulFill(
                                 task, (NGWVectorLayer) filled);
+                    } else {
+                        int insertAt = Math.min(
+                                task.mLayerRestoreInsertIndex, task.mLayerGroup.getLayerCount());
+                        task.mLayerGroup.insertLayer(insertAt, filled);
+                        layerPublished = task.mLayerGroup.save();
                     }
                 } else {
                     task.mLayerGroup.addLayer(filled);
+                    layerPublished = task.mLayerGroup.save();
                 }
-                boolean layerPublished = task.mLayerGroup.save();
                 if (layerPublished) {
                     LayerFillStaging.complete(task.mLayerGroup, task.mLayerPath);
                 } else {
                     HyperLog.w(Constants.TAG, "LayerFillService: filled layer was not durably"
                             + " published " + task.logContext());
+                    result = false;
+                    mProgressIntent.putExtra(KEY_RESULT, false);
+                    discardUnpublishedLayer(task, filled);
                 }
-                registerStandaloneLayerFillVerifyIfNeeded(task, filled);
+                if (layerPublished) {
+                    registerStandaloneLayerFillVerifyIfNeeded(task, filled);
+                }
             }
         } else {
             task.cancel();
@@ -834,36 +833,165 @@ public class LayerFillService extends Service implements IProgressor {
         sendBroadcast(mProgressIntent);
     }
 
-    private void replaceExistingNgwLayerAfterSuccessfulFill(
+    private boolean replaceExistingNgwLayerAfterSuccessfulFill(
             LayerFillTask task,
             NGWVectorLayer replacement) {
-        int removed = 0;
-        List<ILayer> candidates = new ArrayList<>();
-        LayerGroup.getLayersByType(
-                task.mLayerGroup, Constants.LAYERTYPE_NGW_VECTOR, candidates);
-        for (ILayer candidate : candidates) {
-            if (!(candidate instanceof NGWVectorLayer) || candidate == replacement) {
-                continue;
+        final List<NGWVectorLayer> retired = new ArrayList<>();
+        final boolean[] published = {false};
+        final CountDownLatch swapLatch = new CountDownLatch(1);
+
+        new Handler(Looper.getMainLooper()).post(() -> {
+            List<LayerGroup> retiredParents = new ArrayList<>();
+            List<Integer> retiredIndexes = new ArrayList<>();
+            boolean replacementInserted = false;
+            try {
+                List<ILayer> candidates = new ArrayList<>();
+                LayerGroup.getLayersByType(
+                        task.mLayerGroup, Constants.LAYERTYPE_NGW_VECTOR, candidates);
+                for (ILayer candidate : candidates) {
+                    if (!(candidate instanceof NGWVectorLayer) || candidate == replacement) {
+                        continue;
+                    }
+                    NGWVectorLayer existing = (NGWVectorLayer) candidate;
+                    if (existing.getRemoteId() != replacement.getRemoteId()
+                            || !TextUtils.equals(
+                                    existing.getAccountName(), replacement.getAccountName())
+                            || !hasSameReplacementScope(existing, replacement)) {
+                        continue;
+                    }
+                    ILayer parent = existing.getParent();
+                    LayerGroup existingParent = parent instanceof LayerGroup
+                            ? (LayerGroup) parent : task.mLayerGroup;
+                    int oldIndex = existingParent.getChildLayerIndex(existing);
+                    existingParent.removeLayer(existing);
+                    retired.add(existing);
+                    retiredParents.add(existingParent);
+                    retiredIndexes.add(Math.max(0, oldIndex));
+                }
+
+                int insertAt;
+                if (task.mCollectorOrderIndex >= 0
+                        && task.mCollectorProjectRemoteIds != null) {
+                    insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
+                            task.mLayerGroup,
+                            replacement.getAccountName(),
+                            task.mCollectorProjectRemoteIds,
+                            task.mCollectorOrderIndex);
+                } else {
+                    insertAt = Math.min(
+                            Math.max(0, task.mLayerRestoreInsertIndex),
+                            task.mLayerGroup.getLayerCount());
+                }
+                task.mLayerGroup.insertLayer(insertAt, replacement);
+                replacementInserted = true;
+
+                // This is the commit point: disk contains either the previous map or a map with
+                // only the replacement, never a saved intermediate old+new state.
+                published[0] = task.mLayerGroup.save();
+            } catch (RuntimeException e) {
+                HyperLog.w(Constants.TAG, "LayerFillService: atomic layer swap failed "
+                        + task.logContext(), e);
+            } finally {
+                if (!published[0]) {
+                    if (replacementInserted) {
+                        task.mLayerGroup.removeLayer(replacement);
+                    }
+                    for (int i = retired.size() - 1; i >= 0; i--) {
+                        LayerGroup parent = retiredParents.get(i);
+                        parent.insertLayer(
+                                Math.min(retiredIndexes.get(i), parent.getLayerCount()),
+                                retired.get(i));
+                    }
+                    retired.clear();
+                }
+                swapLatch.countDown();
             }
-            NGWVectorLayer existing = (NGWVectorLayer) candidate;
-            if (existing.getRemoteId() != replacement.getRemoteId()
-                    || !TextUtils.equals(
-                            existing.getAccountName(), replacement.getAccountName())) {
-                continue;
+        });
+
+        boolean interrupted = false;
+        try {
+            while (true) {
+                try {
+                    swapLatch.await();
+                    break;
+                } catch (InterruptedException e) {
+                    // Once the main-thread mutation has been posted, returning early would let
+                    // the caller clean up a replacement that may be committed a moment later.
+                    interrupted = true;
+                }
             }
-            ILayer parent = existing.getParent();
-            LayerGroup existingParent = parent instanceof LayerGroup
-                    ? (LayerGroup) parent : task.mLayerGroup;
-            existingParent.removeLayer(existing);
-            existing.delete(true);
-            existingParent.save();
-            removed++;
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
         }
-        if (removed > 0) {
-            HyperLog.v(Constants.TAG, "LayerFillService: replaced " + removed
-                    + " old NGW layer(s) only after successful staged fill remoteId="
-                    + replacement.getRemoteId() + " account=" + replacement.getAccountName());
+        if (!published[0]) {
+            return false;
         }
+
+        // Physical storage is retired only after the new map composition is durable. This work is
+        // deliberately kept off the main thread; removeLayer/onLayerDeleted above is UI-only.
+        for (NGWVectorLayer oldLayer : retired) {
+            // removeLayer() already notified the renderer on main. Prevent Table.delete() from
+            // forwarding the same callback from this worker while it drops SQLite/files.
+            oldLayer.setParent(null);
+            oldLayer.delete(true);
+        }
+        if (!retired.isEmpty()) {
+            HyperLog.i(Constants.TAG, "LayerFillService: atomically replaced " + retired.size()
+                    + " old NGW layer(s) remoteId=" + replacement.getRemoteId()
+                    + " account=" + replacement.getAccountName());
+        }
+        return true;
+    }
+
+    private void discardUnpublishedLayer(LayerFillTask task, ILayer filled) {
+        CountDownLatch discardLatch = new CountDownLatch(1);
+        new Handler(Looper.getMainLooper()).post(() -> {
+            try {
+                if (task.mLayerGroup.getChildLayerIndex(filled) >= 0) {
+                    task.mLayerGroup.removeLayer(filled);
+                }
+                // cancel() deletes physical storage. Detach so it cannot dispatch another
+                // renderer callback from the worker thread.
+                filled.setParent(null);
+            } finally {
+                discardLatch.countDown();
+            }
+        });
+
+        boolean interrupted = false;
+        try {
+            while (true) {
+                try {
+                    discardLatch.await();
+                    break;
+                } catch (InterruptedException e) {
+                    interrupted = true;
+                }
+            }
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        task.cancel();
+    }
+
+    private static boolean hasSameReplacementScope(
+            NGWVectorLayer existing,
+            NGWVectorLayer replacement) {
+        LayerOriginMetadata replacementOrigin = replacement.getLayerOriginMetadata();
+        LayerOriginMetadata existingOrigin = existing.getLayerOriginMetadata();
+        if (replacementOrigin != null && replacementOrigin.isManagedByProject()) {
+            return existingOrigin != null
+                    && existingOrigin.isManagedByProject()
+                    && TextUtils.equals(
+                            replacementOrigin.getProjectUid(), existingOrigin.getProjectUid());
+        }
+        // A manually added layer must never retire a collector-managed layer that happens to
+        // reference the same NGW resource.
+        return existingOrigin == null || !existingOrigin.isManagedByProject();
     }
 
     /**
@@ -2065,7 +2193,7 @@ public class LayerFillService extends Service implements IProgressor {
                         try {
                             JSONObject cfg = parseLayerConfigObject(rawConfig);
                             importedRenderMode = LayerConfigUtil.extractRenderMode(cfg);
-                            ngwVectorLayer.fromJSON(cfg);
+                            ngwVectorLayer.applyMobileConfigPreservingAuthoritativeSchema(cfg);
                             ngwVectorLayer.save();
                             mMobileLayerConfigApplied = true;
                             String hash = LayerConfigUtil.md5(rawConfig.trim());

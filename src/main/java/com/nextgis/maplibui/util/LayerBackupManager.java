@@ -69,6 +69,7 @@ import java.util.zip.ZipOutputStream;
 public final class LayerBackupManager {
     public static final String BACKUP_DIR_NAME = "LayerBackups";
     public static final String REASON_SCHEMA_REBUILD = "schema_rebuild_after_failed_send";
+    public static final String REASON_DUPLICATE_REPAIR = "duplicate_layer_repair";
     public static final String REASON_COLLECTOR_LAYER_REMOVED = "collector_layer_removed";
     public static final String REASON_SYNC_REMOTE_APPLY = "sync_remote_apply";
     public static final String REASON_MANUAL_LAYER_DELETE = "manual_layer_delete";
