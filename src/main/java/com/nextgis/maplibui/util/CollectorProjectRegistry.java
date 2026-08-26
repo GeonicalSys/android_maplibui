@@ -19,6 +19,7 @@ import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.map.CollectorProjectMetadata;
 import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.MapBase;
+import com.nextgis.maplib.map.LocalVectorTileServer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.SettingsConstants;
@@ -737,7 +738,17 @@ public final class CollectorProjectRegistry {
                     }
                     activated = persistActiveProjectPreferences(preferences, project);
                     if (activated) {
+                        // Invalidate queued tile requests before publishing a new MapBase singleton.
+                        // Active requests keep their old layer owner and finish against the old DB;
+                        // their generation can no longer enqueue or apply more work.
+                        LocalVectorTileServer.getInstance().clearLayers();
                         gisApplication.closeMapObj();
+                        MapBase activatedMap = gisApplication.getMap();
+                        if (activatedMap == null) {
+                            HyperLog.e(Constants.TAG,
+                                    "CollectorProjectRegistry: activated workspace map is unavailable");
+                            return false;
+                        }
                     }
                 }
             } else {

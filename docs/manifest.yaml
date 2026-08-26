@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-08-24
+last_verified: 2026-08-26
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -17,9 +17,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/RebuildCacheService.java
     responsibility: Rebuild vector cache with mobile or Collector notification behavior selected by the application contract rather than package name.
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
-    responsibility: Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; resume a durable Collector journal only in its matching project, clean only app-marked unpublished layer stages, and keep post-fill map reload pending until MapLibre confirms style/source application.
+    responsibility: Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; backup-gated pre-sync collapse of duplicate managed layer identities with one map commit; resume a durable Collector journal only in its matching project, clean only app-marked unpublished layer stages, defer heavy account-sync reloads, and keep post-fill map reload pending until MapLibre confirms style/source application.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
-    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, target-project identity verification before file or SQLite access, early parent binding to the owning workspace, Collector-item edit policy application, crash-tracked fail-fast cleanup of incomplete layers, durable timeout recovery, staged replacement and ordered local-underlay insertion above OSM and below the user stack.
+    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, target-project identity verification before file or SQLite access, early parent binding to the owning workspace, Collector-item edit policy application, crash-tracked fail-fast cleanup of incomplete layers, durable timeout recovery, one-commit main-thread replacement scoped by account/project/resource with post-commit storage retirement, and ordered local-underlay insertion above OSM and below the user stack.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LayerFactoryUI.java
     responsibility: Route local GeoJSON, KML, GPX, NGRc and raster MBTiles documents to their matching fill task while preserving the standard layer naming dialog.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java

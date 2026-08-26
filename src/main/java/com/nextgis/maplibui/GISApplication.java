@@ -72,6 +72,7 @@ import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.LayerFormHashUtil;
 import com.nextgis.maplib.util.NGWUtil;
 import com.nextgis.maplib.util.FeatureChanges;
+import com.nextgis.maplib.util.FeatureAttachments;
 import com.nextgis.maplib.util.NetworkUtil;
 import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
@@ -101,9 +102,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -734,6 +738,144 @@ public abstract class GISApplication extends Application
     @Override
     public void setLayerFillServiceBusy(boolean busy) {
         mLayerFillServiceBusy = busy;
+    }
+
+    @Override
+    public boolean repairProjectIntegrityBeforeSync(String accountName) {
+        MapBase loadedMap = getMap();
+        if (!(loadedMap instanceof LayerGroup) || TextUtils.isEmpty(accountName)) {
+            return true;
+        }
+        LayerGroup root = (LayerGroup) loadedMap;
+        List<ILayer> allVectorLayers = new ArrayList<>();
+        LayerGroup.getLayersByType(root, Constants.LAYERTYPE_NGW_VECTOR, allVectorLayers);
+
+        Map<String, List<NGWVectorLayer>> byIdentity = new LinkedHashMap<>();
+        for (ILayer candidate : allVectorLayers) {
+            if (!(candidate instanceof NGWVectorLayer)) {
+                continue;
+            }
+            NGWVectorLayer layer = (NGWVectorLayer) candidate;
+            LayerOriginMetadata origin = layer.getLayerOriginMetadata();
+            if (!accountName.equals(layer.getAccountName())
+                    || layer.getRemoteId() <= 0
+                    || origin == null
+                    || !origin.isManagedByProject()
+                    || TextUtils.isEmpty(origin.getProjectUid())) {
+                continue;
+            }
+            String identity = accountName + '\u0000' + origin.getProjectUid()
+                    + '\u0000' + layer.getRemoteId();
+            List<NGWVectorLayer> sameIdentity = byIdentity.get(identity);
+            if (sameIdentity == null) {
+                sameIdentity = new ArrayList<>();
+                byIdentity.put(identity, sameIdentity);
+            }
+            sameIdentity.add(layer);
+        }
+
+        List<NGWVectorLayer> retired = new ArrayList<>();
+        for (List<NGWVectorLayer> duplicates : byIdentity.values()) {
+            if (duplicates.size() < 2) {
+                continue;
+            }
+            for (NGWVectorLayer duplicate : duplicates) {
+                if (FeatureChanges.isChanges(duplicate.getChangeTableName())
+                        || FeatureAttachments.isChanges(duplicate.getAttachmentsTableName())) {
+                    HyperLog.w(Constants.TAG, "Pre-sync project repair blocked: duplicate layer has"
+                            + " unsent changes remoteId=" + duplicate.getRemoteId()
+                            + " account=" + duplicate.getAccountName());
+                    return false;
+                }
+            }
+
+            // Prefer a committed, complete table with the most rows. The final path tie-breaker
+            // makes recovery deterministic across retries and process restarts.
+            duplicates.sort(Comparator
+                    .comparing((NGWVectorLayer layer) -> LayerFillStaging.isMarked(layer.getPath()))
+                    .thenComparing((NGWVectorLayer layer) -> !layer.hasLocalDataTable())
+                    .thenComparing(Comparator.comparingInt(
+                            (NGWVectorLayer layer) -> layer.getSqliteTableRowCount()).reversed())
+                    .thenComparing(layer -> layer.getPath() != null
+                            ? layer.getPath().getAbsolutePath() : ""));
+            for (int i = 1; i < duplicates.size(); i++) {
+                NGWVectorLayer duplicate = duplicates.get(i);
+                if (!backupEditableLayerData(
+                        duplicate, LayerBackupManager.REASON_DUPLICATE_REPAIR)) {
+                    return false;
+                }
+                retired.add(duplicate);
+            }
+        }
+
+        if (retired.isEmpty()) {
+            return true;
+        }
+
+        final boolean[] saved = {false};
+        CountDownLatch repairLatch = new CountDownLatch(1);
+        new Handler(Looper.getMainLooper()).post(() -> {
+            List<LayerGroup> parents = new ArrayList<>();
+            List<Integer> indexes = new ArrayList<>();
+            try {
+                for (NGWVectorLayer duplicate : retired) {
+                    LayerGroup parent = resolveLayerParentGroup(duplicate);
+                    if (parent == null) {
+                        throw new IllegalStateException("duplicate layer parent is missing");
+                    }
+                    parents.add(parent);
+                    indexes.add(Math.max(0, parent.getChildLayerIndex(duplicate)));
+                    parent.removeLayer(duplicate);
+                }
+                // Single composition commit: a crash sees either all duplicates or none of them.
+                saved[0] = root.save();
+            } catch (RuntimeException e) {
+                HyperLog.w(Constants.TAG, "Pre-sync project repair map commit failed", e);
+            } finally {
+                if (!saved[0]) {
+                    for (int i = parents.size() - 1; i >= 0; i--) {
+                        LayerGroup parent = parents.get(i);
+                        parent.insertLayer(
+                                Math.min(indexes.get(i), parent.getLayerCount()), retired.get(i));
+                    }
+                }
+                repairLatch.countDown();
+            }
+        });
+
+        boolean interrupted = false;
+        try {
+            while (true) {
+                try {
+                    repairLatch.await();
+                    break;
+                } catch (InterruptedException e) {
+                    // The posted composition transaction has one owner. Do not return while it
+                    // can still remove layers behind the sync worker's back.
+                    interrupted = true;
+                }
+            }
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (!saved[0]) {
+            HyperLog.w(Constants.TAG, "Pre-sync project repair was not saved");
+            return false;
+        }
+
+        for (NGWVectorLayer duplicate : retired) {
+            // removeLayer() already delivered the UI callback on the main thread. Detach before
+            // dropping SQLite/files on this worker so Table.delete() cannot deliver it again.
+            duplicate.setParent(null);
+            duplicate.delete(true);
+        }
+        LayerFillStaging.cleanupIncomplete(root);
+        requestMapReloadAfterLayerFillBatch();
+        HyperLog.i(Constants.TAG, "Pre-sync project repair removed duplicate layers="
+                + retired.size() + " account=" + accountName);
+        return true;
     }
 
     @Override
@@ -2523,6 +2665,10 @@ public abstract class GISApplication extends Application
 
     @Override
     public void reloadLayerByID(int id){
+        if (mLayerFillDeferHeavyMapReload) {
+            mPendingMapReloadAfterLayerFill = true;
+            return;
+        }
         if (mMap != null)
             mMap.reloadLayerByID(id);
     }
