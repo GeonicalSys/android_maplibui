@@ -22,6 +22,8 @@ public class FeatureFormDraftStoreTest {
         source.geometryWkt = "LINESTRING (1 2, 3 4)";
         source.formPath = "C:/forms/roads_form.json";
         source.metaPath = "C:/forms/roads_meta.json";
+        source.pointSessionId = "point-owner";
+        source.walkSessionId = "finished-walk-owner";
         source.updatedAtMs = 123_456_789L;
         source.photoPaths = Arrays.asList("C:/photos/one.jpg", "content://photos/two");
         source.controlState = new JSONObject()
@@ -42,6 +44,8 @@ public class FeatureFormDraftStoreTest {
         assertEquals(source.geometryWkt, restored.geometryWkt);
         assertEquals(source.formPath, restored.formPath);
         assertEquals(source.metaPath, restored.metaPath);
+        assertEquals(source.pointSessionId, restored.pointSessionId);
+        assertEquals(source.walkSessionId, restored.walkSessionId);
         assertEquals(source.updatedAtMs, restored.updatedAtMs);
         assertEquals(source.photoPaths, restored.photoPaths);
         assertEquals("long",

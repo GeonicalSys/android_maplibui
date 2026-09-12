@@ -1,0 +1,19 @@
+<resources>
+    <string name="walk_panel_title">Walking: %1$s</string>
+    <string name="walk_recording_accuracy">Recording · GPS ±%1$d m</string>
+    <string name="walk_controls_point_locked">Finish creating the point to manage the walking session.</string>
+    <string name="walk_finish">Finish</string>
+    <string name="walk_finishing">Finishing the walking session…</string>
+    <string name="walk_finished_pending">Walking finished. Save the object.</string>
+    <string name="walk_complete_object">Save object</string>
+    <string name="walk_actions">Walking actions</string>
+    <string name="walk_more_symbol" translatable="false">⋮</string>
+    <string name="walk_show">Show on map</string>
+    <string name="walk_discard">Discard walking session</string>
+    <string name="walk_discard_confirm">Discard the geometry collected during this walking session?</string>
+    <string name="walk_already_active">A walking session is already open.</string>
+    <string name="walk_save_failed">Could not save the walking session. Please try again.</string>
+    <string name="walk_point_recovery">An unfinished point is blocking walking controls. Continue creating it or discard it.</string>
+    <string name="walk_project_busy">Save or discard the walking session before changing the project.</string>
+    <string name="walk_layer_busy">This layer is being used by the walking session.</string>
+</resources>

@@ -99,6 +99,7 @@ public class NGWVectorLayerUI
 
     @Override
     public boolean delete(boolean keepTrack) {
+        if (isReservedForWalk()) return false;
         File form = new File(mPath, ConstantsUI.FILE_FORM);
         if (form.exists()) {
             try {

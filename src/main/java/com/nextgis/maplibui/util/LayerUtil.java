@@ -99,9 +99,20 @@ public final class LayerUtil {
             long mFormId,
             boolean applyFormDraft,
             Boolean geometryChangedOverride) {
+        showEditForm(layer, context, featureId, geometry, mFormId, applyFormDraft, geometryChangedOverride, null);
+    }
+
+    public static boolean showSessionEditForm(VectorLayer layer, Context context, long featureId,
+                                               GeoGeometry geometry, String walkSessionId) {
+        return showEditForm(layer, context, featureId, geometry, -1, false, null, walkSessionId);
+    }
+
+    private static boolean showEditForm(VectorLayer layer, Context context, long featureId,
+                                        GeoGeometry geometry, long mFormId, boolean applyFormDraft,
+                                        Boolean geometryChangedOverride, String walkSessionId) {
         if (!layer.isFieldsInitialized()) {
             Toast.makeText(context, context.getString(R.string.error_layer_not_inited), Toast.LENGTH_SHORT).show();
-            return;
+            return false;
         }
 
         boolean isGeometryChanged = geometryChangedOverride != null
@@ -166,7 +177,47 @@ public final class LayerUtil {
             intent.putExtra(FeatureFormDraftStore.KEY_APPLY_FORM_DRAFT, true);
         }
 
-        ((Activity) context).startActivityForResult(intent, IVectorLayerUI.MODIFY_REQUEST);
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(context);
+        FeatureFormDraftStore.Snapshot restored = applyFormDraft ? FeatureFormDraftStore.load(context) : null;
+        String pointId = null;
+        if (WalkSessionStore.isCurrentMap(context, session) && session.isPointActive()
+                && session.pointLayer == layer.getId() && featureId == Constants.NOT_FOUND) {
+            if (applyFormDraft && (restored == null || !session.pointId.equals(restored.pointSessionId)))
+                return false;
+            pointId = session.pointId;
+            intent.putExtra(WalkSessionStore.KEY_POINT, pointId);
+        }
+        if (walkSessionId != null) {
+            if (!WalkSessionStore.isCurrentMap(context, session) || !walkSessionId.equals(session.id)
+                    || session.phase != WalkSessionPolicy.Phase.FINISHED || session.isPointActive()
+                    || session.layerId != layer.getId() || session.featureId != featureId) return false;
+            intent.putExtra(WalkSessionStore.KEY_SESSION, walkSessionId);
+        }
+        if ((pointId != null || walkSessionId != null) && !applyFormDraft) {
+            // The geometry-to-form handoff is durable before the Activity starts. A process
+            // death in that gap retains the point lock and the complete walk independently.
+            FeatureFormDraftStore.Snapshot draft = new FeatureFormDraftStore.Snapshot();
+            draft.layerId = layer.getId(); draft.featureId = featureId;
+            draft.geometryChanged = isGeometryChanged;
+            draft.geometryWkt = geometry == null ? null : geometry.toWKT(true);
+            draft.pointSessionId = pointId; draft.walkSessionId = walkSessionId;
+            if (intent.hasExtra(KEY_FORM_PATH)) draft.formPath = ((File) intent.getSerializableExtra(KEY_FORM_PATH)).getAbsolutePath();
+            if (intent.hasExtra(KEY_META_PATH)) draft.metaPath = ((File) intent.getSerializableExtra(KEY_META_PATH)).getAbsolutePath();
+            if (!FeatureFormDraftStore.save(context, draft)) {
+                Toast.makeText(context, R.string.walk_save_failed, Toast.LENGTH_LONG).show();
+                return false;
+            }
+        }
+        if (pointId != null && !WalkSessionStore.bindPoint(context, pointId, layer.getId(), WalkSessionStore.STAGE_FORM))
+            return false;
+        try {
+            ((Activity) context).startActivityForResult(intent, IVectorLayerUI.MODIFY_REQUEST);
+            return true;
+        } catch (RuntimeException exception) {
+            HyperLog.e(Constants.TAG, "Attribute form launch failed; draft retained", exception);
+            Toast.makeText(context, R.string.walk_save_failed, Toast.LENGTH_LONG).show();
+            return false;
+        }
     }
 
     /**
@@ -200,7 +251,8 @@ public final class LayerUtil {
                 geometry,
                 formId,
                 true,
-                draft.geometryChanged);
+                draft.geometryChanged,
+                draft.walkSessionId);
     }
 
     /**
@@ -220,6 +272,12 @@ public final class LayerUtil {
         if (!(layer instanceof VectorLayer)) {
             return false;
         }
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(context);
+        if (draft.pointSessionId != null && (session == null || !draft.pointSessionId.equals(session.pointId)
+                || !WalkSessionStore.isCurrentMap(context, session))) return false;
+        if (draft.walkSessionId != null && (session == null || !draft.walkSessionId.equals(session.id)
+                || session.phase != WalkSessionPolicy.Phase.FINISHED
+                || !WalkSessionStore.isCurrentMap(context, session))) return false;
         if (draft.geometryWkt != null) {
             try {
                 if (FeatureFormDraftStore.geometryFromSnapshot(draft) == null) {

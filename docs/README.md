@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-12
+last_verified: 2026-09-13
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -73,9 +73,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   дополнения касанием, у полигонов также нет добавления/удаления частей и отверстий.
   Перед тапом или запуском обхода MapLibre показывает выбранный узел красным,
   следующую вершину и сегмент внутри той же части/кольца — оранжевыми. Обход
-  вставляет GPS после выбранного узла; его правая нижняя кнопка с иконкой
-  идущего человека завершает запись через штатный Save/Stop path вместо перехода
-  в настройки. Undo/Redo хранит до 100 реальных
+  вставляет GPS после выбранного узла; отдельная панель завершает запись
+  после подтверждения финального снимка сервисом. Undo/Redo хранит до 100 реальных
   изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
   и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
   инструмент линейки показывает те же кнопки и записывает в эту историю каждое
@@ -83,7 +82,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   MapLibre-геометрию из `MapDrawable`, а не legacy `RulerOverlay`;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
-  walk и manual geometry не остаются двумя параллельными черновиками одного скетча;
+  walk и point geometry могут сосуществовать с разными владельцами; один
+  переданный скетч не открывается дважды;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
   attribute form gated by layer edit policy in `app`; «Поля → метка» сохраняет
   `feature_label_field` слоя;
@@ -138,16 +138,16 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   `onPause()` must not recreate `feature_form_draft`. A successful Save result carries
   enough layer/feature/new-row identity for the app host to reload the persisted feature,
   terminate either creation or existing-feature editing and clear selection back to the
-  normal map screen. Walk Save/Cancel stops the
-  service and clears `walkedit_temp`, while an unexpected stop retains it. Normal
+  normal map screen. Walk Finish stops the service after its acknowledgement but retains
+  `walkedit_temp` until successful feature Save or explicit Discard. Normal
   vertex/tap editing keeps `geometry_edit_draft` until explicit Cancel, successful
   update, form handoff or recovery Discard.
-- После cold Continue незавершённого дополнения полигона обходом MapLibre должен
-  сохранять одну заливку и стабильный красный контур во время GPS-обновлений;
-  скрытые на время обхода вершины снова публикуются сразу после Stop. Для
-  LineString/MultiLineString тот же recovery не должен оставлять polygon fill.
-- Правая кнопка активного обхода обязана вызывать `onFinishEditByWalkSession()`;
-  меню настроек местоположения в этой панели отсутствует.
+- После cold Continue обхода пассивный source показывает контур независимо от
+  редактора точки; Polygon получает заливку, LineString/MultiLineString — только
+  линию. Панель ждёт подтверждение Finish перед переходом к ручным вершинам.
+- Во время point session даже ранее открытое меню или старое уведомление не
+  может завершить, удалить либо продолжить обход.
+
 - Успешная серверная авторизация не считается добавлением Веб ГИС, пока
   `AccountManager` не создал и не вернул variant-specific Android account; при
   локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.
@@ -225,3 +225,20 @@ partial wake lock, пока активен хотя бы один recorder, не
 сохраняется с исходными временами, не создавая фиктивного разрыва получения GPS.
 Явный Stop передаёт фактическую константу ACTION_STOP, закрывает строку трека
 и очищает намерение восстановления; onDestroy сохраняет прежнюю семантику восстановления.
+
+## Независимый обход и начало движения
+
+Обход владеет геометрией в `WalkSessionStore`, а карта показывает отдельный
+`walk-preview-source`, восстановленный после загрузки style. Приватная копия
+сохраняет CRS перед переводом метров в широту/долготу. Обычные меню доступны;
+панель обхода не занимает foreground-редактор точки. От начала выбора слоя точки
+до Save/Cancel заблокированы все команды обхода в UI и сервисе. Начальный черновик
+формы сохраняется до её запуска; ошибка, камера и перезапуск не снимают блокировку.
+После Finish сервис подтверждает финальный снимок, который можно проверить и
+сохранить обычным редактором. См. [восстановление](../../docs/architecture/crash-recovery.md).
+
+Курсор показывает текущую сглаженную позицию независимо от удержания записанной
+стоянки. При хорошем сигнале начало линии подтверждается коротким окном, при
+обычной уличной точности — медианными частями 12-секундного окна с допуском
+поворота; начало пути сохраняется из буфера. Диагностика `stationary`/`departureMs`
+различает ожидание фильтра и отсутствие GNSS. См. [GPS](../../docs/architecture/location-pipeline.md).

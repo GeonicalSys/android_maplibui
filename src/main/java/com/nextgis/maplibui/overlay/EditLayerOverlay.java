@@ -84,6 +84,7 @@ import com.nextgis.maplibui.api.VertexStyle;
 import com.nextgis.maplibui.fragment.BottomToolbar;
 import com.nextgis.maplibui.mapui.MapViewOverlays;
 import com.nextgis.maplibui.service.WalkEditService;
+import com.nextgis.maplibui.util.WalkSessionStore;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 
@@ -782,26 +783,18 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
 
     protected void startGeometryByWalk() {
-        // register broadcast events
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(WalkEditService.WALKEDIT_CHANGE);
-        mReceiver = new WalkEditReceiver();
-        mWalkMapSyncHandler.removeCallbacks(mWalkStopCleanupRunnable);
-        mWalkStopTailCommitActive = false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            mContext.get().registerReceiver(mReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            mContext.get().registerReceiver(mReceiver, intentFilter);
-        }
-        mHasEdits = true;
+        startIndependentWalk();
+    }
 
-        if (WalkEditService.isServiceRunning(mContext.get())) {
-            mWalkTargetRestored = false;
-            return;
-        }
+    /** Transfer ownership to the recorder before the foreground editor is released. */
+    public boolean startIndependentWalk() {
+        mHasEdits = true;
+        if (WalkSessionStore.load(mContext.get()) != null
+                || WalkEditService.hasValidDraft(mContext.get())) return false;
 
         // start service if not started yet
-        GeoGeometry geometry = mFeature.getGeometry();
+        GeoGeometry fullGeometry = mFeature.getGeometry().copy();
+        GeoGeometry geometry = fullGeometry;
 
         int selectedGeometry = mWalkTargetRestored
                 ? mWalkTargetGeometryIndex : Math.max(0, mDrawItems.indexOf(mSelectedItem));
@@ -834,7 +827,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 geometry = selectedRing == 0 ? selectedPolygon.getOuterRing() : selectedPolygon.getInnerRing(selectedRing - 1);
                 break;
             default:
-                return;
+                return false;
         }
 
         Intent trackerService = new Intent(mContext.get(), WalkEditService.class);
@@ -850,8 +843,17 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         String targetActivity = "";
         if (ctx instanceof Activity)
             targetActivity = ctx.getClass().getName();
+        String sessionId = WalkSessionStore.begin(ctx, mLayer.getId(), mFeature.getId(),
+                fullGeometry, selectedGeometry, selectedRing, mWalkNextInsertIndex, targetActivity);
+        if (sessionId == null) return false;
+        trackerService.putExtra(WalkSessionStore.KEY_SESSION, sessionId);
         trackerService.putExtra(ConstantsUI.TARGET_CLASS, targetActivity);
-        ContextCompat.startForegroundService(mContext.get(), trackerService);
+        try {
+            ContextCompat.startForegroundService(mContext.get(), trackerService);
+        } catch (RuntimeException exception) {
+            Log.w(Constants.TAG, "Walk start deferred; durable session retained", exception);
+        }
+        return true;
     }
 
 

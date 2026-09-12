@@ -2,12 +2,20 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-09-12
+last_verified: 2026-09-13
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
+    responsibility: Persist one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionPolicy.java
+    responsibility: Validate session identity and phase; reject every walk command while a point owns the foreground flow.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkGeometrySnapshot.java
+    responsibility: Replace only the selected line or ring, preserve other members and normalize WKT closing duplicates.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/view/WalkRecordingPanel.java
+    responsibility: Expose walk status and independent controls; retain compact locked status in the point form.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkGeometryInsertion.java
     responsibility: Keep walked nodes at the selected insertion position and refine only the last vertex owned by the current recording session.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/CurrentTrackOverlay.java
@@ -55,17 +63,17 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
     responsibility: Keep ordered Start/Stop and durable recording intent in the application process; consume shared validated GNSS, decimate after filtering, persist segment boundaries, flush only validated points and retain an unfinished track on unexpected termination; explicit Stop closes the track and clears durable intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
-    responsibility: Consume shared validated GNSS, persist geometry and insertion target with gps_paused, require explicit reconnection after GPS loss or draft recovery, and flush the final durable snapshot before Save without a raw-location tail.
+    responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, acknowledge a durable final snapshot before foreground editing, and retain paused recovery without a raw-location tail.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
     responsibility: Consume the shared validated GNSS stream before geometry sampling, use measurement age for the ten-second background heartbeat, rely on source-owned recording wake lock and retain existing alarm/vibration and persistence-failure feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundPolicy.java
     responsibility: Provide Android-independent fresh-location gating, alarm-volume output selection, 10-second heartbeat throttling and one-minute persistence-failure throttling for background recording feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
-    responsibility: Persist typed form control state, geometry and pending photo paths until explicit Save or Discard.
+    responsibility: Persist typed form control state, geometry, photos and point/walk owner UUIDs; checkpoint owned form handoff before launch and retain it through errors until Save or Discard.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
     responsibility: Persist the latest non-walk geometry with map/layer/feature identity until explicit completion or Discard.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/EditLayerOverlay.java
-    responsibility: Build the first sketch node from the current MapLibre camera centre, convert line and polygon screen vertices through the current MapLibre projection, orchestrate manual/walk edit toolbars against the visible selected-to-successor insertion target, and route the active-walk walking-person action to the existing Save/Stop callback instead of location settings.
+    responsibility: Build the first sketch node from the current MapLibre camera centre, convert line and polygon screen vertices through the current MapLibre projection, orchestrate manual edit toolbars and legacy walk migration against the selected insertion target while new recording sessions use WalkRecordingPanel.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/UndoRedoOverlay.java
     responsibility: Retain up to 100 coordinate-distinct geometry snapshots for sketch and ruler workflows, ignore CRS-only callback differences when allocating steps, and move Undo or Redo by exactly one real edit without corrupting history at its boundaries.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/RulerOverlay.java
@@ -81,6 +89,10 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/SyncAccountWorker.java
     responsibility: Schedule per-account sync work while delegating transient per-layer pull retries to the maplib account adapter.
 public_contracts:
+  - id: independent-walk-session
+    symbol: WalkSessionStore and WalkSessionPolicy
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
+    consumers: [app, maplibui]
   - id: gis-application
     symbol: GISApplication implements IGISApplication
     path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java

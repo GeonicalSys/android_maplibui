@@ -65,6 +65,8 @@ import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.BackgroundRecordingSoundMonitor;
 import com.nextgis.maplibui.util.NotificationHelper;
+import com.nextgis.maplibui.util.WalkSessionStore;
+import com.nextgis.maplibui.util.WalkSessionPolicy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -83,6 +85,8 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     public static final String EXTRA_HEADER = "extra_";
     public static final String ACTION_STOP = "com.nextgis.maplibui.WALKEDIT_STOP";
     public static final String ACTION_START = "com.nextgis.maplibui.WALKEDIT_START";
+    public static final String ACTION_FINISH = "com.nextgis.maplibui.WALKEDIT_FINISH";
+    private static final String EXTRA_USER_RESUME = "walk_user_resume";
     public static final String WALKEDIT_CHANGE = "com.nextgis.maplibui.WALKEDIT_CHANGE";
     /** Intent extra / prefs: clear durable draft only on explicit Save/Cancel stop. */
     public static final String EXTRA_CLEAR_DRAFT = "clear_draft";
@@ -131,6 +135,14 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     private long mLastRecordingNanos;
     private boolean mGpsPaused;
     private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
+    private String mSessionId;
+    private boolean mTerminalHandled;
+    private static WalkEditService sActive;
+    private final SharedPreferences.OnSharedPreferenceChangeListener mSessionPreferencesListener =
+            (preferences, key) -> {
+                if (WalkSessionStore.KEY_POINT.equals(key) && mGeometry != null && !mTerminalHandled)
+                    addNotification();
+            };
 
     @Override
     public void onCreate() {
@@ -140,6 +152,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
 
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_MULTI_PROCESS);
+        mSharedPreferencesTemp.registerOnSharedPreferenceChangeListener(mSessionPreferencesListener);
         SharedPreferences defaultPreferences = getSharedPreferences(
                 getPackageName() + "_preferences", MODE_MULTI_PROCESS);
         mRecordingSoundMonitor = new BackgroundRecordingSoundMonitor(this, defaultPreferences);
@@ -153,8 +166,42 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         HyperLog.v(Constants.TAG, "WalkEditService.onStartCommand startId=" + startId);
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(this);
+        String action = intent != null ? intent.getAction() : null;
+        if (session != null) {
+            String commandId = intent != null ? intent.getStringExtra(WalkSessionStore.KEY_SESSION) : session.id;
+            if (!WalkSessionStore.isCurrentMap(this, session) || !session.id.equals(commandId)
+                    || (mSessionId != null && !mSessionId.equals(session.id))) {
+                if (mGeometry == null) stopSelf();
+                return mGeometry == null ? START_NOT_STICKY : START_STICKY;
+            }
+            if (ACTION_STOP.equals(action) || ACTION_RESUME_GPS.equals(action) || ACTION_FINISH.equals(action)
+                    || intent != null && intent.getBooleanExtra(EXTRA_USER_RESUME, false)) {
+                WalkSessionPolicy.Command command = ACTION_STOP.equals(action)
+                        ? WalkSessionPolicy.Command.DISCARD : ACTION_FINISH.equals(action)
+                        ? WalkSessionPolicy.Command.FINISH : WalkSessionPolicy.Command.RESUME;
+                if (!WalkSessionStore.allows(this, commandId, command)) {
+                    if (mGeometry == null) stopSelf();
+                    return mGeometry == null ? START_NOT_STICKY : START_STICKY;
+                }
+            } else if (session.phase != WalkSessionPolicy.Phase.RECORDING) {
+                // A process killed after Finish was requested must never restart recording.
+                if (session.phase == WalkSessionPolicy.Phase.FINISHING)
+                    WalkSessionStore.setPhase(this, session.id, WalkSessionPolicy.Phase.FINISHED);
+                if (mGeometry == null) stopSelf();
+                return START_NOT_STICKY;
+            }
+            mSessionId = session.id;
+            if (ACTION_STOP.equals(action) || ACTION_FINISH.equals(action)) {
+                finishOwnedSession(ACTION_STOP.equals(action));
+                return mTerminalHandled ? START_NOT_STICKY : START_STICKY;
+            }
+        } else if (intent != null && intent.hasExtra(WalkSessionStore.KEY_SESSION)) {
+            // Late command for an already discarded/saved session.
+            if (mGeometry == null) stopSelf();
+            return mGeometry == null ? START_NOT_STICKY : START_STICKY;
+        }
         if (intent != null) {
-            String action = intent.getAction();
 
             if (action != null && !TextUtils.isEmpty(action)) {
                 switch (action) {
@@ -249,6 +296,8 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                 if (!startWalkEdit()) {
                     return START_NOT_STICKY;
                 }
+                persistWalkDraftSnapshot(true);
+                sendGeometryBroadcast();
             } else {
                 HyperLog.w(Constants.TAG, "WalkEditService sticky restart: invalid draft");
                 removeNotification();
@@ -279,6 +328,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         mSampler = new LocationRecordingSampler(minTime, minDistance);
         NotificationHelper.showLocationInfo(this);
         if (!addNotification()) return false;
+        sActive = this;
         mRecordingSoundMonitor.start();
         mGpsSource.addRecordingListener(this);
         return true;
@@ -301,6 +351,10 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     }
 
     private void sendGeometryBroadcast() {
+        if (mSessionId != null) {
+            WalkSessionStore.notifyChanged(this);
+            return;
+        }
         Intent broadcastIntent = new Intent(WALKEDIT_CHANGE);
         broadcastIntent.setPackage(getPackageName());
         broadcastIntent.putExtra(ConstantsUI.KEY_GEOMETRY, mGeometry);
@@ -329,6 +383,21 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     @Override
     public void onDestroy() {
         HyperLog.v(Constants.TAG, "WalkEditService.onDestroy");
+        mSharedPreferencesTemp.unregisterOnSharedPreferenceChangeListener(mSessionPreferencesListener);
+        if (mSessionId != null) {
+            if (!mTerminalHandled) {
+                flushWalkLocationFilterToGeometry();
+                mGpsPaused = true;
+                if (mGeometry != null) persistWalkGeometryToTempPrefs();
+                WalkSessionStore.notifyChanged(this);
+            }
+            mGpsSource.removeRecordingListener(this);
+            if (mRecordingSoundMonitor != null) mRecordingSoundMonitor.release();
+            if (sActive == this) sActive = null;
+            removeNotification();
+            super.onDestroy();
+            return;
+        }
         try {
             flushWalkLocationFilterToGeometry();
             mGpsSource.removeRecordingListener(this);
@@ -363,6 +432,45 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             mRecordingSoundMonitor.release();
 
         super.onDestroy();
+    }
+
+    private void finishOwnedSession(boolean discard) {
+        if (!discard) {
+            flushWalkLocationFilterToGeometry();
+            if (mGeometry != null && !persistWalkGeometryToTempPrefs()) {
+                WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.RECORDING);
+                android.widget.Toast.makeText(this, R.string.walk_save_failed,
+                        android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+        boolean saved = discard ? WalkSessionStore.clear(this, mSessionId)
+                : WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.FINISHED);
+        if (!saved) return;
+        mTerminalHandled = true;
+        mGpsSource.removeRecordingListener(this);
+        if (mSampler != null) mSampler.reset();
+        mGeometry = null;
+        if (sActive == this) sActive = null;
+        removeNotification();
+        stopSelf();
+    }
+
+    public static boolean isSessionRunning(String id) {
+        return sActive != null && !sActive.mTerminalHandled && id != null
+                && id.equals(sActive.mSessionId);
+    }
+
+    /** Upgrade a live legacy recorder without resetting its GNSS subscription or sampler. */
+    public static void adoptLegacySession(String id) {
+        WalkEditService service = sActive;
+        if (service == null || service.mSessionId != null || service.mGeometry == null) return;
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(service);
+        if (session == null || !id.equals(session.id) || session.layerId != service.mLayerId
+                || session.featureId != service.mFeatureId) return;
+        service.mSessionId = id;
+        service.persistWalkGeometryToTempPrefs();
+        service.addNotification();
     }
 
     @Override
@@ -451,6 +559,10 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     private boolean persistWalkDraftSnapshot(boolean includeMeta) {
         if (mGeometry == null)
             return false;
+        if (mSessionId != null) {
+            return WalkSessionStore.updateGeometry(this, mSessionId, (GeoLineString) mGeometry,
+                    mInsertIndex, mGpsPaused);
+        }
         SharedPreferences.Editor edit = mSharedPreferencesTemp.edit();
         edit.putString(ConstantsUI.KEY_GEOMETRY, mGeometry.toWKT(true));
         edit.putLong(KEY_UPDATED_AT, System.currentTimeMillis());
@@ -496,6 +608,11 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     public static void clearDraft(Context context) {
         if (context == null)
             return;
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(context);
+        if (session != null) {
+            if (!isSessionRunning(session.id)) WalkSessionStore.clear(context, session.id);
+            return;
+        }
         context.getSharedPreferences(TEMP_PREFERENCES, MODE_MULTI_PROCESS).edit().clear().commit();
     }
 
@@ -509,6 +626,9 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     public static boolean resumeFromDraft(Context context, String targetActivity) {
         if (context == null || !hasValidDraft(context))
             return false;
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(context);
+        if (session != null && !WalkSessionStore.allows(context, session.id,
+                WalkSessionPolicy.Command.RESUME)) return false;
         if (isServiceRunning(context))
             return true;
         SharedPreferences prefs = getDraftPreferences(context);
@@ -528,12 +648,16 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
 
         Intent intent = new Intent(context, WalkEditService.class);
         intent.setAction(ACTION_START);
+        if (session != null) intent.putExtra(WalkSessionStore.KEY_SESSION, session.id);
         intent.putExtra(ConstantsUI.KEY_LAYER_ID, layerId);
         intent.putExtra(ConstantsUI.KEY_FEATURE_ID, featureId);
         intent.putExtra(KEY_GEOMETRY_INDEX, geometryIndex);
         intent.putExtra(KEY_RING_INDEX, ringIndex);
         intent.putExtra(KEY_INSERT_INDEX, insertIndex);
-        intent.putExtra(KEY_GPS_PAUSED, true);
+        // This new-session entry point is called only after explicit Continue/Connect.
+        // Sticky system restarts still take the separate paused path in onStartCommand.
+        intent.putExtra(KEY_GPS_PAUSED, session == null);
+        intent.putExtra(EXTRA_USER_RESUME, session != null);
         intent.putExtra(ConstantsUI.KEY_GEOMETRY, geometry);
         intent.putExtra(ConstantsUI.KEY_MESSAGE, true);
         if (!TextUtils.isEmpty(targetActivity))
@@ -546,6 +670,11 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     public static void stopAndClearDraft(Context context) {
         if (context == null)
             return;
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(context);
+        if (session != null) {
+            requestCommand(context, session.id, WalkSessionPolicy.Command.DISCARD);
+            return;
+        }
         if (!isServiceRunning(context)) {
             clearDraft(context);
             return;
@@ -563,6 +692,8 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     public static void pauseAndKeepDraft(Context context) {
         if (context == null || !isServiceRunning(context))
             return;
+        // An independent session belongs to the service, not to the visible map tool.
+        if (WalkSessionStore.load(context) != null) return;
         Intent intent = new Intent(context, WalkEditService.class);
         intent.setAction(ACTION_STOP);
         intent.putExtra(EXTRA_CLEAR_DRAFT, false);
@@ -592,6 +723,10 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     private boolean addNotification() {
         if (mGpsPaused) {
             Intent resume = new Intent(this, WalkEditService.class).setAction(ACTION_RESUME_GPS);
+            if (mSessionId != null) {
+                resume.putExtra(WalkSessionStore.KEY_SESSION, mSessionId);
+                resume.setData(android.net.Uri.parse("walk-session:" + mSessionId));
+            }
             PendingIntent resumeAction = PendingIntent.getService(this, 1, resume,
                     PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
             NotificationCompat.Builder paused = createBuilder(this, R.string.title_edit_by_walk)
@@ -600,8 +735,10 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                     .setContentText(getString(R.string.walk_gps_gap_message))
                     .setStyle(new NotificationCompat.BigTextStyle()
                             .bigText(getString(R.string.walk_gps_gap_message)))
-                    .setOngoing(true)
-                    .addAction(R.drawable.ic_location, getString(R.string.walk_gps_resume), resumeAction);
+                    .setOngoing(true);
+            if (!WalkSessionStore.isPointActive(this))
+                paused.addAction(R.drawable.ic_location, getString(R.string.walk_gps_resume), resumeAction);
+            else paused.setContentText(getString(R.string.walk_controls_point_locked));
             if (mOpenActivity != null) paused.setContentIntent(mOpenActivity);
             return startLocationForegroundSafely(paused.build(), "gps-paused");
         }
@@ -643,6 +780,30 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
 
         mNotificationManager.notify(WALK_NOTIFICATION_ID, builder.build());
         return startLocationForegroundSafely(builder.build(), "recording");
+    }
+
+    public static boolean requestCommand(Context context, String id, WalkSessionPolicy.Command command) {
+        if (!WalkSessionStore.allows(context, id, command)) return false;
+        if (command == WalkSessionPolicy.Command.DISCARD && !isSessionRunning(id))
+            return WalkSessionStore.clear(context, id);
+        if (command == WalkSessionPolicy.Command.FINISH) {
+            if (!WalkSessionStore.setPhase(context, id, WalkSessionPolicy.Phase.FINISHING)) return false;
+            if (!isSessionRunning(id))
+                return WalkSessionStore.setPhase(context, id, WalkSessionPolicy.Phase.FINISHED);
+        }
+        if (command == WalkSessionPolicy.Command.RESUME && !isSessionRunning(id)) {
+            return resumeFromDraft(context, preferencesActivity(context));
+        }
+        Intent intent = new Intent(context, WalkEditService.class)
+                .setAction(command == WalkSessionPolicy.Command.FINISH ? ACTION_FINISH
+                        : command == WalkSessionPolicy.Command.DISCARD ? ACTION_STOP : ACTION_RESUME_GPS)
+                .putExtra(WalkSessionStore.KEY_SESSION, id);
+        context.startService(intent);
+        return true;
+    }
+
+    private static String preferencesActivity(Context context) {
+        return getDraftPreferences(context).getString(ConstantsUI.TARGET_CLASS, "");
     }
 
     private boolean startLocationForegroundSafely(

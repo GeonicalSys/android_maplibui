@@ -2248,6 +2248,7 @@ public abstract class GISApplication extends Application
         if (layer == null || mMap == null) {
             return;
         }
+        if (isLayerReservedForWalk(layer.getId())) return;
         final String rebuildAccountName = layer.getAccountName();
         final long rebuildRemoteId = layer.getRemoteId();
         final String workspaceKey = ProjectOperationCoordinator.activeWorkspaceKey(this);
@@ -2357,6 +2358,7 @@ public abstract class GISApplication extends Application
         if (layer == null || mMap == null) {
             return;
         }
+        if (isLayerReservedForWalk(layer.getId())) return;
         final String layerName = layer.getName();
         final String accountName = layer.getAccountName();
         final long remoteId = layer.getRemoteId();
@@ -2475,6 +2477,7 @@ public abstract class GISApplication extends Application
             if (layer == null || mMap == null) {
                 return;
             }
+            if (isLayerReservedForWalk(layer.getId())) return;
             final String layerName = layer.getName();
             postLayerBackupAlert(
                     getString(com.nextgis.maplib.R.string.collector_layer_removed_title),
@@ -2549,6 +2552,7 @@ public abstract class GISApplication extends Application
         if (layer == null) {
             return false;
         }
+        if (isLayerReservedForWalk(layer.getId())) return false;
         if (!layer.isEditingAllowed()) {
             return true;
         }
@@ -2675,8 +2679,25 @@ public abstract class GISApplication extends Application
 
     @Override
     public void deleteLayerByID(int id){
+        if (isLayerReservedForWalk(id)) return;
         if (mMap != null)
             mMap.deleteLayerByID(id);
+    }
+
+    @Override
+    public boolean isLayerReservedForWalk(int id) {
+        com.nextgis.maplibui.util.WalkSessionStore.Snapshot session =
+                com.nextgis.maplibui.util.WalkSessionStore.load(this);
+        if (!com.nextgis.maplibui.util.WalkSessionStore.isCurrentMap(this, session)) return false;
+        for (int reserved : new int[]{session.layerId, session.pointLayer}) {
+            if (reserved == Constants.NOT_FOUND) continue;
+            ILayer layer = mMap.getLayerById(reserved);
+            while (layer != null) {
+                if (layer.getId() == id) return true;
+                layer = layer.getParent();
+            }
+        }
+        return false;
     }
 
 
