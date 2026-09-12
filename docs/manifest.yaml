@@ -53,11 +53,11 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
     responsibility: Export layer tables and only attachment files physically present on this device before destructive rebuild or removal, without downloading server-only payloads.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
-    responsibility: Keep ordered Start/Stop and durable recording intent in the application process; consume shared validated GNSS, decimate after filtering, persist segment boundaries, flush only validated points and retain an unfinished track on unexpected termination.
+    responsibility: Keep ordered Start/Stop and durable recording intent in the application process; consume shared validated GNSS, decimate after filtering, persist segment boundaries, flush only validated points and retain an unfinished track on unexpected termination; explicit Stop closes the track and clears durable intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
     responsibility: Consume shared validated GNSS, persist geometry and insertion target with gps_paused, require explicit reconnection after GPS loss or draft recovery, and flush the final durable snapshot before Save without a raw-location tail.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
-    responsibility: Consume the shared validated GNSS stream before geometry sampling, use measurement age for the ten-second background heartbeat, retain the enabled partial wake lock and existing alarm/vibration and persistence-failure feedback.
+    responsibility: Consume the shared validated GNSS stream before geometry sampling, use measurement age for the ten-second background heartbeat, rely on source-owned recording wake lock and retain existing alarm/vibration and persistence-failure feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundPolicy.java
     responsibility: Provide Android-independent fresh-location gating, alarm-volume output selection, 10-second heartbeat throttling and one-minute persistence-failure throttling for background recording feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java

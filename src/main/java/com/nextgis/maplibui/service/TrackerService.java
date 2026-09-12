@@ -359,7 +359,7 @@ public class TrackerService extends Service
                         mLocationSenderThread.start();
                         return START_NOT_STICKY;
                     case ACTION_STOP:
-                        stopTrack("ACTION_STOP");
+                        stopTrack(ACTION_STOP);
                         removeNotification();
                         stopSelf();
                         return START_NOT_STICKY;
