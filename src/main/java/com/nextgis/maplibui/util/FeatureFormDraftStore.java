@@ -54,6 +54,9 @@ public final class FeatureFormDraftStore {
         /** Absolute form.json path when custom form was used */
         public String formPath;
         public String metaPath;
+        /** Session identities prevent a restored/late form from unlocking another walk. */
+        public String pointSessionId;
+        public String walkSessionId;
         /** Control saved-state bundle encoded as JSON */
         public JSONObject controlState = new JSONObject();
         /** Pending local photo paths/URIs (AttachInfo.oldAttachString) */
@@ -144,6 +147,12 @@ public final class FeatureFormDraftStore {
                 HyperLog.v(Constants.TAG, "FormDraft cleared");
             }
         }
+    }
+
+    public static void discard(Context context) {
+        Snapshot snapshot = load(context);
+        clear(context);
+        if (snapshot != null) WalkSessionStore.endPoint(context, snapshot.pointSessionId);
     }
 
     public static GeoGeometry geometryFromSnapshot(Snapshot snapshot) {
@@ -269,6 +278,8 @@ public final class FeatureFormDraftStore {
         root.put("layer_id", snapshot.layerId);
         root.put("feature_id", snapshot.featureId);
         root.put("geometry_changed", snapshot.geometryChanged);
+        root.put("point_session_id", snapshot.pointSessionId);
+        root.put("walk_session_id", snapshot.walkSessionId);
         root.put("geometry_wkt",
                 snapshot.geometryWkt != null ? snapshot.geometryWkt : JSONObject.NULL);
         root.put("form_path", snapshot.formPath != null ? snapshot.formPath : JSONObject.NULL);
@@ -294,6 +305,8 @@ public final class FeatureFormDraftStore {
         snapshot.layerId = root.optInt("layer_id", Constants.NOT_FOUND);
         snapshot.featureId = root.optLong("feature_id", Constants.NOT_FOUND);
         snapshot.geometryChanged = root.optBoolean("geometry_changed", false);
+        snapshot.pointSessionId = root.optString("point_session_id", null);
+        snapshot.walkSessionId = root.optString("walk_session_id", null);
         snapshot.geometryWkt = root.isNull("geometry_wkt") ? null : root.optString("geometry_wkt", null);
         snapshot.formPath = root.isNull("form_path") ? null : root.optString("form_path", null);
         snapshot.metaPath = root.isNull("meta_path") ? null : root.optString("meta_path", null);

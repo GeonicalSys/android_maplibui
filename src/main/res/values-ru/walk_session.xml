@@ -1,0 +1,18 @@
+<resources>
+    <string name="walk_panel_title">Обход: %1$s</string>
+    <string name="walk_recording_accuracy">Идёт запись · GPS ±%1$d м</string>
+    <string name="walk_controls_point_locked">Управление обходом доступно после завершения создания точки.</string>
+    <string name="walk_finish">Завершить</string>
+    <string name="walk_finishing">Завершение обхода…</string>
+    <string name="walk_finished_pending">Обход завершён. Сохраните объект.</string>
+    <string name="walk_complete_object">Оформить</string>
+    <string name="walk_actions">Действия обхода</string>
+    <string name="walk_show">Показать на карте</string>
+    <string name="walk_discard">Отменить обход</string>
+    <string name="walk_discard_confirm">Удалить геометрию, собранную за этот обход?</string>
+    <string name="walk_already_active">Уже есть незавершённый обход.</string>
+    <string name="walk_save_failed">Не удалось сохранить обход. Повторите попытку.</string>
+    <string name="walk_point_recovery">Незавершённая точка блокирует управление обходом. Продолжите её создание или отмените его.</string>
+    <string name="walk_project_busy">Сохраните или отмените обход перед сменой проекта.</string>
+    <string name="walk_layer_busy">Этот слой используется для обхода.</string>
+</resources>

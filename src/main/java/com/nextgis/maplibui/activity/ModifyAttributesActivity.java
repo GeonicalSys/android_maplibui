@@ -104,6 +104,8 @@ import com.nextgis.maplibui.formcontrol.Sign;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.FeatureFormDraftStore;
+import com.nextgis.maplibui.util.WalkSessionStore;
+import com.nextgis.maplibui.view.WalkRecordingPanel;
 import com.nextgis.maplibui.util.NotificationHelper;
 import com.nextgis.maplibui.util.PhotoOverlayData;
 import com.nextgis.maplibui.util.PhotoOverlayUtil;
@@ -177,6 +179,7 @@ public class ModifyAttributesActivity
      * without this guard a successfully cleared draft can be written again immediately.
      */
     private volatile boolean mFormDraftFinalized;
+    private String mPointSessionId, mWalkSessionId;
 
     MessageReceiver messageReceiver;
     public WeakReference<PhotoPicker> photoPickerWeakReference = new WeakReference<>(null);
@@ -189,8 +192,16 @@ public class ModifyAttributesActivity
         setContentView(R.layout.activity_standard_attributes);
         setToolbar(R.id.main_toolbar);
 
+        mPointSessionId = getIntent().getStringExtra(WalkSessionStore.KEY_POINT);
+        mWalkSessionId = getIntent().getStringExtra(WalkSessionStore.KEY_SESSION);
+
         final IGISApplication app = (IGISApplication) getApplication();
         createView(app, savedInstanceState);
+        if (WalkSessionStore.load(this) != null) {
+            WalkRecordingPanel panel = new WalkRecordingPanel(this);
+            panel.setCompact(true);
+            ((LinearLayout) findViewById(R.id.root_view)).addView(panel, 1);
+        }
         createLocationPanelView(app);
         createSoundPool();
 
@@ -557,6 +568,8 @@ public class ModifyAttributesActivity
         snapshot.layerId = mLayer.getId();
         snapshot.featureId = mFeatureId;
         snapshot.geometryChanged = mIsGeometryChanged;
+        snapshot.pointSessionId = mPointSessionId;
+        snapshot.walkSessionId = mWalkSessionId;
         GeoGeometry draftGeometry = getGeometryForDraft();
         if (draftGeometry != null) {
             snapshot.geometryWkt = draftGeometry.toWKT(true);
@@ -631,6 +644,7 @@ public class ModifyAttributesActivity
     protected void clearFormDraft() {
         mFormDraftFinalized = true;
         FeatureFormDraftStore.clear(this);
+        WalkSessionStore.endPoint(this, mPointSessionId);
     }
 
 
@@ -943,6 +957,7 @@ public class ModifyAttributesActivity
         HyperLog.v(Constants.TAG, "FormSave result ready layer=" + mLayer.getId()
                 + " feature=" + mFeatureId + " wasNew=" + wasNewFeature);
         setResult(RESULT_OK, data);
+        if (mWalkSessionId != null) WalkSessionStore.clear(this, mWalkSessionId);
         clearFormDraft();
         return !error;
     }

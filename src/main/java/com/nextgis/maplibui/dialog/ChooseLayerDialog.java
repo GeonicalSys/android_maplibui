@@ -38,6 +38,7 @@ import com.nextgis.maplib.map.MapBase;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.api.IChooseLayerResult;
 import com.nextgis.maplibui.api.ILayerSelector;
+import com.nextgis.maplibui.util.WalkSessionStore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +60,11 @@ public class ChooseLayerDialog
     protected final static String KEY_CODE       = "code";
     boolean useCreatePoint = false;
     boolean startFillByWalk = false;
+    private String pointSessionId;
+
+    public ChooseLayerDialog() { super(); }
+
+    public void setPointSessionId(String value) { pointSessionId = value; }
 
     public ChooseLayerDialog(boolean useCreatePoint, boolean startFillByWalk){
         super();
@@ -88,6 +94,9 @@ public class ChooseLayerDialog
         mListAdapter = new ChooseLayerListAdapter(this);
 
         if (null != savedInstanceState) {
+            pointSessionId = savedInstanceState.getString(WalkSessionStore.KEY_POINT);
+            useCreatePoint = savedInstanceState.getBoolean("create_point", false);
+            startFillByWalk = savedInstanceState.getBoolean("fill_by_walk", false);
             List<Integer> ids = savedInstanceState.getIntegerArrayList(KEY_LAYERS_IDS);
             IGISApplication app = (IGISApplication) mActivity.getApplication();
             MapBase map = app.getMap();
@@ -111,7 +120,7 @@ public class ChooseLayerDialog
                     public void onClick(
                             DialogInterface dialog,
                             int id) {
-                        // User cancelled the dialog
+                        cancelPointChoice();
                     }
                 });
         // Create the AlertDialog object and return it
@@ -124,6 +133,9 @@ public class ChooseLayerDialog
     @Override
     public void onSaveInstanceState(Bundle outState)
     {
+        outState.putString(WalkSessionStore.KEY_POINT, pointSessionId);
+        outState.putBoolean("create_point", useCreatePoint);
+        outState.putBoolean("fill_by_walk", startFillByWalk);
         ArrayList<Integer> ids = new ArrayList<>();
         for (ILayer layer : mLayers) {
             ids.add(layer.getId());
@@ -131,6 +143,18 @@ public class ChooseLayerDialog
         outState.putIntegerArrayList(KEY_LAYERS_IDS, ids);
         outState.putInt(KEY_CODE, mCode);
         super.onSaveInstanceState(outState);
+    }
+
+    @Override public void onCancel(@NonNull DialogInterface dialog) {
+        cancelPointChoice();
+        super.onCancel(dialog);
+    }
+
+    private void cancelPointChoice() {
+        if (getContext() == null) return;
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(getContext());
+        if (session != null && WalkSessionStore.STAGE_CHOOSE.equals(session.pointStage))
+            WalkSessionStore.endPoint(getContext(), pointSessionId);
     }
 
 

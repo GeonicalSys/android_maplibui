@@ -182,6 +182,10 @@ public final class ProjectOperationCoordinator {
     }
 
     public static Lease tryBegin(Context context, Kind kind) {
+        if (kind != null && kind.isProjectMutation() && WalkSessionStore.load(context) != null) {
+            HyperLog.w(Constants.TAG, "Project change deferred while a walk draft owns its workspace");
+            return null;
+        }
         return tryBeginInternal(kind, activeWorkspaceKey(context), true);
     }
 

@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-08-26
+last_verified: 2026-09-13
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -37,6 +37,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   реестр и показывает отдельное окно с просьбой дождаться завершения операции;
 - staged schema rebuild/removal только после успешного backup, с ограничением
   повторов неизменного mismatch fingerprint;
+- backup сохраняет таблицы слоя и только файлы вложений, физически
+  имеющиеся на этом устройстве; server-only payload не скачивается и не
+  блокирует удаление;
 - перед account sync одинаковые managed layers группируются по
   `account + project_uid + remote_id`: без pending changes лишние копии
   backup-гейтятся и удаляются одним map commit, с правками sync блокируется;
@@ -51,22 +54,16 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - track/edit/form UI и foreground workers/services;
 - фото-вложения по умолчанию получают видимый штамп координат из геометрии объекта;
   оба preference можно выключить в настройках карты;
-- `TrackerService` и `WalkEditService` записывают GPS через общий фильтр до
-  160 км/ч, выгружают последние буферизированные точки при остановке и публикуют
-  безопасные счётчики причин отбрасывания; при двух разрешённых источниках свежий
-  пригодный GPS подавляет Network на 12 секунд, после чего Network снова работает
-  как резерв; `TrackerService` работает в основном процессе приложения, поэтому
-  команда Stop из панели не может обогнать ещё не исполненную команду Start
-  отдельного процесса, а durable-флаг читается без межпроцессного кэша;
-  `BackgroundRecordingSoundMonitor` использует отдельную подписку с
-  нулевым порогом перемещения и при скрытом UI даёт alarm-stream pulse по
-  фиксированному 10-секундному расписанию, пока пригодные координаты остаются
-  свежими. Громкость уведомлений на него не влияет; нулевая/выключенная громкость
-  будильника переключает heartbeat на короткую вибрацию, а ошибку — на двойную.
-  Неподвижность не гасит pulse, прекращение доставки координат гасит; сигнал
-  ошибки сохранения отдельно ограничен минутой, весь контроль выключаемый;
-  отзыв location permission останавливает запрещённый location-FGS без краша:
-  намерение записи трека и черновик обхода сохраняются до возврата разрешения;
+- `TrackerService` и `WalkEditService` подписаны на общий GNSS-only поток
+  Application, сохраняют отфильтрованные точки после прореживания с сохранением
+  поворотов. Network используется только картой. Трек хранит номер сегмента и
+  экспортирует разрывы через GPX `trkseg`; обход хранит `gps_paused` и ждёт
+  явного «Продолжить и соединить». Перед Save UI получает финальный durable
+  snapshot без raw GPS-хвоста. Звуковой контроль получает общий проверенный поток
+  до прореживания, продолжает работать на стоянке и проверяет время измерения.
+  Подробности и миграция: [GPS pipeline](../../docs/architecture/location-pipeline.md).
+  Сервисы работают в основном процессе, сохраняют durable intent/черновики при
+  неожиданном завершении и не запускают запрещённый location FGS без permission.
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
 - LineString, Polygon и Multi-варианты используют tap-скетч с одним стартовым
@@ -76,9 +73,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   дополнения касанием, у полигонов также нет добавления/удаления частей и отверстий.
   Перед тапом или запуском обхода MapLibre показывает выбранный узел красным,
   следующую вершину и сегмент внутри той же части/кольца — оранжевыми. Обход
-  вставляет GPS после выбранного узла; его правая нижняя кнопка с иконкой
-  идущего человека завершает запись через штатный Save/Stop path вместо перехода
-  в настройки. Undo/Redo хранит до 100 реальных
+  вставляет GPS после выбранного узла; отдельная панель завершает запись
+  после подтверждения финального снимка сервисом. Undo/Redo хранит до 100 реальных
   изменений геометрии и сравнивает координатный WKT: выбор узла, повторный callback
   и тот же скетч с обновлённым CRS не занимают отдельный шаг истории;
   инструмент линейки показывает те же кнопки и записывает в эту историю каждое
@@ -86,7 +82,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   MapLibre-геометрию из `MapDrawable`, а не legacy `RulerOverlay`;
 - durable crash journals: track recording resumes silently, while walk geometry,
   normal vertex/tap geometry and attribute forms use explicit Continue/Discard recovery;
-  walk и manual geometry не остаются двумя параллельными черновиками одного скетча;
+  walk и point geometry могут сосуществовать с разными владельцами; один
+  переданный скетч не открывается дважды;
 - `BottomToolbar`: lean action menus (≤3 items) keep icons visible; identify
   attribute form gated by layer edit policy in `app`; «Поля → метка» сохраняет
   `feature_label_field` слоя;
@@ -110,7 +107,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Activity и Dialog используют единый `CollectorProjectImportHelper`; initial
   import и composition sync создают штатные QGIS styles только через
   `CollectorRasterLayerHelper`, в общем порядке с vectors и всегда read-only.
-- Backup failure блокирует destructive mutation.
+- Backup failure блокирует destructive mutation; отсутствие локальной копии
+  server-only вложения не является failure.
 - Project UID/map path не смешиваются между workspaces; switch и destructive
   project mutation запрещены во время sync/fill/rebuild.
 - Чистая установка до первого `MapDrawable` публикует active UID локального
@@ -140,16 +138,16 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   `onPause()` must not recreate `feature_form_draft`. A successful Save result carries
   enough layer/feature/new-row identity for the app host to reload the persisted feature,
   terminate either creation or existing-feature editing and clear selection back to the
-  normal map screen. Walk Save/Cancel stops the
-  service and clears `walkedit_temp`, while an unexpected stop retains it. Normal
+  normal map screen. Walk Finish stops the service after its acknowledgement but retains
+  `walkedit_temp` until successful feature Save or explicit Discard. Normal
   vertex/tap editing keeps `geometry_edit_draft` until explicit Cancel, successful
   update, form handoff or recovery Discard.
-- После cold Continue незавершённого дополнения полигона обходом MapLibre должен
-  сохранять одну заливку и стабильный красный контур во время GPS-обновлений;
-  скрытые на время обхода вершины снова публикуются сразу после Stop. Для
-  LineString/MultiLineString тот же recovery не должен оставлять polygon fill.
-- Правая кнопка активного обхода обязана вызывать `onFinishEditByWalkSession()`;
-  меню настроек местоположения в этой панели отсутствует.
+- После cold Continue обхода пассивный source показывает контур независимо от
+  редактора точки; Polygon получает заливку, LineString/MultiLineString — только
+  линию. Панель ждёт подтверждение Finish перед переходом к ручным вершинам.
+- Во время point session даже ранее открытое меню или старое уведомление не
+  может завершить, удалить либо продолжить обход.
+
 - Успешная серверная авторизация не считается добавлением Веб ГИС, пока
   `AccountManager` не создал и не вернул variant-specific Android account; при
   локальном отказе форма остаётся открытой и пишет безопасную диагностику без credentials.
@@ -195,8 +193,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   `MapDrawable` и перепривязку `LayerContentProvider` к тому же workspace.
 - На скорости перестал расти трек или обход: проверить provider-qualified
   `LocationTrackFilter` и итоговые filter stats. Каскад `drop:speed_dist` при
-  реальном движении до 160 км/ч является регрессией; `networkSuppressed` показывает
-  только ожидаемые Network-фиксы, перекрытые свежим пригодным GPS.
+  реальном движении до 160 км/ч является регрессией. Network не входит в запись;
+  дополнительно проверить gps_paused у обхода и счётчики общего источника.
 - Валидный вход закрывается без аккаунта: проверить совпадение account type в
   runtime, authenticator и sync adapter, затем сообщения `NGW account add` в HyperLog.
 - Сервер NGW отвечает `5xx`, а приложение падает с `BadTokenException`: проверить,
@@ -210,3 +208,37 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 
 Собрать `:maplibui:assembleDebug`, затем выполнить относящиеся device smoke IDs,
 включая `SMOKE-NGW-CONNECTION-FAILURE` для недоступного сервера.
+
+## GPS: фон и уточнение стоянок
+
+GPS-подписка записи сохраняется при скрытии/возврате карты. Источник удерживает
+partial wake lock, пока активен хотя бы один recorder, независимо от звука.
+Акселерометр 25 Гц дополняет GNSS-проверку стоянок; при отсутствии свежих сенсорных
+событий используется состояние «неизвестно». Согласованное движение автомобиля
+может опровергнуть неподвижность телефона в держателе. Уточнение стоянки через
+`takeStationaryCorrection` изменяет последнюю свою вершину, а не дописывает линию.
+Диагностика `GPS health` позволяет сравнить сырые интервалы и accuracy со включённым
+и выключенным экраном. См. [контракт GPS](../../docs/architecture/location-pipeline.md).
+
+Трек и обход используют общий протокол подтверждения движения: неподтверждённый
+буфер не рисуется и не выгружается при Stop или потере GPS. Подтверждённое начало
+сохраняется с исходными временами, не создавая фиктивного разрыва получения GPS.
+Явный Stop передаёт фактическую константу ACTION_STOP, закрывает строку трека
+и очищает намерение восстановления; onDestroy сохраняет прежнюю семантику восстановления.
+
+## Независимый обход и начало движения
+
+Обход владеет геометрией в `WalkSessionStore`, а карта показывает отдельный
+`walk-preview-source`, восстановленный после загрузки style. Приватная копия
+сохраняет CRS перед переводом метров в широту/долготу. Обычные меню доступны;
+панель обхода не занимает foreground-редактор точки. От начала выбора слоя точки
+до Save/Cancel заблокированы все команды обхода в UI и сервисе. Начальный черновик
+формы сохраняется до её запуска; ошибка, камера и перезапуск не снимают блокировку.
+После Finish сервис подтверждает финальный снимок, который можно проверить и
+сохранить обычным редактором. См. [восстановление](../../docs/architecture/crash-recovery.md).
+
+Курсор показывает текущую сглаженную позицию независимо от удержания записанной
+стоянки. При хорошем сигнале начало линии подтверждается коротким окном, при
+обычной уличной точности — медианными частями 12-секундного окна с допуском
+поворота; начало пути сохраняется из буфера. Диагностика `stationary`/`departureMs`
+различает ожидание фильтра и отсутствие GNSS. См. [GPS](../../docs/architecture/location-pipeline.md).

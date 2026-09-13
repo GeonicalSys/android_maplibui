@@ -197,7 +197,8 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
         ImageButton btShow = v.findViewById(R.id.btShow);
         ImageView ivEdited = v.findViewById(R.id.ivEdited);
 
-        boolean hide = layerui instanceof VectorLayer && ((VectorLayer) layerui).isLocked();
+        boolean hide = layerui instanceof VectorLayer && ((VectorLayer) layerui).isLocked()
+                || ((IGISApplication) mActivity.get().getApplication()).isLayerReservedForWalk(layer.getId());
         btMore.setVisibility(hide ? View.GONE : View.VISIBLE);
         btShow.setVisibility(hide ? View.GONE : View.VISIBLE);
         ivEdited.setVisibility(hide ? View.VISIBLE : View.GONE);
@@ -409,6 +410,11 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                    @Override
                    public void onClick(DialogInterface dialogInterface, int i) {
+                       if (((IGISApplication) mActivity.get().getApplication()).isLayerReservedForWalk(layer.getId())) {
+                           android.widget.Toast.makeText(mActivity.get(), R.string.walk_layer_busy,
+                                   android.widget.Toast.LENGTH_LONG).show();
+                           return;
+                       }
                        if (layer instanceof NGWVectorLayer) {
                            android.content.Context appCtx =
                                    mActivity.get().getApplicationContext();
