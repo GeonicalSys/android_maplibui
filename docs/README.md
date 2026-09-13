@@ -242,3 +242,8 @@ partial wake lock, пока активен хотя бы один recorder, не
 обычной уличной точности — медианными частями 12-секундного окна с допуском
 поворота; начало пути сохраняется из буфера. Диагностика `stationary`/`departureMs`
 различает ожидание фильтра и отсутствие GNSS. См. [GPS](../../docs/architecture/location-pipeline.md).
+
+
+## Подложки между проектами
+
+SharedUnderlayProjects координирует migration, attach, usage и подтверждённое глобальное удаление через UNDERLAY_MIGRATION lease. LayerFillService не добавляет второй shared ID в один проект. Старые подложки защищаются перед удалением проекта; список слоёв снимает только проектную ссылку. Контракт: [shared-underlays](../../docs/architecture/shared-underlays.md).

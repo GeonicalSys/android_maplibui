@@ -1,0 +1,4 @@
+<resources>
+    <string name="underlay_unlink">Убрать из проекта</string>
+    <string name="underlay_unlink_confirm">Убрать подложку из проекта? Она останется в хранилище подложек.</string>
+</resources>
