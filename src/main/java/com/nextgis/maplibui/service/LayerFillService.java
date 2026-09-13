@@ -22,6 +22,8 @@
 
 package com.nextgis.maplibui.service;
 
+import com.nextgis.maplib.map.LocalTMSLayer;
+
 import android.accounts.Account;
 import android.accounts.AccountsException;
 import android.app.NotificationChannel;
@@ -774,8 +776,19 @@ public class LayerFillService extends Service implements IProgressor {
                         int osmIdx = task.mLayerGroup.getChildLayerIndex(osm);
                         insertAt = osmIdx >= 0 ? osmIdx + 1 : 0;
                     }
-                    task.mLayerGroup.insertLayer(insertAt, filled);
-                    layerPublished = task.mLayerGroup.save();
+                    String assetId = filled instanceof LocalTMSLayer
+                            ? ((LocalTMSLayer) filled).getSharedUnderlayId() : null;
+                    LayerGroup project = task.mLayerGroup;
+                    while (project.getParent() instanceof LayerGroup) project = (LayerGroup) project.getParent();
+                    if (assetId != null && !assetId.isEmpty()
+                            && com.nextgis.maplibui.util.SharedUnderlayProjects.contains(project, assetId)) {
+                        // Only the fresh thin layer is discarded. The catalog owns the payload.
+                        filled.delete(true);
+                        layerPublished = true;
+                    } else {
+                        task.mLayerGroup.insertLayer(insertAt, filled);
+                        layerPublished = task.mLayerGroup.save();
+                    }
                 } else if (task.mCollectorOrderIndex >= 0 && task.mCollectorProjectRemoteIds != null
                         && filled instanceof NGWVectorLayer) {
                     NGWVectorLayer nv = (NGWVectorLayer) filled;
@@ -1953,8 +1966,8 @@ public class LayerFillService extends Service implements IProgressor {
                     tmsLayer.fillFromMBTiles(mUri, progressor);
                 } else if (mIsNgrc) {
                     tmsLayer.fillFromNgrc(mUri, progressor);
-                    tmsLayer.setNgrcImportProvenance(
-                            mLayerName, tmsLayer.getLastArchiveSha256());
+                    if (!((LocalTMSLayerUI) tmsLayer).isSharedUnderlay())
+                        tmsLayer.setNgrcImportProvenance(mLayerName, tmsLayer.getLastArchiveSha256());
                     if (!tmsLayer.save()) {
                         throw new IOException("Cannot save NGRC import provenance");
                     }

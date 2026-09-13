@@ -8,6 +8,8 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedUnderlayProjects.java
+    responsibility: Coordinate migration, catalog usage, duplicate-safe attach and global unlink under a project lease.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
     responsibility: Persist one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionPolicy.java

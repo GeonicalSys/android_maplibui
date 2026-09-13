@@ -256,6 +256,8 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
                             popup.getMenu().findItem(R.id.menu_download_tiles).setVisible(true);
                             popup.getMenu().findItem(R.id.menu_download_tiles).setTitle(R.string.attributes);
                         } else if (layerui instanceof LocalTMSLayer) {
+                            if (((LocalTMSLayer) layerui).isSharedUnderlay())
+                                popup.getMenu().findItem(R.id.menu_delete).setTitle(R.string.underlay_unlink);
                             GeoEnvelope extents = ((LocalTMSLayer) layerui).getExtents();
                             popup.getMenu().findItem(R.id.menu_zoom_extent).setVisible(extents != null && extents.isInit());
                         } else if (layerui instanceof NGWRasterLayer) {
@@ -406,7 +408,9 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
     }
 
     private boolean deleteLayer(final ILayer layer) {
-        new AlertDialog.Builder(mActivity.get()).setTitle(R.string.are_you_sure).setMessage(R.string.delete_confirm)
+        boolean shared = layer instanceof LocalTMSLayer && ((LocalTMSLayer) layer).isSharedUnderlay();
+        new AlertDialog.Builder(mActivity.get()).setTitle(R.string.are_you_sure)
+                .setMessage(shared ? R.string.underlay_unlink_confirm : R.string.delete_confirm)
                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                    @Override
                    public void onClick(DialogInterface dialogInterface, int i) {
