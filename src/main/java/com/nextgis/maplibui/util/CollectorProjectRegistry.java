@@ -363,6 +363,7 @@ public final class CollectorProjectRegistry {
                 File legacyMap = findLegacyMap(context, preferences);
                 if (legacyMap != null) {
                     try {
+                        com.nextgis.maplib.util.SharedUnderlayStore.migrateWorkspace(context, legacyMap);
                         LegacyMapWorkspaceCopier.copy(
                                 legacyMap, new File(initial.getMapPath()), initial.getMapName());
                         HyperLog.i(Constants.TAG,
@@ -545,6 +546,14 @@ public final class CollectorProjectRegistry {
                         ? (GISApplication) appContext : null;
                 if (gisApplication != null && gisApplication.getMap() != null) {
                     gisApplication.getMap().save();
+                }
+
+                try {
+                    com.nextgis.maplib.util.SharedUnderlayStore.migrateWorkspace(context,
+                            new File(target.getMapPath(), target.getMapName() + ".ngm"));
+                } catch (IOException e) {
+                    HyperLog.w(Constants.TAG, "Cannot preserve project underlays before deletion", e);
+                    return new DeleteResult(DeleteResult.Status.STORAGE_FAILED, null);
                 }
 
                 ProjectInfo fallback = mostRecentlyOpenedProjectExcept(projects, projectUid);

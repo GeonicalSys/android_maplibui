@@ -1,0 +1,4 @@
+<resources>
+    <string name="underlay_unlink">Remove from project</string>
+    <string name="underlay_unlink_confirm">Remove this underlay from the project? It will remain in underlay storage.</string>
+</resources>
