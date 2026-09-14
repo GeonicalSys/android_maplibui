@@ -33,7 +33,6 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.SystemClock;
 import androidx.core.app.ShareCompat;
-import androidx.core.content.FileProvider;
 import androidx.appcompat.app.AlertDialog;
 import android.widget.Toast;
 
@@ -146,7 +145,6 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
             }
 
             Context app = mActivity.getApplicationContext();
-            String authority = mActivity.getPackageName() + FileUtil.AUTHORITY;
             for (String trackId : mTracksId) {
                 if (mIsCanceled)
                     return null;
@@ -166,16 +164,7 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
                         if (mSeparateFiles) {
                             appendTrack(temp, track.getString(0), sb, f, trackpoints);
                             FileUtil.writeToFile(temp, GPX_TAG_CLOSE, true);
-                            Uri uri = null;
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                if (temp != null)
-                                    uri = FileProvider.getUriForFile(app, authority, temp);
-                            } else
-                                uri = Uri.fromFile(temp);
-                            if (uri != null)
-                                mUris.add(uri);
-                            if (temp != null)
-                                mFiles.add(temp);
+                            addExported(app, temp);
                         } else
                             appendTrack(temp, track.getString(0), sb, f, trackpoints);
 
@@ -187,24 +176,29 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
                 }
             }
 
-            Uri uri = null;
             if (!mSeparateFiles) {
                 FileUtil.writeToFile(temp, GPX_TAG_CLOSE, true);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    if (temp != null)
-                        uri = FileProvider.getUriForFile(app, authority, temp);
-                } else
-                    uri = Uri.fromFile(temp);
-                if (uri != null)
-                    mUris.add(uri);
-                if (temp != null)
-                    mFiles.add(temp);
+                addExported(app, temp);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
 
         return mFiles;
+    }
+
+    private void addExported(Context app, File temp) {
+        if (temp == null) {
+            return;
+        }
+        mFiles.add(temp);
+        if (onlyResult) {
+            return;
+        }
+        Uri uri = GpxSharePublisher.uriForShare(app, temp);
+        if (uri != null) {
+            mUris.add(uri);
+        }
     }
 
     private void appendTrack(File temp, String name, StringBuilder sb, Formatter f, Cursor trackpoints) throws IOException {
@@ -331,7 +325,7 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
             return;
 
         Intent shareIntent = new Intent();
-        String type = "application/gpx+xml";
+        String type = GpxSharePublisher.SHARE_INTENT_TYPE;
         String action = Intent.ACTION_SEND;
 
         if (mUris.size() > 1)
