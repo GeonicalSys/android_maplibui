@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-13
+last_verified: 2026-09-15
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -216,9 +216,12 @@ partial wake lock, пока активен хотя бы один recorder, не
 Акселерометр 25 Гц дополняет GNSS-проверку стоянок; при отсутствии свежих сенсорных
 событий используется состояние «неизвестно». Согласованное движение автомобиля
 может опровергнуть неподвижность телефона в держателе. Уточнение стоянки через
-`takeStationaryCorrection` изменяет последнюю свою вершину, а не дописывает линию.
+  `takeStationaryCorrection` изменяет последнюю свою вершину, а не дописывает линию.
 Диагностика `GPS health` позволяет сравнить сырые интервалы и accuracy со включённым
 и выключенным экраном. См. [контракт GPS](../../docs/architecture/location-pipeline.md).
+Шаринг GPX идёт через FileProvider: Intent `application/gpx+xml`, URI MIME
+`text/xml`, чтобы получатель не склеивал `.bin` или `.null`. MAX может показать
+`.gpx.xml`; QGIS такой файл открывает.
 
 Трек и обход используют общий протокол подтверждения движения: неподтверждённый
 буфер не рисуется и не выгружается при Stop или потере GPS. Подтверждённое начало
