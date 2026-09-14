@@ -25,7 +25,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ExportGPXTask.java
     responsibility: Export persisted GNSS segments as separate GPX trkseg elements and share through GpxSharePublisher.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GpxSharePublisher.java
-    responsibility: Publish share GPX into MediaStore Downloads with a .gpx display name and text/xml URI MIME, falling back to FileProvider before API 29.
+    responsibility: Share GPX through FileProvider with a text/xml URI MIME while the Intent stays application/gpx+xml.
   - path: maplibui/build.gradle
     responsibility: Compile MapLibre UI against the same explicit MapLibre 13.0.2 OpenGL artifact as app and maplib so the final runtime does not require Vulkan.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/NGWResourcesListAdapter.java

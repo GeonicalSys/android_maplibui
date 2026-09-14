@@ -219,9 +219,9 @@ partial wake lock, пока активен хотя бы один recorder, не
   `takeStationaryCorrection` изменяет последнюю свою вершину, а не дописывает линию.
 Диагностика `GPS health` позволяет сравнить сырые интервалы и accuracy со включённым
 и выключенным экраном. См. [контракт GPS](../../docs/architecture/location-pipeline.md).
-Шаринг GPX на API 29+ идёт через MediaStore Downloads с DISPLAY_NAME `.gpx` и URI
-MIME `text/xml`; Intent остаётся `application/gpx+xml`. FileProvider fallback тоже
-объявляет `text/xml`, чтобы получатель не склеивал `.bin` или `.null`.
+Шаринг GPX идёт через FileProvider: Intent `application/gpx+xml`, URI MIME
+`text/xml`, чтобы получатель не склеивал `.bin` или `.null`. MAX может показать
+`.gpx.xml`; QGIS такой файл открывает.
 
 Трек и обход используют общий протокол подтверждения движения: неподтверждённый
 буфер не рисуется и не выгружается при Stop или потере GPS. Подтверждённое начало
