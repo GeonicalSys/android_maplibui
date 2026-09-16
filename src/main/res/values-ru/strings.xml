@@ -241,6 +241,10 @@
     <string name="track_start">Начать запись трека</string>
     <string name="track_stop">Завершить запись трека</string>
     <string name="tracks_running">Записывается трек</string>
+    <string name="external_gnss_keep_alive_title">Внешний GNSS</string>
+    <string name="external_gnss_keep_alive_text">Приёмник остаётся подключённым</string>
+    <string name="external_gnss_keep_alive_channel">Внешний GNSS</string>
+    <string name="external_gnss_keep_alive_channel_summary">Сохраняет связь с приёмником, пока приложение свёрнуто</string>
     <string name="tracks_title">Трек %s</string>
     <string name="walkedit_title">Ввод обходом %s</string>
     <string name="walkedit_interrupted_title">Запись обходом прервалась</string>

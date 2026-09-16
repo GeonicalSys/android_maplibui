@@ -39,6 +39,7 @@ import android.location.Location;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
+import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.GpsEventListener;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.GeoEnvelope;
@@ -46,6 +47,7 @@ import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.location.GpsEventSource;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.DiagnosticLog;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.LocationUtil;
 import com.nextgis.maplibui.R;
@@ -232,7 +234,12 @@ public class CurrentLocationOverlay extends Overlay implements GpsEventListener 
                 mMapViewOverlays.postInvalidate();
             }
 
-            if (Constants.DEBUG_MODE) {
+            if (DiagnosticLog.isVerbose()) {
+                HyperLog.v(Constants.TAG, "autopan mode: " + mIsAutopanningEnabled);
+                HyperLog.v(Constants.TAG, "mInitialLocation : "
+                        + (mInitialLocation == null ? "null" : mInitialLocation.toString()));
+                HyperLog.v(Constants.TAG, "new location : " + location.toString());
+            } else if (Constants.DEBUG_MODE) {
                 Log.v(Constants.TAG, "autopan mode: " + mIsAutopanningEnabled);
                 Log.v(Constants.TAG, "mInitialLocation : "
                         + (mInitialLocation == null ? "null" : mInitialLocation.toString()));
@@ -240,7 +247,10 @@ public class CurrentLocationOverlay extends Overlay implements GpsEventListener 
             }
 
             if (mIsAutopanningEnabled) {
-                if (Constants.DEBUG_MODE) {
+                if (DiagnosticLog.isVerbose()) {
+                    HyperLog.v(Constants.TAG, "map lock  : "
+                            + (mMapViewOverlays.isLockMap() ? "true" : "false"));
+                } else if (Constants.DEBUG_MODE) {
                     Log.v(Constants.TAG, "map lock  : "
                             + (mMapViewOverlays.isLockMap() ? "true" : "false"));
                 }
