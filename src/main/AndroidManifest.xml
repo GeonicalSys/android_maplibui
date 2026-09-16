@@ -29,6 +29,7 @@
         />
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -117,13 +118,13 @@
             android:name="com.nextgis.maplibui.service.TrackerService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="location"/>
+            android:foregroundServiceType="location|connectedDevice"/>
 
         <service
             android:name="com.nextgis.maplibui.service.WalkEditService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="location"/>
+            android:foregroundServiceType="location|connectedDevice"/>
 
         <receiver
             android:name=".service.BootLoader"

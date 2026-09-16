@@ -69,7 +69,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
     responsibility: Export layer tables and only attachment files physically present on this device before destructive rebuild or removal, without downloading server-only payloads.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
-    responsibility: Keep ordered Start/Stop and durable recording intent in the application process; consume shared validated GNSS including mock receiver extras, decimate after filtering, persist segment boundaries, flush only validated points and retain an unfinished track on unexpected termination; explicit Stop closes the track and clears durable intent.
+    responsibility: Keep ordered Start/Stop and durable recording intent in the application process; consume shared validated GNSS including mock receiver extras and native NMEA, decimate after filtering, persist segment boundaries, flush only validated points and retain an unfinished track on unexpected termination; explicit Stop closes the track and clears durable intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
     responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, acknowledge a durable final snapshot before foreground editing, and retain paused recovery without a raw-location tail.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
