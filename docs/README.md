@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -18,12 +18,17 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - импорт обычных NGW и Collector vector/style resources;
 - безопасное сообщение об ошибке подключения в выборе NGW-ресурсов без попытки
   открыть окно через application context или уничтоженную Activity;
-- импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline;
+- импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline
+  (пункт меню скрыт, обработчик сохранён);
 - локальный KML/GPX направляется в отдельную fill-задачу, которая создаёт один
   редактируемый точечный слой и удаляет его целиком при ошибке разбора/записи;
 - вставка NGRc/raster/vector layers в правильном порядке;
 - импорт `.mbtiles` и ZIP с `.mbtiles` через local-underlay pipeline; raster
   добавляется над OSM, получает обычный hot reload и сохраняет порядок;
+  «Открыть локальный» классифицирует NGRc/MBTiles/ZIP так же, как «Новая
+  подложка из файла»;
+- «Загрузить проект» ищет группу Веб ГИС с ключом `lisa` и импортирует выбранный
+  Collector-проект тем же isolated-workspace pipeline;
 - lease `UNDERLAY_MIGRATION` исключает одновременные switch/sync/fill операции,
   пока приложение потоково собирает подложки старого Debug в активном проекте;
 - deferred reload карты после batch fill, который остаётся pending до фактического
@@ -56,7 +61,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   оба preference можно выключить в настройках карты;
 - `TrackerService` и `WalkEditService` подписаны на общий GNSS-only поток
   Application, сохраняют отфильтрованные точки после прореживания с сохранением
-  поворотов. Network используется только картой. Трек хранит номер сегмента и
+  поворотов. Network используется картой только без свежего GPS. Mock внешнего
+  GNSS пишется без пешеходного smoother, не грубее 2 с / 1 м. Трек хранит номер сегмента и
   экспортирует разрывы через GPX `trkseg`; обход хранит `gps_paused` и ждёт
   явного «Продолжить и соединить». Перед Save UI получает финальный durable
   snapshot без raw GPS-хвоста. Звуковой контроль получает общий проверенный поток
@@ -218,7 +224,8 @@ partial wake lock, пока активен хотя бы один recorder, не
 может опровергнуть неподвижность телефона в держателе. Уточнение стоянки через
   `takeStationaryCorrection` изменяет последнюю свою вершину, а не дописывает линию.
 Диагностика `GPS health` позволяет сравнить сырые интервалы и accuracy со включённым
-и выключенным экраном. См. [контракт GPS](../../docs/architecture/location-pipeline.md).
+и выключенным экраном. Курсор текущей позиции не пишет каждую GPS-точку и autopan
+в HyperLog: это остаётся только в Logcat при `DEBUG_MODE`. См. [контракт GPS](../../docs/architecture/location-pipeline.md).
 Шаринг GPX идёт через FileProvider: Intent `application/gpx+xml`, URI MIME
 `text/xml`, чтобы получатель не склеивал `.bin` или `.null`. MAX может показать
 `.gpx.xml`; QGIS такой файл открывает.

@@ -37,6 +37,7 @@ import com.nextgis.maplib.map.LayerGroup;
 import com.nextgis.maplib.map.NGWLookupTable;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.MapUtil;
+import com.nextgis.maplib.util.SharedUnderlayKind;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.activity.NGActivity;
 import com.nextgis.maplibui.activity.SelectNGWResourceActivity;
@@ -138,44 +139,22 @@ public class LayerFactoryUI
             final LayerGroup groupLayer,
             final Uri uri)
     {
-        String ext = "zip";
         String layerName =
                 FileUtil.getFileNameByUri(context, uri, context.getString(R.string.new_layer));
         final int lastPeriodPos = layerName.lastIndexOf('.');
         if (lastPeriodPos > 0) {
-            ext = layerName.substring(lastPeriodPos).toLowerCase();
             layerName = layerName.substring(0, lastPeriodPos);
         }
         if (context instanceof NGActivity) {
             NGActivity fragmentActivity = (NGActivity) context;
 
-            if (ext.equals(".ngrc")) {
-                Intent intent = new Intent(context, LayerFillService.class);
-                intent.setAction(LayerFillService.ACTION_ADD_TASK);
-                intent.putExtra(LayerFillService.KEY_URI, uri);
-                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.TMS_LAYER);
-                intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupLayer.getId());
-
-                LayerFillProgressDialogFragment.startFill(intent);
+            SharedUnderlayKind kind = SharedUnderlayKind.classify(context, uri);
+            if (kind == SharedUnderlayKind.NGRC || kind == SharedUnderlayKind.MBTILES) {
+                startSharedUnderlayImport(context, groupLayer, uri, kind, layerName);
                 return;
             }
 
             AtomicReference<Uri> temp = new AtomicReference<>(uri);
-            boolean isMbTiles = ext.equals(".mbtiles");
-            if (!isMbTiles) {
-                isMbTiles = MapUtil.isZippedWithExtension(context, temp, ".mbtiles");
-            }
-            if (isMbTiles) {
-                Intent intent = new Intent(context, LayerFillService.class);
-                intent.setAction(LayerFillService.ACTION_ADD_TASK);
-                intent.putExtra(LayerFillService.KEY_URI, temp.get());
-                intent.putExtra(LayerFillService.KEY_NAME, layerName);
-                intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.TMS_LAYER);
-                intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupLayer.getId());
-                intent.putExtra(LayerFillService.KEY_TMS_TYPE, TMSTYPE_MBTILES_RASTER);
-                LayerFillProgressDialogFragment.startFill(intent);
-                return;
-            }
 
             if (MapUtil.isZippedGeoJSON(context, temp)) {
                 createNewVectorLayer(context, groupLayer, temp.get());
@@ -191,6 +170,29 @@ public class LayerFactoryUI
                     .setTheme(fragmentActivity.getThemeId())
                     .show(fragmentActivity.getSupportFragmentManager(), "create_tms_layer");
         }
+    }
+
+    public static void startSharedUnderlayImport(
+            Context context,
+            LayerGroup groupLayer,
+            Uri uri,
+            SharedUnderlayKind kind,
+            String layerName)
+    {
+        if (context == null || groupLayer == null || uri == null
+                || kind == null || kind == SharedUnderlayKind.NONE) {
+            return;
+        }
+        Intent intent = new Intent(context, LayerFillService.class);
+        intent.setAction(LayerFillService.ACTION_ADD_TASK);
+        intent.putExtra(LayerFillService.KEY_URI, uri);
+        intent.putExtra(LayerFillService.KEY_NAME, layerName);
+        intent.putExtra(LayerFillService.KEY_INPUT_TYPE, LayerFillService.TMS_LAYER);
+        intent.putExtra(LayerFillService.KEY_LAYER_GROUP_ID, groupLayer.getId());
+        if (kind == SharedUnderlayKind.MBTILES) {
+            intent.putExtra(LayerFillService.KEY_TMS_TYPE, TMSTYPE_MBTILES_RASTER);
+        }
+        LayerFillProgressDialogFragment.startFill(intent);
     }
 
 

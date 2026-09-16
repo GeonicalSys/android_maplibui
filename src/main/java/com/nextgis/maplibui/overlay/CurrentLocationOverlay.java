@@ -37,8 +37,8 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.location.Location;
 import android.preference.PreferenceManager;
+import android.util.Log;
 
-import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.GpsEventListener;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.GeoEnvelope;
@@ -232,25 +232,27 @@ public class CurrentLocationOverlay extends Overlay implements GpsEventListener 
                 mMapViewOverlays.postInvalidate();
             }
 
-            HyperLog.v(Constants.TAG, "autopan mode: " + mIsAutopanningEnabled);
-            HyperLog.v(Constants.TAG, "mInitialLocation : " + (mInitialLocation ==null ? "null" : mInitialLocation.toString()));
-            HyperLog.v(Constants.TAG, "new location : " + (location == null ? "null" : location.toString()));
+            if (Constants.DEBUG_MODE) {
+                Log.v(Constants.TAG, "autopan mode: " + mIsAutopanningEnabled);
+                Log.v(Constants.TAG, "mInitialLocation : "
+                        + (mInitialLocation == null ? "null" : mInitialLocation.toString()));
+                Log.v(Constants.TAG, "new location : " + location.toString());
+            }
 
             if (mIsAutopanningEnabled) {
-                HyperLog.v(Constants.TAG, "map lock  : " + (mMapViewOverlays.isLockMap()? "true" : "false"));
+                if (Constants.DEBUG_MODE) {
+                    Log.v(Constants.TAG, "map lock  : "
+                            + (mMapViewOverlays.isLockMap() ? "true" : "false"));
+                }
                 if (mInitialLocation == null || mMapViewOverlays.isLockMap())
                     mInitialLocation = location;
 
                 if (mInitialLocation.distanceTo(location) >= getPanThreshold()) {
                     if (mIsInScreenBounds) {
                         autopanTo(mInitialLocation, location);
-//                        HyperLog.v(Constants.TAG, "autopan set");
-//                        HyperLog.v(Constants.TAG, "autopan from mInitialLocation: " + (mInitialLocation ==null ? "null" : mInitialLocation.toString()));
-//                        HyperLog.v(Constants.TAG, "autopan to: " + (location == null ? "null" : location.toString()));
                     }
 
                     mInitialLocation = location;
-                    //HyperLog.v(Constants.TAG, "mInitialLocation change to location");
                 }
             }
         }
