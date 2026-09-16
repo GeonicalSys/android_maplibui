@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -218,7 +218,8 @@ partial wake lock, пока активен хотя бы один recorder, не
 может опровергнуть неподвижность телефона в держателе. Уточнение стоянки через
   `takeStationaryCorrection` изменяет последнюю свою вершину, а не дописывает линию.
 Диагностика `GPS health` позволяет сравнить сырые интервалы и accuracy со включённым
-и выключенным экраном. См. [контракт GPS](../../docs/architecture/location-pipeline.md).
+и выключенным экраном. Курсор текущей позиции не пишет каждую GPS-точку и autopan
+в HyperLog: это остаётся только в Logcat при `DEBUG_MODE`. См. [контракт GPS](../../docs/architecture/location-pipeline.md).
 Шаринг GPX идёт через FileProvider: Intent `application/gpx+xml`, URI MIME
 `text/xml`, чтобы получатель не склеивал `.bin` или `.null`. MAX может показать
 `.gpx.xml`; QGIS такой файл открывает.

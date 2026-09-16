@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-09-15
+last_verified: 2026-09-16
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -22,6 +22,8 @@ key_components:
     responsibility: Keep walked nodes at the selected insertion position and refine only the last vertex owned by the current recording session.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/CurrentTrackOverlay.java
     responsibility: Keep active track segment boundaries through Canvas draw, pan and zoom.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/CurrentLocationOverlay.java
+    responsibility: Draw the current GPS marker and autopan; per-fix traces stay in DEBUG Logcat, not HyperLog.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ExportGPXTask.java
     responsibility: Export persisted GNSS segments as separate GPX trkseg elements and share through GpxSharePublisher.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GpxSharePublisher.java
