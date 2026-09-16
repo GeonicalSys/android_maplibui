@@ -82,6 +82,11 @@
     <string name="ngw_collector_incomplete_snapshot">Описание проекта Collector загрузилось не полностью. Импорт отменён, чтобы не создать частичный проект. Проверьте соединение и повторите попытку.</string>
     <string name="ngw_collector_import_busy_title">Загрузка проекта недоступна</string>
     <string name="ngw_collector_import_busy_message">Дождитесь завершения синхронизации или загрузки данных текущего проекта и повторите попытку.</string>
+    <string name="lisa_catalog_load_project">Загрузить проект</string>
+    <string name="lisa_catalog_need_account">Добавьте учётную запись Веб ГИС и снова нажмите «Загрузить проект».</string>
+    <string name="lisa_catalog_connect_failed">Не удалось войти в Веб ГИС.</string>
+    <string name="lisa_catalog_not_found">Каталог Лисы не найден. Проверьте, что у корневой группы задан ключ lisa.</string>
+    <string name="lisa_catalog_no_projects">В каталоге Лисы нет проектов Collector.</string>
     <string name="collector_import_repair_queued">Повторная загрузка неполных слоёв коллектора: %d</string>
     <string name="collector_import_repair_gave_up">Часть слоёв коллектора так и не загрузилась после 3 попыток. Список — в HyperLog.</string>
     <string name="layer_not_editable_in_collector">Слой только для просмотра в проекте коллектора</string>

@@ -18,12 +18,17 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - импорт обычных NGW и Collector vector/style resources;
 - безопасное сообщение об ошибке подключения в выборе NGW-ресурсов без попытки
   открыть окно через application context или уничтоженную Activity;
-- импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline;
+- импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline
+  (пункт меню скрыт, обработчик сохранён);
 - локальный KML/GPX направляется в отдельную fill-задачу, которая создаёт один
   редактируемый точечный слой и удаляет его целиком при ошибке разбора/записи;
 - вставка NGRc/raster/vector layers в правильном порядке;
 - импорт `.mbtiles` и ZIP с `.mbtiles` через local-underlay pipeline; raster
   добавляется над OSM, получает обычный hot reload и сохраняет порядок;
+  «Открыть локальный» классифицирует NGRc/MBTiles/ZIP так же, как «Новая
+  подложка из файла»;
+- «Загрузить проект» ищет группу Веб ГИС с ключом `lisa` и импортирует выбранный
+  Collector-проект тем же isolated-workspace pipeline;
 - lease `UNDERLAY_MIGRATION` исключает одновременные switch/sync/fill операции,
   пока приложение потоково собирает подложки старого Debug в активном проекте;
 - deferred reload карты после batch fill, который остаётся pending до фактического
