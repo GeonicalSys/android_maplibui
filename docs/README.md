@@ -59,8 +59,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - track/edit/form UI и foreground workers/services;
 - фото-вложения по умолчанию получают видимый штамп координат из геометрии объекта;
   оба preference можно выключить в настройках карты;
-- `TrackerService` и `WalkEditService` подписаны на общий GNSS-only поток
-  Application, сохраняют отфильтрованные точки после прореживания с сохранением
+- `TrackerService`, `WalkEditService` и `ExternalGnssService` подписаны на общий GNSS-only поток
+  Application. `ExternalGnssService` держит процесс при выбранном внешнем
+  приёмнике без второй LocationManager-подписки. Tracker и Walk сохраняют отфильтрованные точки после прореживания с сохранением
   поворотов. Network используется картой только без свежего GPS. Mock внешнего
   GNSS и native NMEA пишутся без пешеходного smoother, не грубее 2 с / 1 м. Трек хранит номер сегмента и
   экспортирует разрывы через GPX `trkseg`; обход хранит `gps_paused` и ждёт

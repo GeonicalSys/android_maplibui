@@ -121,6 +121,12 @@
             android:foregroundServiceType="location|connectedDevice"/>
 
         <service
+            android:name="com.nextgis.maplibui.service.ExternalGnssService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location|connectedDevice"/>
+
+        <service
             android:name="com.nextgis.maplibui.service.WalkEditService"
             android:enabled="true"
             android:exported="true"

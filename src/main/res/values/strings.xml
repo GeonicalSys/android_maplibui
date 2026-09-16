@@ -264,6 +264,10 @@
     <string name="track_start">Start new track</string>
     <string name="track_stop">Stop track</string>
     <string name="tracks_running">Track is recording now</string>
+    <string name="external_gnss_keep_alive_title">External GNSS</string>
+    <string name="external_gnss_keep_alive_text">Receiver connection is active</string>
+    <string name="external_gnss_keep_alive_channel">External GNSS</string>
+    <string name="external_gnss_keep_alive_channel_summary">Keeps the receiver connected while the app is in the background</string>
     <string name="tracks_title">Track %s</string>
     <string name="walkedit_title">Walk edit %s</string>
     <string name="walkedit_interrupted_title">Walk recording interrupted</string>

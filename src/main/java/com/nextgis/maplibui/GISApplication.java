@@ -49,6 +49,7 @@ import android.widget.Toast;
 import android.net.Uri;
 
 import com.hypertrack.hyperlog.HyperLog;
+import com.nextgis.maplib.api.ExternalGnssKeepAliveHost;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
 import com.nextgis.maplib.datasource.ngw.CollectorProjectItem;
@@ -79,6 +80,7 @@ import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
 import com.nextgis.maplibui.mapui.LayerFactoryUI;
 import com.nextgis.maplibui.mapui.SyncAccountWorker;
+import com.nextgis.maplibui.service.ExternalGnssService;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CollectorFormFileTransaction;
 import com.nextgis.maplibui.util.CollectorImportJournal;
@@ -148,7 +150,7 @@ import org.json.JSONObject;
  * @author Dmitry Baryshnikov (aka Bishop), bishop.dev@gmail.com
  */
 public abstract class GISApplication extends Application
-        implements IGISApplication {
+        implements IGISApplication, ExternalGnssKeepAliveHost {
 
     static private IGISApplication instance;
 
@@ -539,6 +541,19 @@ public abstract class GISApplication extends Application
     public GpsEventSource getGpsEventSource()
     {
         return mGpsEventSource;
+    }
+
+    @Override
+    public boolean canKeepExternalGnssAlive() {
+        return isDefaultProcess();
+    }
+
+    @Override
+    public void setExternalGnssKeepAlive(boolean wanted) {
+        if (!isDefaultProcess()) {
+            return;
+        }
+        ExternalGnssService.setEnabled(this, wanted);
     }
 
     /**
