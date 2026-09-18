@@ -37,6 +37,7 @@ import android.content.SharedPreferences;
 import android.content.SyncResult;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -422,8 +423,9 @@ public abstract class GISApplication extends Application
         int backgroundResId;
         switch (mSharedPreferences.getString(SettingsConstantsUI.KEY_PREF_MAP_BG, KEY_PREF_LIGHT)) {
             case KEY_PREF_LIGHT:
-                backgroundResId = com.nextgis.maplibui.R.drawable.bk_tile_light;
-                break;
+                Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+                bitmap.eraseColor(Color.WHITE);
+                return bitmap;
             case KEY_PREF_DARK:
                 backgroundResId = com.nextgis.maplibui.R.drawable.bk_tile_dark;
                 break;
