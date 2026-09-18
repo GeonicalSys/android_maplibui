@@ -274,9 +274,7 @@ public final class NGIDUtils {
                 }
 
                 try {
-                    HyperLog.v(Constants.TAG, "create NGW, url: " + mReference +
-                            "\n" + "login: " + login +
-                            "\n" + "pass: " + password );
+                    HyperLog.v(Constants.TAG, "Creating NGW account");
 
                     TokenContainer tokenContainer = NGWUtil.getConnectionCookie(mReference, login, password, true);
                     if (tokenContainer.responseCode == HTTP_OK || tokenContainer.responseCode == HTTP_ACCEPTED){

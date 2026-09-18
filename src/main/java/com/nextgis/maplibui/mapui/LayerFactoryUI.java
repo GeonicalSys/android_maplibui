@@ -57,6 +57,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.nextgis.maplib.util.Constants.CONFIG;
+import static com.nextgis.maplib.util.Constants.NOT_FOUND;
 import static com.nextgis.maplib.util.Constants.JSON_TYPE_KEY;
 import static com.nextgis.maplib.util.Constants.LAYERTYPE_GROUP;
 import static com.nextgis.maplib.util.Constants.LAYERTYPE_LOCAL_TMS;
@@ -95,18 +96,7 @@ public class LayerFactoryUI
                                         Connection.NGWResourceTypeWMSClient |
                                         Connection.NGWResourceTypeWebMap |
                                         Connection.NGWResourceTypeCollector)
-                        .setConnectionListener(new NGWResourcesListAdapter.OnConnectionListener() {
-                            @Override
-                            public void onConnectionSelected(Connection connection) {
-                                startNGWResourceActivity(context, connection, layerGroup);
-                                newFragment.dismiss();
-                            }
-
-                            @Override
-                            public void onAddConnection() {
-                                newFragment.onAddAccount(context);
-                            }
-                        })
+                        .setResourceTask(SelectNGWResourceActivity.TYPE_ADD, NOT_FOUND)
                         .setTitle(context.getString(R.string.choose_layers))
                         .setTheme(fragmentActivity.getThemeId())
                         .show(fragmentActivity.getSupportFragmentManager(), "create_ngw_layer");
@@ -119,8 +109,8 @@ public class LayerFactoryUI
         Connections connections = new Connections(context.getString(R.string.ngw_accounts));
         connections.add(connection);
         intent.putExtra(SelectNGWResourceActivity.KEY_TASK, SelectNGWResourceActivity.TYPE_ADD);
-        intent.putExtra(SelectNGWResourceActivity.KEY_CONNECTIONS, connections);
-        intent.putExtra(SelectNGWResourceActivity.KEY_RESOURCE_ID, connections.getChild(0).getId());
+        intent.putExtra(com.nextgis.maplibui.util.NgwResourceSelectionState.KEY,
+                com.nextgis.maplibui.util.NgwResourceSelectionState.forConnection(connections, connection));
         intent.putExtra(SelectNGWResourceActivity.KEY_GROUP_ID, layerGroup.getId());
         intent.putExtra(SelectNGWResourceActivity.KEY_MASK,
                 Connection.NGWResourceTypePostgisLayer |

@@ -41,6 +41,7 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.Toast;
+import android.widget.Button;
 
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.api.ILayer;
@@ -62,11 +63,13 @@ import com.nextgis.maplib.map.NGWRasterLayer;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.activity.NGWLoginActivity;
+import com.nextgis.maplibui.activity.SelectNGWResourceActivity;
 import com.nextgis.maplibui.fragment.LayerFillProgressDialogFragment;
 import com.nextgis.maplibui.mapui.NGWRasterLayerUI;
 import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
+import com.nextgis.maplibui.util.NgwResourceSelectionState;
 import com.nextgis.maplibui.util.CollectorProjectImportHelper;
 import com.nextgis.maplibui.util.CollectorProjectRegistry;
 
@@ -88,6 +91,8 @@ public class SelectNGWResourceDialog
     protected AccountManager          mAccountManager;
     protected NGWResourcesListAdapter.OnConnectionListener mConnectionListener;
     boolean skipSubLoad = false;
+    private int mResourceTask = Constants.NOT_FOUND;
+    private int mPushId = Constants.NOT_FOUND;
 
     protected final static String KEY_MASK        = "mask";
     protected final static String KEY_ID          = "id";
@@ -100,6 +105,23 @@ public class SelectNGWResourceDialog
 
     public SelectNGWResourceDialog(boolean skipSubLoad){
         this.skipSubLoad = skipSubLoad;
+    }
+
+    public SelectNGWResourceDialog() { }
+
+    /** Persist the account-picker action instead of retaining an Activity-capturing callback. */
+    public SelectNGWResourceDialog setResourceTask(int task, int pushId) {
+        mResourceTask = task;
+        mPushId = pushId;
+        return this;
+    }
+
+    @Override public void onDestroyView() {
+        if (mListAdapter != null) {
+            mListAdapter.cancelPendingRestore();
+            mListAdapter.setPathLayout(null);
+        }
+        super.onDestroyView();
     }
 
 
@@ -143,9 +165,18 @@ public class SelectNGWResourceDialog
                 }
             }
 
-            mListAdapter.setConnections((Connections) savedInstanceState.getParcelable(KEY_CONNECTIONS), skipSubLoad);
-            mListAdapter.setCurrentResourceId(savedInstanceState.getInt(KEY_RESOURCE_ID));
-            mListAdapter.setCheckState(savedInstanceState.<CheckState> getParcelableArrayList(KEY_STATES));
+            skipSubLoad = savedInstanceState.getBoolean("skip_subload", false);
+            mResourceTask = savedInstanceState.getInt("resource_task", Constants.NOT_FOUND);
+            mPushId = savedInstanceState.getInt("push_id", Constants.NOT_FOUND);
+            String selection = savedInstanceState.getString(NgwResourceSelectionState.KEY);
+            if (selection != null) {
+                mListAdapter.restoreSelection(selection, skipSubLoad);
+            } else {
+                Connections connections = fillConnections(getActivity(), mAccountManager);
+                mListAdapter.setConnections(connections, skipSubLoad);
+                mListAdapter.setCurrentResourceId(connections.getId());
+                mListAdapter.setCheckState(new ArrayList<>());
+            }
         }
 
         View view = View.inflate(mContextWeakRef.get(), R.layout.layout_resources, null);
@@ -181,11 +212,38 @@ public class SelectNGWResourceDialog
         mDialog.setOnShowListener(new DialogInterface.OnShowListener() {
             @Override
             public void onShow(DialogInterface dialog) {
-                mEnabledColor = mDialog.getButton(DialogInterface.BUTTON_POSITIVE).getTextColors().getDefaultColor();
+                Button positive = mDialog.getButton(DialogInterface.BUTTON_POSITIVE);
+                if (positive == null) return; // account picker has only Cancel
+                mEnabledColor = positive.getTextColors().getDefaultColor();
                 updateSelectButton();
             }
         });
 
+        if (mResourceTask != Constants.NOT_FOUND) {
+            mConnectionListener = new NGWResourcesListAdapter.OnConnectionListener() {
+                @Override public void onConnectionSelected(Connection connection) {
+                    if (getActivity() == null || !isAdded()) return;
+                    Intent intent = new Intent(getActivity(), SelectNGWResourceActivity.class);
+                    Connections connections = new Connections(getString(R.string.ngw_accounts));
+                    connections.add(connection);
+                    intent.putExtra(NgwResourceSelectionState.KEY,
+                            NgwResourceSelectionState.forConnection(connections, connection));
+                    intent.putExtra(SelectNGWResourceActivity.KEY_TASK, mResourceTask);
+                    intent.putExtra(SelectNGWResourceActivity.KEY_PUSH_ID, mPushId);
+                    intent.putExtra(SelectNGWResourceActivity.KEY_SKIPSUBLOAD, skipSubLoad);
+                    if (mGroupLayer != null)
+                        intent.putExtra(SelectNGWResourceActivity.KEY_GROUP_ID, mGroupLayer.getId());
+                    if (mTypeMask != 0)
+                        intent.putExtra(SelectNGWResourceActivity.KEY_MASK, mTypeMask);
+                    startActivity(intent);
+                    dismiss();
+                }
+
+                @Override public void onAddConnection() {
+                    if (getActivity() != null) onAddAccount(getActivity());
+                }
+            };
+        }
         mListAdapter.setConnectionListener(mConnectionListener);
 
         return mDialog;
@@ -196,17 +254,16 @@ public class SelectNGWResourceDialog
     public void onSaveInstanceState(Bundle outState)
     {
         super.onSaveInstanceState(outState);
+        outState.putInt("resource_task", mResourceTask);
+        outState.putInt("push_id", mPushId);
 
         if (null != mGroupLayer)
             outState.putInt(KEY_ID, mGroupLayer.getId());
 
         if (null != mListAdapter) {
             outState.putInt(KEY_MASK, mTypeMask);
-            outState.putInt(KEY_RESOURCE_ID, mListAdapter.getCurrentResourceId());
-            outState.putParcelable(KEY_CONNECTIONS, mListAdapter.getConnections());
-            outState.putParcelableArrayList(
-                    KEY_STATES,
-                    (ArrayList<? extends android.os.Parcelable>) mListAdapter.getCheckState());
+            outState.putBoolean("skip_subload", skipSubLoad);
+            outState.putString(NgwResourceSelectionState.KEY, mListAdapter.saveSelection());
         }
     }
 
@@ -278,12 +335,14 @@ public class SelectNGWResourceDialog
 
 
     public void updateSelectButton() {
+        if (mDialog == null || mDialog.getButton(AlertDialog.BUTTON_POSITIVE) == null) return;
         boolean active = mListAdapter.getCheckState().size() > 0;
         setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), active);
     }
 
 
     public void createLayers(Context context) {
+        if (mListAdapter == null || mListAdapter.isLoading()) return;
         if (mGroupLayer == null)
             return;
 

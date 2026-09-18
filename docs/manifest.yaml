@@ -2,12 +2,16 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-09-16
+last_verified: 2026-09-18
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/SelectNGWResourceDialog.java
+    responsibility: Persist the account-picker import/export action as scalar state, rebuild its listener for the current Activity and restore compact remote selection asynchronously.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java
+    responsibility: Encode account/server plus remote resource paths and selected flags without trees or credentials, and resolve new process-local IDs off the main thread using current accounts.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedUnderlayProjects.java
     responsibility: Coordinate migration, catalog usage, duplicate-safe attach and global unlink under a project lease.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
@@ -113,6 +117,8 @@ public_contracts:
     consumers: [app]
 settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft]
 storage_contracts:
+  - id: ngw-resource-selection-state
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java
   - id: collector-registry
     path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
   - id: collector-initial-local-project

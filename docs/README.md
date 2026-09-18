@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-16
+last_verified: 2026-09-18
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -16,6 +16,15 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 ## Основные сценарии
 
 - импорт обычных NGW и Collector vector/style resources;
+- Activity/Dialog выбора NGW сохраняют только account/server, пути remote ID и
+  выбранные флаги; деревья ресурсов и credentials не входят в saved state или
+  новые launch intents. `NgwResourceSelectionState` повторно получает учётные
+  данные через AccountManager и восстанавливает путь/выбор в фоне. При ошибке
+  сохранённый выбор остаётся для повтора, импорт заблокирован; закрытие экрана
+  отменяет restore и не позволяет позднему результату открыть диалог.
+  Начальный выбор аккаунта сохраняет тип действия/ID слоя вместо callback со
+  старой Activity; после process recreation переход в импорт/экспорт остаётся
+  доступен. Отсутствующая кнопка Add в account picker не разыменовывается.
 - безопасное сообщение об ошибке подключения в выборе NGW-ресурсов без попытки
   открыть окно через application context или уничтоженную Activity;
 - импорт vector/raster NGW-ресурса по прямому URL через общий fill pipeline
