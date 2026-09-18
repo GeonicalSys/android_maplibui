@@ -117,7 +117,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   для точного `GTMultiPolygon`; Polygon и линии сохраняют прежнее поведение.
 - LayerGroup index `0` — bottom; UI и MapLibre должны совпадать.
 - Raster MBTiles и migrated underlay остаются manual local layers и не попадают
-  под destructive Collector composition sync.
+  под destructive Collector composition sync. Режим фона карты `light`
+  возвращает сплошной белый bitmap (`#FFFFFF`).
 - Collector fill вставляет project-managed слои ниже «Мои треки» и применяет
   editable-флаг элемента проекта отдельно от общего mobile config.
 - Activity и Dialog используют единый `CollectorProjectImportHelper`; initial
