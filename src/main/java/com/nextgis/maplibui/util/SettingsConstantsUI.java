@@ -51,6 +51,10 @@ public interface SettingsConstantsUI
     String KEY_PREF_RESET_SETTINGS       = "reset_settings";
     String KEY_PREF_RESTORE_LAYERS       = "restore_layers";
     String KEY_PREF_MAP_BG               = "map_bg";
+    String KEY_PREF_WHITE_AS_TRANSPARENT =
+            com.nextgis.maplib.util.SettingsConstants.KEY_PREF_WHITE_AS_TRANSPARENT;
+    String KEY_PREF_UNDERLAY_LAST_LEVEL_OVERZOOM =
+            com.nextgis.maplib.util.SettingsConstants.KEY_PREF_UNDERLAY_LAST_LEVEL_OVERZOOM;
     /** @deprecated Use VectorLayer feature-label accessors. */
     @Deprecated
     String KEY_PREF_LAYER_LABEL          = SettingsConstants.KEY_PREF_LAYER_LABEL;

@@ -115,7 +115,7 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft]
+settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, map_white_as_transparent, map_underlay_last_level_overzoom, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft]
 storage_contracts:
   - id: ngw-resource-selection-state
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java
