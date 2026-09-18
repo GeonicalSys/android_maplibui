@@ -68,6 +68,7 @@ import com.nextgis.maplibui.mapui.NGWRasterLayerUI;
 import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
+import com.nextgis.maplibui.util.NgwResourceSelectionState;
 import com.nextgis.maplibui.util.CollectorProjectImportHelper;
 import com.nextgis.maplibui.util.CollectorProjectRegistry;
 import com.nextgis.maplibui.util.NGWCreateNewResourceTask;
@@ -162,13 +163,16 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
             id = bundle.getInt(KEY_GROUP_ID, id);
             mPushId = bundle.getInt(KEY_PUSH_ID, mPushId);
             mTypeMask = bundle.getInt(KEY_MASK, mTypeMask);
-            mListAdapter.setConnections((Connections) bundle.getParcelable(KEY_CONNECTIONS), skipSubLoad);
-            mListAdapter.setCurrentResourceId(bundle.getInt(KEY_RESOURCE_ID));
-
-            ArrayList<CheckState> states = bundle.getParcelableArrayList(KEY_STATES);
-            if (states == null)
-                states = new ArrayList<>();
-            mListAdapter.setCheckState(states);
+            String selection = bundle.getString(NgwResourceSelectionState.KEY);
+            if (selection != null) {
+                mListAdapter.restoreSelection(selection, skipSubLoad);
+            } else {
+                // Accept legacy callers, but never re-serialize their resource tree.
+                mListAdapter.setConnections((Connections) bundle.getParcelable(KEY_CONNECTIONS), skipSubLoad);
+                mListAdapter.setCurrentResourceId(bundle.getInt(KEY_RESOURCE_ID));
+                ArrayList<CheckState> states = bundle.getParcelableArrayList(KEY_STATES);
+                mListAdapter.setCheckState(states != null ? states : new ArrayList<>());
+            }
         }
 
         MapBase map = MapBase.getInstance();
@@ -184,7 +188,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
 
         mListAdapter.setShowCheckboxes(mTask == TYPE_ADD);
         mListAdapter.setTypeMask(mTypeMask);
-        String instance = getConnection().getName();
+        String instance = getConnection() != null ? getConnection().getName() : "";
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle(mTask == TYPE_ADD ? R.string.import_ : R.string.export);
             getSupportActionBar().setSubtitle(instance);
@@ -206,6 +210,10 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
     }
 
     public void enableButton(){
+        Connection connection = getConnection();
+        if (getSupportActionBar() != null && connection != null) {
+            getSupportActionBar().setSubtitle(connection.getName());
+        }
         if (mButton != null) {
             mButton.setEnabled(true);
             mButton.setBackground(getDrawable(R.drawable.dark_button));
@@ -226,6 +234,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
             onBackPressed();
             return true;
         } else if (i == R.id.menu_new_group) {
+            if (mListAdapter.isLoading() || getConnection() == null) return true;
             View view = View.inflate(this, R.layout.dialog_edittext, null);
             final EditText editText = view.findViewById(R.id.edit1);
             final AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -266,19 +275,19 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
 
         outState.putInt(KEY_TASK, mTask);
         outState.putInt(KEY_MASK, mTypeMask);
+        outState.putInt(KEY_PUSH_ID, mPushId);
+        outState.putBoolean(KEY_SKIPSUBLOAD, skipSubLoad);
 
         if (null != mGroupLayer)
             outState.putInt(KEY_GROUP_ID, mGroupLayer.getId());
 
         if(null != mListAdapter) {
-            outState.putInt(KEY_RESOURCE_ID, mListAdapter.getCurrentResourceId());
-            outState.putParcelable(KEY_CONNECTIONS, mListAdapter.getConnections());
-            outState.putParcelableArrayList(KEY_STATES, (ArrayList<? extends android.os.Parcelable>) mListAdapter.getCheckState());
+            outState.putString(NgwResourceSelectionState.KEY, mListAdapter.saveSelection());
         }
     }
 
     public boolean createLayers() {
-        if (mGroupLayer == null)
+        if (mGroupLayer == null || mListAdapter == null || mListAdapter.isLoading())
             return false;
 
         List<CheckState> checkStates = mListAdapter.getCheckState();
@@ -576,6 +585,8 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
     }
 
     public Connection getConnection() {
+        if (mListAdapter == null || mListAdapter.getConnections() == null
+                || mListAdapter.getConnections().getChildrenCount() == 0) return null;
         return (Connection) mListAdapter.getConnections().getChild(0);
     }
 
@@ -601,6 +612,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
         }
 
         if (mListAdapter != null) {
+            mListAdapter.cancelPendingRestore();
             mListAdapter.setPathLayout(null);
         }
 

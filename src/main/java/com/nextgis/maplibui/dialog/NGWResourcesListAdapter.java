@@ -55,6 +55,11 @@ import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.activity.SelectNGWResourceActivity;
 import com.nextgis.maplibui.util.CheckState;
 import com.nextgis.maplibui.util.ControlHelper;
+import com.nextgis.maplibui.util.NgwResourceSelectionState;
+import com.hypertrack.hyperlog.HyperLog;
+import com.nextgis.maplib.util.Constants;
+import org.json.JSONException;
+import java.util.ArrayList;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
@@ -78,6 +83,8 @@ public class NGWResourcesListAdapter
     protected List<CheckState>        mCheckState;
     protected OnConnectionListener mConnectionListener;
     boolean skipSubLoad = false;
+    private String mPendingSelection;
+    private AsyncTask<Void, Void, NgwResourceSelectionState.Restored> mRestoreTask;
 
     public interface OnConnectionListener {
         void onConnectionSelected(Connection connection);
@@ -146,9 +153,81 @@ public class NGWResourcesListAdapter
         return mCurrentResource;
     }
 
+    private AlertDialog mRestoreErrorDialog;
+
+    public String saveSelection() {
+        if (mPendingSelection != null) return mPendingSelection;
+        try {
+            return NgwResourceSelectionState.save(mConnections, mCurrentResource, mCheckState);
+        } catch (JSONException e) {
+            HyperLog.w(Constants.TAG, "Could not save resource selection", e);
+            return null;
+        }
+    }
+
+    public boolean isLoading() { return mLoading || mPendingSelection != null; }
+
+    public void cancelPendingRestore() {
+        if (mRestoreTask != null) mRestoreTask.cancel(true);
+        mRestoreTask = null;
+        if (mRestoreErrorDialog != null) {
+            mRestoreErrorDialog.dismiss();
+            mRestoreErrorDialog = null;
+        }
+    }
+
+    public void restoreSelection(String saved, boolean skip) {
+        Activity activity = mActivity.get();
+        if (activity == null) return;
+        cancelPendingRestore();
+        skipSubLoad = skip;
+        mPendingSelection = saved;
+        mLoading = true;
+        mConnections = new Connections(activity.getString(R.string.ngw_accounts));
+        mCurrentResource = mConnections;
+        mCheckState = new ArrayList<>();
+        Context context = activity.getApplicationContext();
+        WeakReference<NGWResourcesListAdapter> owner = new WeakReference<>(this);
+        mRestoreTask = new AsyncTask<Void, Void, NgwResourceSelectionState.Restored>() {
+            @Override protected NgwResourceSelectionState.Restored doInBackground(Void... ignored) {
+                try {
+                    return NgwResourceSelectionState.restore(context, saved, skip);
+                } catch (Exception e) {
+                    HyperLog.w(Constants.TAG, "Resource selection restore failed", e);
+                    return null;
+                }
+            }
+
+            @Override protected void onPostExecute(NgwResourceSelectionState.Restored restored) {
+                NGWResourcesListAdapter adapter = owner.get();
+                if (adapter == null || isCancelled() || adapter.mRestoreTask != this) return;
+                Activity host = adapter.mActivity.get();
+                if (!NGWResourceAsyncTask.isActivityAvailable(host)) return;
+                adapter.mRestoreTask = null;
+                adapter.mLoading = false;
+                if (restored != null) {
+                    adapter.mPendingSelection = null;
+                    adapter.mConnections = restored.connections;
+                    adapter.mCurrentResource = restored.current;
+                    adapter.mCheckState = restored.checks;
+                    if (adapter.mPathView != null) adapter.mPathView.onUpdate(restored.current);
+                    if (host instanceof SelectNGWResourceActivity) ((SelectNGWResourceActivity) host).enableButton();
+                } else {
+                    adapter.mRestoreErrorDialog = new AlertDialog.Builder(host).setMessage(R.string.resource_selection_restore_failed)
+                            .setPositiveButton(R.string.resource_selection_retry,
+                                    (dialog, which) -> adapter.restoreSelection(saved, skip))
+                            .setNegativeButton(android.R.string.cancel, null).show();
+                }
+                adapter.notifyDataSetChanged();
+            }
+        };
+        mRestoreTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
 
     public void setCurrentResourceId(int id)
     {
+        if (mConnections == null) return;
         mCurrentResource = mConnections.getResourceById(id);
         if (null != mCurrentResource) {
             if (mCurrentResource instanceof Connection) {
@@ -601,6 +680,7 @@ public class NGWResourcesListAdapter
             int i,
             long l)
     {
+        if (isLoading() || mCurrentResource == null) return;
         if (mCurrentResource.getType() == Connection.NGWResourceTypeConnections) {
             if (i >= mCurrentResource.getChildrenCount()) {
                 //start add account activity

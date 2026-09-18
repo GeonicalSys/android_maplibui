@@ -114,27 +114,7 @@ public class VectorLayerUI
 
     public void sendToNGW(final NGActivity activity) {
         final SelectNGWResourceDialog selectAccountDialog = new SelectNGWResourceDialog(true);
-        selectAccountDialog.setConnectionListener(new NGWResourcesListAdapter.OnConnectionListener() {
-            @Override
-            public void onConnectionSelected(final Connection connection) {
-                Intent intent = new Intent(activity, SelectNGWResourceActivity.class);
-                Connections connections = new Connections(activity.getString(R.string.ngw_accounts));
-                connections.add(connection);
-                intent.putExtra(SelectNGWResourceActivity.KEY_TASK, SelectNGWResourceActivity.TYPE_SELECT);
-                intent.putExtra(SelectNGWResourceActivity.KEY_CONNECTIONS, connections);
-                intent.putExtra(SelectNGWResourceActivity.KEY_RESOURCE_ID, connections.getChild(0).getId());
-                intent.putExtra(SelectNGWResourceActivity.KEY_PUSH_ID, VectorLayerUI.this.getId());
-                intent.putExtra(SelectNGWResourceActivity.KEY_SKIPSUBLOAD, true);
-
-                activity.startActivity(intent);
-                selectAccountDialog.dismiss();
-            }
-
-            @Override
-            public void onAddConnection() {
-                selectAccountDialog.onAddAccount(mContext);
-            }
-        })
+        selectAccountDialog.setResourceTask(SelectNGWResourceActivity.TYPE_SELECT, getId())
                 .setTitle(mContext.getString(R.string.ngw_accounts))
                 .setTheme(activity.getThemeId())
                 .show(activity.getSupportFragmentManager(), "send_layer_to_ngw");
