@@ -2,12 +2,14 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-09-18
+last_verified: 2026-09-20
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/LayersListAdapter.java
+    responsibility: Show a green visibility icon for enabled map layers and retain the themed icon color for disabled layers.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/SelectNGWResourceDialog.java
     responsibility: Persist the account-picker import/export action as scalar state, rebuild its listener for the current Activity and restore compact remote selection asynchronously.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java
@@ -146,5 +148,5 @@ global_docs:
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING]
+smoke_tests: [AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING]
 upstream_hotspots: [LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]

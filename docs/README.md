@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-18
+last_verified: 2026-09-20
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -15,6 +15,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 
 ## Основные сценарии
 
+- В списке слоёв карты значок включённой видимости зелёный; выключенное
+  состояние сохраняет прежний значок и цвет в светлой и тёмной темах.
 - импорт обычных NGW и Collector vector/style resources;
 - Activity/Dialog выбора NGW сохраняют только account/server, пути remote ID и
   выбранные флаги; деревья ресурсов и credentials не входят в saved state или

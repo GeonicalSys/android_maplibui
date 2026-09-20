@@ -211,7 +211,12 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
         Drawable visibilityOff = ta.getDrawable(1);
 
         if (layer instanceof Layer) {
-            btShow.setImageDrawable(((Layer) layer).isVisible() ? visibilityOn : visibilityOff);
+            boolean visible = ((Layer) layer).isVisible();
+            btShow.setImageDrawable(visible ? visibilityOn : visibilityOff);
+            if (visible)
+                btShow.setColorFilter(ContextCompat.getColor(mActivity.get(), R.color.layer_visibility_on));
+            else
+                btShow.clearColorFilter();
             //btShow.refreshDrawableState();
             btShow.setOnClickListener(new View.OnClickListener() {
                         public void onClick(View arg0) {
