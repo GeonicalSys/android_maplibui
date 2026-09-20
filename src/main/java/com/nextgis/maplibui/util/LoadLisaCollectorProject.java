@@ -159,6 +159,10 @@ public final class LoadLisaCollectorProject {
     }
 
     private static void startImport(Activity activity, CollectorResource collector) {
+        if (ProjectSyncInterruption.confirmAndRun(
+                activity, () -> startImport(activity, collector))) {
+            return;
+        }
         if (collector == null || collector.getConnection() == null) {
             Toast.makeText(activity, R.string.error, Toast.LENGTH_LONG).show();
             return;
@@ -182,7 +186,8 @@ public final class LoadLisaCollectorProject {
                 collector.getName(),
                 collector.getProjectDistrict());
         CollectorProjectRegistry.PrepareWorkspaceResult prepareResult =
-                CollectorProjectRegistry.prepareCollectorProjectWorkspaceResult(activity, metadata);
+                CollectorProjectRegistry.prepareCollectorProjectWorkspaceForImport(
+                        activity, metadata);
         LayerGroup workspace = prepareResult.getWorkspace();
         if (workspace == null) {
             if (prepareResult.isBusy()) {
@@ -196,6 +201,13 @@ public final class LoadLisaCollectorProject {
             Toast.makeText(activity, R.string.error, Toast.LENGTH_LONG).show();
             return;
         }
+        ProjectOperationCoordinator.Lease importLease = prepareResult.getOperationLease();
+        if (importLease == null) {
+            Toast.makeText(activity, R.string.error, Toast.LENGTH_LONG).show();
+            return;
+        }
+        boolean leaseTransferred = false;
+        try {
         ArrayList<Intent> batch = new ArrayList<>();
         CollectorProjectImportHelper.Result result =
                 CollectorProjectImportHelper.appendImportTasks(
@@ -210,9 +222,18 @@ public final class LoadLisaCollectorProject {
             return;
         }
         if (!batch.isEmpty()) {
-            LayerFillService.startFillBatch(activity, batch);
+            if (!LayerFillService.startFillBatch(activity, batch, importLease)) {
+                Toast.makeText(activity, R.string.error, Toast.LENGTH_LONG).show();
+                return;
+            }
+            leaseTransferred = true;
             LayerFillProgressDialogFragment.startBatchFillProgress(activity);
         }
         workspace.save();
+        } finally {
+            if (!leaseTransferred) {
+                importLease.close();
+            }
+        }
     }
 }

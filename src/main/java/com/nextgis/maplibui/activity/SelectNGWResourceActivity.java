@@ -69,6 +69,8 @@ import com.nextgis.maplibui.mapui.NGWWebMapLayerUI;
 import com.nextgis.maplibui.service.LayerFillService;
 import com.nextgis.maplibui.util.CheckState;
 import com.nextgis.maplibui.util.NgwResourceSelectionState;
+import com.nextgis.maplibui.util.ProjectOperationCoordinator;
+import com.nextgis.maplibui.util.ProjectSyncInterruption;
 import com.nextgis.maplibui.util.CollectorProjectImportHelper;
 import com.nextgis.maplibui.util.CollectorProjectRegistry;
 import com.nextgis.maplibui.util.NGWCreateNewResourceTask;
@@ -101,6 +103,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
 
     protected VectorLayer mLayer;
     protected LayerGroup mGroupLayer;
+    private ProjectOperationCoordinator.Lease mPreparedImportLease;
     protected NGWResourcesListAdapter mListAdapter;
 //    protected AccountManager mAccountManager;
 //    protected WeakReference<IGISApplication> mApp;
@@ -289,6 +292,13 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
     public boolean createLayers() {
         if (mGroupLayer == null || mListAdapter == null || mListAdapter.isLoading())
             return false;
+        if (ProjectSyncInterruption.confirmAndRun(this, () -> {
+            if (createLayers()) {
+                finish();
+            }
+        })) {
+            return false;
+        }
 
         List<CheckState> checkStates = mListAdapter.getCheckState();
         if (checkStates.size() == 0) {
@@ -309,6 +319,22 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 return false;
             }
         }
+        ProjectOperationCoordinator.Lease importLease = mPreparedImportLease;
+        mPreparedImportLease = null;
+        if (importLease == null) {
+            importLease = ProjectOperationCoordinator.tryBegin(
+                    this, ProjectOperationCoordinator.Kind.LAYER_FILL);
+        }
+        if (importLease == null) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.ngw_collector_import_busy_title)
+                    .setMessage(R.string.ngw_collector_import_busy_message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return false;
+        }
+        boolean leaseTransferred = false;
+        try {
 
         final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
@@ -417,12 +443,21 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
             }
             // Single FGS start for the whole batch (one stopSelf() at drain end) avoids the
             // foreground-service lifecycle race of N separate startService deliveries.
-            LayerFillService.startFillBatch(fillHost, vectorFillBatch);
+            if (!LayerFillService.startFillBatch(fillHost, vectorFillBatch, importLease)) {
+                Toast.makeText(this, R.string.error, Toast.LENGTH_LONG).show();
+                return false;
+            }
+            leaseTransferred = true;
             LayerFillProgressDialogFragment.startBatchFillProgress(fillHost);
         }
 
         mGroupLayer.save();
         return true;
+        } finally {
+            if (!leaseTransferred) {
+                importLease.close();
+            }
+        }
     }
 
     private int countSelectedCollectorResources(Connections connections, List<CheckState> checkStates) {
@@ -484,7 +519,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 collector.getName(),
                 collector.getProjectDistrict());
         CollectorProjectRegistry.PrepareWorkspaceResult prepareResult =
-                CollectorProjectRegistry.prepareCollectorProjectWorkspaceResult(
+                CollectorProjectRegistry.prepareCollectorProjectWorkspaceForImport(
                         this,
                         metadata);
         LayerGroup projectWorkspace = prepareResult.getWorkspace();
@@ -506,6 +541,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
             return false;
         }
         mGroupLayer = projectWorkspace;
+        mPreparedImportLease = prepareResult.getOperationLease();
         return true;
     }
 

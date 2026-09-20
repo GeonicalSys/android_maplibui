@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-18
+last_verified: 2026-09-20
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -15,6 +15,10 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 
 ## Основные сценарии
 
+- В списке слоёв карты значок включённой видимости зелёный; выключенное
+  состояние сохраняет прежний значок и цвет в светлой и тёмной темах.
+  Кольцо прогресса ручной NGW-синхронизации принадлежит app/`NgwSyncProgress`;
+  диалог LayerFill не использует эту шкалу.
 - импорт обычных NGW и Collector vector/style resources;
 - Activity/Dialog выбора NGW сохраняют только account/server, пути remote ID и
   выбранные флаги; деревья ресурсов и credentials не входят в saved state или
@@ -47,8 +51,14 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   создаётся начальный local workspace, а прежняя штатная standalone-карта один
   раз копируется в него без удаления оригинала; fill заранее резервирует
   workspace, но ждёт завершения sync перед доступом к SQLite;
-- попытка импортировать новый Collector-проект во время sync/fill не изменяет
-  реестр и показывает отдельное окно с просьбой дождаться завершения операции;
+- попытка импортировать новый Collector-проект, слой или подложку во время sync
+  показывает предупреждение с возможностью прервать sync; действие продолжится
+  после освобождения lease. Gate повторяется перед фактической подготовкой
+  workspace, поэтому sync, начавшийся во время выбора ресурса, не обходит
+  предупреждение. Успешная подготовка без разрыва переводит exclusive
+  project-switch lease в layer-fill lease и передаёт его foreground service.
+  Во время fill/rebuild остаётся модальное ожидание, а реестр до этого не
+  изменяется;
 - staged schema rebuild/removal только после успешного backup, с ограничением
   повторов неизменного mismatch fingerprint;
 - backup сохраняет таблицы слоя и только файлы вложений, физически
@@ -126,8 +136,12 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   `CollectorRasterLayerHelper`, в общем порядке с vectors и всегда read-only.
 - Backup failure блокирует destructive mutation; отсутствие локальной копии
   server-only вложения не является failure.
-- Project UID/map path не смешиваются между workspaces; switch и destructive
-  project mutation запрещены во время sync/fill/rebuild.
+- Project UID/map path не смешиваются между workspaces; во время sync UI предлагает
+  прервать sync перед switch/create/rename/delete или destructive project
+  mutation. Несколько владельцев отмены регистрируются независимо; завершение
+  отклонённого запуска не снимает handler активного worker. Пока подтверждается
+  уже отправленная серверная правка, UI объясняет безопасное ожидание;
+  fill/rebuild остаются взаимоисключающими с изменением проекта.
 - Чистая установка до первого `MapDrawable` публикует active UID локального
   проекта; legacy migration копирует только map-owned layer paths и track DB,
   не захватывая соседние файлы или каталог остальных проектов.
@@ -201,8 +215,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   через `NGWVectorLayer.isSyncDirectionConfigurable()`.
 - Потеря слоя после composition: backup result и removal scheduling.
 - Неверный проект после restart: registry JSON, active project и map path.
-- Импорт во время sync показывает общую «Ошибку»: проверить статус
-  `PrepareWorkspaceResult.BUSY`; блокировка должна сработать до `ensureProject()`
+- Импорт во время sync показывает предупреждение с кнопкой прерывания; проверить
+  `ProjectSyncInterruption`, отмену worker и то, что блокировка срабатывает до
+  `ensureProject()`. При fill/rebuild сохраняется `PrepareWorkspaceResult.BUSY`.
   и открыть модальное сообщение.
 - После успешного удаления показана ошибка: не открывать fallback-карту из
   фонового потока удаления; её открывает `MainActivity` после результата.

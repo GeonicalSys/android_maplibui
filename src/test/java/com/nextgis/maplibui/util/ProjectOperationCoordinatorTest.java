@@ -5,6 +5,7 @@ import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -77,6 +78,7 @@ public class ProjectOperationCoordinatorTest {
         ProjectOperationCoordinator.Lease sync = ProjectOperationCoordinator.tryBegin(
                 ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a");
         assertNotNull(sync);
+        assertTrue(ProjectOperationCoordinator.isDataSyncActive());
         assertNull(ProjectOperationCoordinator.tryBegin(
                 ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a"));
 
@@ -85,6 +87,7 @@ public class ProjectOperationCoordinatorTest {
         assertNotNull(fill);
         fill.close();
         sync.close();
+        assertFalse(ProjectOperationCoordinator.isDataSyncActive());
     }
 
     @Test
@@ -114,5 +117,38 @@ public class ProjectOperationCoordinatorTest {
                 ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a"));
         fill.close();
         waiter.join(1000L);
+    }
+
+    @Test
+    public void cancelHandlersAreOwnedAndCannotOverwriteEachOther() {
+        AtomicInteger firstCalls = new AtomicInteger();
+        AtomicInteger secondCalls = new AtomicInteger();
+        ProjectOperationCoordinator.CancelRegistration first =
+                ProjectOperationCoordinator.registerDataSyncCancelHandler(
+                        firstCalls::incrementAndGet);
+        ProjectOperationCoordinator.CancelRegistration second =
+                ProjectOperationCoordinator.registerDataSyncCancelHandler(
+                        secondCalls::incrementAndGet);
+
+        first.close();
+        ProjectOperationCoordinator.requestDataSyncCancellation(null);
+
+        assertTrue(firstCalls.get() == 0);
+        assertTrue(secondCalls.get() == 1);
+        second.close();
+    }
+
+    @Test
+    public void projectPreparationCanHandLeaseToDependentFillWithoutGap() {
+        ProjectOperationCoordinator.Lease preparation = ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.PROJECT_SWITCH, "project-a");
+        assertNotNull(preparation);
+        assertTrue(preparation.transitionTo(ProjectOperationCoordinator.Kind.LAYER_FILL));
+        assertNull(ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a"));
+        assertNull(ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.PROJECT_SWITCH, "project-b"));
+        preparation.close();
+        assertFalse(ProjectOperationCoordinator.isBusy());
     }
 }
