@@ -11,12 +11,15 @@ import android.preference.PreferenceManager;
 
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.NgwSyncIo;
 import com.nextgis.maplib.util.SettingsConstants;
 import com.nextgis.maplib.api.IGISApplication;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -115,6 +118,26 @@ public final class ProjectOperationCoordinator {
         }
 
         /**
+         * Atomically hands an exclusive project preparation lease to its dependent background
+         * stage without exposing a gap in which a new sync could reserve the workspace.
+         */
+        public boolean transitionTo(Kind nextKind) {
+            if (nextKind == null || nextKind.isProjectMutation()) {
+                return false;
+            }
+            synchronized (LOCK) {
+                ActiveOperation operation = ACTIVE.get(id);
+                if (closed || operation == null || !operation.kind.isProjectMutation()) {
+                    return false;
+                }
+                operation.kind = nextKind;
+                operation.lastHeartbeatAt = System.currentTimeMillis();
+                LOCK.notifyAll();
+                return true;
+            }
+        }
+
+        /**
          * Waits until this operation may touch project databases without overlapping a full sync.
          * A waiting lease still blocks project switching/deletion, so the workspace identity cannot
          * change between scheduling and execution.
@@ -160,8 +183,27 @@ public final class ProjectOperationCoordinator {
         }
     }
 
+    public static final class CancelRegistration implements AutoCloseable {
+        private final long id;
+        private boolean closed;
+
+        private CancelRegistration(long id) {
+            this.id = id;
+        }
+
+        @Override
+        public void close() {
+            synchronized (LOCK) {
+                if (!closed) {
+                    closed = true;
+                    DATA_SYNC_CANCEL_HANDLERS.remove(id);
+                }
+            }
+        }
+    }
+
     private static final class ActiveOperation {
-        final Kind kind;
+        Kind kind;
         final String workspaceKey;
         final long startedAt;
         final boolean logLifecycle;
@@ -178,8 +220,10 @@ public final class ProjectOperationCoordinator {
 
     private static final Object LOCK = new Object();
     private static final Map<Long, ActiveOperation> ACTIVE = new LinkedHashMap<>();
+    private static final Map<Long, Runnable> DATA_SYNC_CANCEL_HANDLERS =
+            new LinkedHashMap<>();
     private static long nextId = 1L;
-    private static Runnable dataSyncCancelHandler;
+    private static long nextCancelHandlerId = 1L;
 
     private ProjectOperationCoordinator() {
     }
@@ -237,19 +281,25 @@ public final class ProjectOperationCoordinator {
         }
     }
 
-    /** The app registers its direct manual-sync worker; framework sync is canceled separately. */
-    public static void setDataSyncCancelHandler(Runnable handler) {
+    /** Registers one manual-sync owner without overwriting another active owner. */
+    public static CancelRegistration registerDataSyncCancelHandler(Runnable handler) {
+        if (handler == null) {
+            return null;
+        }
         synchronized (LOCK) {
-            dataSyncCancelHandler = handler;
+            long id = nextCancelHandlerId++;
+            DATA_SYNC_CANCEL_HANDLERS.put(id, handler);
+            return new CancelRegistration(id);
         }
     }
 
     public static void requestDataSyncCancellation(Context context) {
-        Runnable handler;
+        List<Runnable> handlers;
         synchronized (LOCK) {
-            handler = dataSyncCancelHandler;
+            handlers = new ArrayList<>(DATA_SYNC_CANCEL_HANDLERS.values());
         }
-        if (handler != null) {
+        NgwSyncIo.requestCancellation();
+        for (Runnable handler : handlers) {
             handler.run();
         }
         if (context != null && context.getApplicationContext() instanceof IGISApplication) {
@@ -357,8 +407,9 @@ public final class ProjectOperationCoordinator {
     static void resetForTests() {
         synchronized (LOCK) {
             ACTIVE.clear();
+            DATA_SYNC_CANCEL_HANDLERS.clear();
             nextId = 1L;
-            dataSyncCancelHandler = null;
+            nextCancelHandlerId = 1L;
         }
     }
 }

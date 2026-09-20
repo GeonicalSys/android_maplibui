@@ -91,6 +91,8 @@
     <string name="sync_interrupt_message">Stop synchronization and continue with this action?</string>
     <string name="sync_interrupt_confirm">Stop and continue</string>
     <string name="sync_interrupt_wait">Stopping synchronization…</string>
+    <string name="sync_interrupt_wait_upload">Finishing the current upload safely…</string>
+    <string name="sync_interrupt_wait_project_operation">Synchronization has stopped. Waiting for the current project operation to finish…</string>
     <string name="lisa_catalog_load_project">Load project</string>
     <string name="lisa_catalog_need_account">Add a Web GIS account, then load the project again.</string>
     <string name="lisa_catalog_connect_failed">Could not sign in to Web GIS.</string>

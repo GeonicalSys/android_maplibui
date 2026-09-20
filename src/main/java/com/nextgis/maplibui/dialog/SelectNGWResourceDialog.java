@@ -72,6 +72,8 @@ import com.nextgis.maplibui.util.CheckState;
 import com.nextgis.maplibui.util.NgwResourceSelectionState;
 import com.nextgis.maplibui.util.CollectorProjectImportHelper;
 import com.nextgis.maplibui.util.CollectorProjectRegistry;
+import com.nextgis.maplibui.util.ProjectOperationCoordinator;
+import com.nextgis.maplibui.util.ProjectSyncInterruption;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +86,7 @@ public class SelectNGWResourceDialog
         extends NGDialog
 {
     protected LayerGroup mGroupLayer;
+    private ProjectOperationCoordinator.Lease mPreparedImportLease;
     protected int        mTypeMask;
 
     protected NGWResourcesListAdapter mListAdapter;
@@ -345,6 +348,14 @@ public class SelectNGWResourceDialog
         if (mListAdapter == null || mListAdapter.isLoading()) return;
         if (mGroupLayer == null)
             return;
+        Activity interruptionHost = context instanceof Activity
+                ? (Activity) context
+                : getActivity();
+        if (interruptionHost != null
+                && ProjectSyncInterruption.confirmAndRun(
+                        interruptionHost, () -> createLayers(context))) {
+            return;
+        }
 
         setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), false);
         setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), false);
@@ -367,6 +378,24 @@ public class SelectNGWResourceDialog
                 return;
             }
         }
+        ProjectOperationCoordinator.Lease importLease = mPreparedImportLease;
+        mPreparedImportLease = null;
+        if (importLease == null) {
+            importLease = ProjectOperationCoordinator.tryBegin(
+                    context, ProjectOperationCoordinator.Kind.LAYER_FILL);
+        }
+        if (importLease == null) {
+            new AlertDialog.Builder(context)
+                    .setTitle(R.string.ngw_collector_import_busy_title)
+                    .setMessage(R.string.ngw_collector_import_busy_message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+            setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+            return;
+        }
+        boolean leaseTransferred = false;
+        try {
 
         final ArrayList<Intent> vectorFillBatch = new ArrayList<>();
         for (CheckState checkState : checkStates) {
@@ -485,10 +514,22 @@ public class SelectNGWResourceDialog
             }
             // Single FGS start for the whole batch (one stopSelf() at drain end) avoids the
             // foreground-service lifecycle race of N separate startService deliveries.
-            LayerFillService.startFillBatch(hostActivity, vectorFillBatch);
+            if (!LayerFillService.startFillBatch(
+                    hostActivity, vectorFillBatch, importLease)) {
+                Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show();
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_POSITIVE), true);
+                setEnabled(mDialog.getButton(AlertDialog.BUTTON_NEGATIVE), true);
+                return;
+            }
+            leaseTransferred = true;
             LayerFillProgressDialogFragment.startBatchFillProgress(hostActivity);
         }
         mGroupLayer.save();
+        } finally {
+            if (!leaseTransferred) {
+                importLease.close();
+            }
+        }
     }
 
     private int countSelectedCollectorResources(Connections connections, List<CheckState> checkStates) {
@@ -550,7 +591,7 @@ public class SelectNGWResourceDialog
                 collector.getName(),
                 collector.getProjectDistrict());
         CollectorProjectRegistry.PrepareWorkspaceResult prepareResult =
-                CollectorProjectRegistry.prepareCollectorProjectWorkspaceResult(
+                CollectorProjectRegistry.prepareCollectorProjectWorkspaceForImport(
                         context,
                         metadata);
         LayerGroup projectWorkspace = prepareResult.getWorkspace();
@@ -573,6 +614,7 @@ public class SelectNGWResourceDialog
             return false;
         }
         mGroupLayer = projectWorkspace;
+        mPreparedImportLease = prepareResult.getOperationLease();
         return true;
     }
 

@@ -389,9 +389,20 @@ public class LayerFillService extends Service implements IProgressor {
      *
      * @param taskIntents per-task intents (only their extras are used; action/component ignored).
      */
-    public static void startFillBatch(Context context, ArrayList<Intent> taskIntents) {
+    public static boolean startFillBatch(Context context, ArrayList<Intent> taskIntents) {
+        return startFillBatch(context, taskIntents, null);
+    }
+
+    /**
+     * Starts a batch using a lease acquired before import metadata or raster layers were mutated.
+     * Ownership of {@code reservedLease} transfers to the service only when this returns true.
+     */
+    public static boolean startFillBatch(
+            Context context,
+            ArrayList<Intent> taskIntents,
+            ProjectOperationCoordinator.Lease reservedLease) {
         if (context == null || taskIntents == null || taskIntents.isEmpty()) {
-            return;
+            return false;
         }
         ArrayList<Bundle> batch = new ArrayList<>(taskIntents.size());
         boolean deferMapReload = false;
@@ -408,7 +419,7 @@ public class LayerFillService extends Service implements IProgressor {
             }
         }
         if (batch.isEmpty()) {
-            return;
+            return false;
         }
         Intent batchIntent = new Intent(context, LayerFillService.class);
         batchIntent.setAction(ACTION_ADD_BATCH);
@@ -416,7 +427,9 @@ public class LayerFillService extends Service implements IProgressor {
             batchIntent.putExtra(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, true);
         }
         batchIntent.putParcelableArrayListExtra(KEY_BATCH_EXTRAS, batch);
-        startFillIntent(context, batchIntent);
+        return reservedLease == null
+                ? startFillIntent(context, batchIntent)
+                : startFillIntent(context, batchIntent, reservedLease);
     }
 
     /**
@@ -435,6 +448,13 @@ public class LayerFillService extends Service implements IProgressor {
                     "LayerFillService start blocked by active project operation");
             return false;
         }
+        return startFillIntent(context, intent, lease);
+    }
+
+    private static boolean startFillIntent(
+            Context context,
+            Intent intent,
+            ProjectOperationCoordinator.Lease lease) {
         String reservation = UUID.randomUUID().toString();
         PENDING_OPERATION_LEASES.put(reservation, lease);
         intent.putExtra(KEY_OPERATION_RESERVATION, reservation);

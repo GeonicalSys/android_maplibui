@@ -45,7 +45,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     responsibility: Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; backup-gated pre-sync collapse of duplicate managed layer identities with one map commit; resume a durable Collector journal only in its matching project, clean only app-marked unpublished layer stages, defer heavy account-sync reloads, keep post-fill map reload pending until MapLibre confirms style/source application, and start or stop ExternalGnssService while an external NMEA endpoint is configured.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
-    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, target-project identity verification before file or SQLite access, early parent binding to the owning workspace, Collector-item edit policy application, crash-tracked fail-fast cleanup of incomplete layers, durable timeout recovery, one-commit main-thread replacement scoped by account/project/resource with post-commit storage retirement, and ordered local-underlay insertion above OSM and below the user stack.
+    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, accept an atomically handed-off project-preparation lease before import metadata mutates, target-project identity verification before file or SQLite access, early parent binding to the owning workspace, Collector-item edit policy application, crash-tracked fail-fast cleanup of incomplete layers, durable timeout recovery, one-commit main-thread replacement scoped by account/project/resource with post-commit storage retirement, and ordered local-underlay insertion above OSM and below the user stack.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LayerFactoryUI.java
     responsibility: Route local GeoJSON, KML, GPX, NGRc and raster MBTiles documents to their matching fill task; raster underlays that classify as NGRc/MBTiles go through SharedUnderlayStore.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LoadLisaCollectorProject.java
@@ -53,15 +53,15 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
-    responsibility: Before the first map open, create and activate the initial local workspace or non-destructively adopt the legacy standalone map; atomically persist, recover, create, rename, activate and device-delete isolated Web GIS/local projects with schema-v2 sidecars, operation-aware import preparation and main-thread fallback opening after backup-gated deletion.
+    responsibility: Before the first map open, create and activate the initial local workspace or non-destructively adopt the legacy standalone map; atomically create-and-activate new local projects, persist, recover, rename, activate and device-delete isolated Web GIS/local projects with schema-v2 sidecars, and hand project preparation directly to a layer-fill lease without a sync race.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LegacyMapWorkspaceCopier.java
     responsibility: Copy only the legacy map config, referenced layer directories and track database into the initial isolated workspace while rejecting path traversal and retaining the source as rollback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
-    responsibility: Browse and import NGW resources, warning before an active sync and allowing it to be interrupted before workspace preparation; layer loading still shows a readable modal wait message.
+    responsibility: Browse and import NGW resources, warning before an active sync both at entry and immediately before workspace preparation; layer loading still shows a readable modal wait message.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectOperationCoordinator.java
-    responsibility: Hold one active workspace across sync/fill/rebuild stages, expose sync activity and cancellation, and keep project switch/create/rename/delete plus Debug underlay migration mutually exclusive with database background work.
+    responsibility: Hold one active workspace across sync/fill/rebuild stages, expose sync activity, generation cancellation and independently owned cancel registrations, and keep project switch/create/rename/delete plus Debug underlay migration mutually exclusive with database background work.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectSyncInterruption.java
-    responsibility: Warn before project, layer or underlay actions interrupt an active sync, cancel the worker and wait for every workspace lease to close before continuing the requested action.
+    responsibility: Warn before project, layer or underlay actions interrupt an active sync, distinguish a safely finishing outbound write from other project work, allow abandoning the requested action, and wait for every workspace lease before continuing.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SchemaRebuildRetryGuard.java
     responsibility: Circuit-break unchanged heavy NGW schema rebuilds per workspace/account/resource while allowing an explicit project-settings reset.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectImportHelper.java

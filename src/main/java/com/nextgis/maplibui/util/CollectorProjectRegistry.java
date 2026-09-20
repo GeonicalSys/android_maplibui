@@ -125,10 +125,19 @@ public final class CollectorProjectRegistry {
 
         private final Status status;
         private final LayerGroup workspace;
+        private final ProjectOperationCoordinator.Lease operationLease;
 
         private PrepareWorkspaceResult(Status status, LayerGroup workspace) {
+            this(status, workspace, null);
+        }
+
+        private PrepareWorkspaceResult(
+                Status status,
+                LayerGroup workspace,
+                ProjectOperationCoordinator.Lease operationLease) {
             this.status = status;
             this.workspace = workspace;
+            this.operationLease = operationLease;
         }
 
         public boolean isSuccess() {
@@ -145,6 +154,10 @@ public final class CollectorProjectRegistry {
 
         public LayerGroup getWorkspace() {
             return workspace;
+        }
+
+        public ProjectOperationCoordinator.Lease getOperationLease() {
+            return operationLease;
         }
     }
 
@@ -440,22 +453,80 @@ public final class CollectorProjectRegistry {
             return null;
         }
         try {
-            synchronized (LOCK) {
-                ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
-                ProjectInfo project = buildLocalProjectInfoLocked(
-                        context, projects, requestedName.trim());
-                if (project == null) {
-                    return null;
-                }
-                projects.add(project);
-                if (!saveProjectsLocked(context, projects)) {
-                    FileUtil.deleteRecursive(new File(project.getMapPath()));
-                    return null;
-                }
-                return project;
-            }
+            return createLocalProjectUnderLease(context, requestedName);
         } finally {
             operationLease.close();
+        }
+    }
+
+    public static ProjectInfo createAndActivateLocalProject(
+            Context context,
+            String requestedName) {
+        if (context == null || TextUtils.isEmpty(requestedName)
+                || TextUtils.isEmpty(requestedName.trim())) {
+            return null;
+        }
+        ProjectOperationCoordinator.Lease operationLease =
+                ProjectOperationCoordinator.tryBegin(
+                        context, ProjectOperationCoordinator.Kind.PROJECT_CREATE);
+        if (operationLease == null) {
+            return null;
+        }
+        try {
+            String previousProjectUid = PreferenceManager.getDefaultSharedPreferences(context)
+                    .getString(SettingsConstants.KEY_PREF_ACTIVE_COLLECTOR_PROJECT_UID, null);
+            ProjectInfo project = createLocalProjectUnderLease(context, requestedName);
+            if (project == null) {
+                return null;
+            }
+            if (activateProjectUnderLease(context, project.projectUid)) {
+                return project;
+            }
+            boolean previousRestored = !TextUtils.isEmpty(previousProjectUid)
+                    && activateProjectUnderLease(context, previousProjectUid);
+            if (!previousRestored) {
+                HyperLog.w(Constants.TAG,
+                        "CollectorProjectRegistry: keeping new project after activation failure"
+                                + " because the previous workspace could not be restored uid="
+                                + project.projectUid);
+                return null;
+            }
+            synchronized (LOCK) {
+                ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
+                ProjectInfo created = findProject(projects, project.projectUid);
+                if (created != null) {
+                    projects.remove(created);
+                    if (saveProjectsLocked(context, projects)) {
+                        FileUtil.deleteRecursive(new File(project.getMapPath()));
+                    } else {
+                        HyperLog.w(Constants.TAG,
+                                "CollectorProjectRegistry: could not roll back inactive project "
+                                        + project.projectUid);
+                    }
+                }
+            }
+            return null;
+        } finally {
+            operationLease.close();
+        }
+    }
+
+    private static ProjectInfo createLocalProjectUnderLease(
+            Context context,
+            String requestedName) {
+        synchronized (LOCK) {
+            ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
+            ProjectInfo project = buildLocalProjectInfoLocked(
+                    context, projects, requestedName.trim());
+            if (project == null) {
+                return null;
+            }
+            projects.add(project);
+            if (!saveProjectsLocked(context, projects)) {
+                FileUtil.deleteRecursive(new File(project.getMapPath()));
+                return null;
+            }
+            return project;
         }
     }
 
@@ -797,6 +868,19 @@ public final class CollectorProjectRegistry {
     public static PrepareWorkspaceResult prepareCollectorProjectWorkspaceResult(
             Context context,
             CollectorProjectMetadata metadata) {
+        return prepareCollectorProjectWorkspaceResult(context, metadata, false);
+    }
+
+    public static PrepareWorkspaceResult prepareCollectorProjectWorkspaceForImport(
+            Context context,
+            CollectorProjectMetadata metadata) {
+        return prepareCollectorProjectWorkspaceResult(context, metadata, true);
+    }
+
+    private static PrepareWorkspaceResult prepareCollectorProjectWorkspaceResult(
+            Context context,
+            CollectorProjectMetadata metadata,
+            boolean handoffToLayerFill) {
         if (context == null || metadata == null || !metadata.isValid()) {
             return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.INVALID, null);
         }
@@ -806,6 +890,7 @@ public final class CollectorProjectRegistry {
         if (operationLease == null) {
             return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.BUSY, null);
         }
+        boolean handedOff = false;
         try {
             ProjectInfo project = ensureProject(context, metadata);
             if (project == null) {
@@ -839,13 +924,24 @@ public final class CollectorProjectRegistry {
             }
             HyperLog.v(Constants.TAG, "CollectorProjectRegistry: activated workspace uid="
                     + project.getProjectUid() + " mapPath=" + project.getMapPath());
+            if (handoffToLayerFill) {
+                if (!operationLease.transitionTo(ProjectOperationCoordinator.Kind.LAYER_FILL)) {
+                    return new PrepareWorkspaceResult(
+                            PrepareWorkspaceResult.Status.FAILED, null);
+                }
+                handedOff = true;
+                return new PrepareWorkspaceResult(
+                        PrepareWorkspaceResult.Status.SUCCESS, projectMap, operationLease);
+            }
             return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.SUCCESS, projectMap);
         } catch (RuntimeException e) {
             HyperLog.w(Constants.TAG,
                     "CollectorProjectRegistry: workspace preparation failed: " + e.getMessage(), e);
             return new PrepareWorkspaceResult(PrepareWorkspaceResult.Status.FAILED, null);
         } finally {
-            operationLease.close();
+            if (!handedOff) {
+                operationLease.close();
+            }
         }
     }
 

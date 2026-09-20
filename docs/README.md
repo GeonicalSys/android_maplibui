@@ -51,8 +51,12 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   workspace, но ждёт завершения sync перед доступом к SQLite;
 - попытка импортировать новый Collector-проект, слой или подложку во время sync
   показывает предупреждение с возможностью прервать sync; действие продолжится
-  после освобождения lease. Во время fill/rebuild остаётся модальное ожидание,
-  а реестр до этого не изменяется;
+  после освобождения lease. Gate повторяется перед фактической подготовкой
+  workspace, поэтому sync, начавшийся во время выбора ресурса, не обходит
+  предупреждение. Успешная подготовка без разрыва переводит exclusive
+  project-switch lease в layer-fill lease и передаёт его foreground service.
+  Во время fill/rebuild остаётся модальное ожидание, а реестр до этого не
+  изменяется;
 - staged schema rebuild/removal только после успешного backup, с ограничением
   повторов неизменного mismatch fingerprint;
 - backup сохраняет таблицы слоя и только файлы вложений, физически
@@ -131,8 +135,11 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - Backup failure блокирует destructive mutation; отсутствие локальной копии
   server-only вложения не является failure.
 - Project UID/map path не смешиваются между workspaces; во время sync UI предлагает
-  прервать sync перед switch или destructive project mutation, а fill/rebuild
-  остаются взаимоисключающими с изменением проекта.
+  прервать sync перед switch/create/rename/delete или destructive project
+  mutation. Несколько владельцев отмены регистрируются независимо; завершение
+  отклонённого запуска не снимает handler активного worker. Пока подтверждается
+  уже отправленная серверная правка, UI объясняет безопасное ожидание;
+  fill/rebuild остаются взаимоисключающими с изменением проекта.
 - Чистая установка до первого `MapDrawable` публикует active UID локального
   проекта; legacy migration копирует только map-owned layer paths и track DB,
   не захватывая соседние файлы или каталог остальных проектов.
