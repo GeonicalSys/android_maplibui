@@ -77,6 +77,7 @@ public class ProjectOperationCoordinatorTest {
         ProjectOperationCoordinator.Lease sync = ProjectOperationCoordinator.tryBegin(
                 ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a");
         assertNotNull(sync);
+        assertTrue(ProjectOperationCoordinator.isDataSyncActive());
         assertNull(ProjectOperationCoordinator.tryBegin(
                 ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a"));
 
@@ -85,6 +86,7 @@ public class ProjectOperationCoordinatorTest {
         assertNotNull(fill);
         fill.close();
         sync.close();
+        assertFalse(ProjectOperationCoordinator.isDataSyncActive());
     }
 
     @Test

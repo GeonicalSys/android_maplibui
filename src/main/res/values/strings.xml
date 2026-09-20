@@ -87,6 +87,10 @@
     <string name="ngw_collector_incomplete_snapshot">The Collector project description was not loaded completely. Import was cancelled to prevent a partial project. Check the connection and try again.</string>
     <string name="ngw_collector_import_busy_title">Project download is unavailable</string>
     <string name="ngw_collector_import_busy_message">Wait for synchronization or data loading in the current project to finish, then try again.</string>
+    <string name="sync_interrupt_title">Synchronization in progress</string>
+    <string name="sync_interrupt_message">Stop synchronization and continue with this action?</string>
+    <string name="sync_interrupt_confirm">Stop and continue</string>
+    <string name="sync_interrupt_wait">Stopping synchronization…</string>
     <string name="lisa_catalog_load_project">Load project</string>
     <string name="lisa_catalog_need_account">Add a Web GIS account, then load the project again.</string>
     <string name="lisa_catalog_connect_failed">Could not sign in to Web GIS.</string>

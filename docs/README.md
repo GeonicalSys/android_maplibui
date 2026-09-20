@@ -49,8 +49,10 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   создаётся начальный local workspace, а прежняя штатная standalone-карта один
   раз копируется в него без удаления оригинала; fill заранее резервирует
   workspace, но ждёт завершения sync перед доступом к SQLite;
-- попытка импортировать новый Collector-проект во время sync/fill не изменяет
-  реестр и показывает отдельное окно с просьбой дождаться завершения операции;
+- попытка импортировать новый Collector-проект, слой или подложку во время sync
+  показывает предупреждение с возможностью прервать sync; действие продолжится
+  после освобождения lease. Во время fill/rebuild остаётся модальное ожидание,
+  а реестр до этого не изменяется;
 - staged schema rebuild/removal только после успешного backup, с ограничением
   повторов неизменного mismatch fingerprint;
 - backup сохраняет таблицы слоя и только файлы вложений, физически
@@ -128,8 +130,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   `CollectorRasterLayerHelper`, в общем порядке с vectors и всегда read-only.
 - Backup failure блокирует destructive mutation; отсутствие локальной копии
   server-only вложения не является failure.
-- Project UID/map path не смешиваются между workspaces; switch и destructive
-  project mutation запрещены во время sync/fill/rebuild.
+- Project UID/map path не смешиваются между workspaces; во время sync UI предлагает
+  прервать sync перед switch или destructive project mutation, а fill/rebuild
+  остаются взаимоисключающими с изменением проекта.
 - Чистая установка до первого `MapDrawable` публикует active UID локального
   проекта; legacy migration копирует только map-owned layer paths и track DB,
   не захватывая соседние файлы или каталог остальных проектов.
@@ -203,8 +206,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   через `NGWVectorLayer.isSyncDirectionConfigurable()`.
 - Потеря слоя после composition: backup result и removal scheduling.
 - Неверный проект после restart: registry JSON, active project и map path.
-- Импорт во время sync показывает общую «Ошибку»: проверить статус
-  `PrepareWorkspaceResult.BUSY`; блокировка должна сработать до `ensureProject()`
+- Импорт во время sync показывает предупреждение с кнопкой прерывания; проверить
+  `ProjectSyncInterruption`, отмену worker и то, что блокировка срабатывает до
+  `ensureProject()`. При fill/rebuild сохраняется `PrepareWorkspaceResult.BUSY`.
   и открыть модальное сообщение.
 - После успешного удаления показана ошибка: не открывать fallback-карту из
   фонового потока удаления; её открывает `MainActivity` после результата.

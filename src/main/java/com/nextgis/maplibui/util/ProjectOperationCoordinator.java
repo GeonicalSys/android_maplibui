@@ -5,12 +5,14 @@
 package com.nextgis.maplibui.util;
 
 import android.content.Context;
+import android.content.ContentResolver;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
 import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.SettingsConstants;
+import com.nextgis.maplib.api.IGISApplication;
 
 import java.io.File;
 import java.io.IOException;
@@ -177,6 +179,7 @@ public final class ProjectOperationCoordinator {
     private static final Object LOCK = new Object();
     private static final Map<Long, ActiveOperation> ACTIVE = new LinkedHashMap<>();
     private static long nextId = 1L;
+    private static Runnable dataSyncCancelHandler;
 
     private ProjectOperationCoordinator() {
     }
@@ -220,6 +223,38 @@ public final class ProjectOperationCoordinator {
     public static boolean isBusy() {
         synchronized (LOCK) {
             return !ACTIVE.isEmpty();
+        }
+    }
+
+    public static boolean isDataSyncActive() {
+        synchronized (LOCK) {
+            for (ActiveOperation operation : ACTIVE.values()) {
+                if (operation.kind == Kind.DATA_SYNC) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /** The app registers its direct manual-sync worker; framework sync is canceled separately. */
+    public static void setDataSyncCancelHandler(Runnable handler) {
+        synchronized (LOCK) {
+            dataSyncCancelHandler = handler;
+        }
+    }
+
+    public static void requestDataSyncCancellation(Context context) {
+        Runnable handler;
+        synchronized (LOCK) {
+            handler = dataSyncCancelHandler;
+        }
+        if (handler != null) {
+            handler.run();
+        }
+        if (context != null && context.getApplicationContext() instanceof IGISApplication) {
+            String authority = ((IGISApplication) context.getApplicationContext()).getAuthority();
+            ContentResolver.cancelSync(null, authority);
         }
     }
 
@@ -323,6 +358,7 @@ public final class ProjectOperationCoordinator {
         synchronized (LOCK) {
             ACTIVE.clear();
             nextId = 1L;
+            dataSyncCancelHandler = null;
         }
     }
 }
