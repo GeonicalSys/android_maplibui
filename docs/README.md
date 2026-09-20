@@ -17,6 +17,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 
 - В списке слоёв карты значок включённой видимости зелёный; выключенное
   состояние сохраняет прежний значок и цвет в светлой и тёмной темах.
+  Кольцо прогресса ручной NGW-синхронизации принадлежит app/`NgwSyncProgress`;
+  диалог LayerFill не использует эту шкалу.
 - импорт обычных NGW и Collector vector/style resources;
 - Activity/Dialog выбора NGW сохраняют только account/server, пути remote ID и
   выбранные флаги; деревья ресурсов и credentials не входят в saved state или
