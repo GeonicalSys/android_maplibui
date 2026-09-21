@@ -285,4 +285,4 @@ partial wake lock, пока активен хотя бы один recorder, не
 
 ## Подложки между проектами
 
-SharedUnderlayProjects координирует migration, attach, usage и подтверждённое глобальное удаление через UNDERLAY_MIGRATION lease. LayerFillService не добавляет второй shared ID в один проект. Старые подложки защищаются перед удалением проекта; список слоёв снимает только проектную ссылку. Контракт: [shared-underlays](../../docs/architecture/shared-underlays.md).
+SharedUnderlayProjects координирует migration, attach, usage и подтверждённое глобальное удаление через UNDERLAY_MIGRATION lease. LayerFillService не добавляет второй shared ID в один проект и не подменяет имя NGRc-подложки SAF-идентификатором документа. Старые подложки защищаются перед удалением проекта; список слоёв снимает только проектную ссылку. Контракт: [shared-underlays](../../docs/architecture/shared-underlays.md).
