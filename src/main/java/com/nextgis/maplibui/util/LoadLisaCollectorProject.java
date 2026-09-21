@@ -4,6 +4,13 @@ import android.accounts.AccountManager;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.CheckedTextView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -118,17 +125,97 @@ public final class LoadLisaCollectorProject {
             NGActivity activity,
             Connection connection,
             List<LisaCatalog.Ref> projects) {
+        float density = activity.getResources().getDisplayMetrics().density;
+        LinearLayout container = new LinearLayout(activity);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(density, 16), dp(density, 8), dp(density, 16), dp(density, 8));
+
         String[] names = LisaCatalog.displayNames(projects);
-        new AlertDialog.Builder(activity)
+        CheckedTextView[] rows = new CheckedTextView[projects.size()];
+        final int[] selected = {-1};
+
+        AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle(R.string.lisa_catalog_load_project)
-                .setItems(names, (dialog, which) -> {
-                    if (which < 0 || which >= projects.size()) {
-                        return;
-                    }
-                    importProject(activity, connection, projects.get(which));
-                })
+                .setView(wrapScroll(activity, container))
+                .setPositiveButton(R.string.lisa_catalog_load, null)
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+
+        TypedValue selectable = new TypedValue();
+        activity.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, selectable, true);
+        for (int i = 0; i < projects.size(); i++) {
+            final int index = i;
+            CheckedTextView row = new CheckedTextView(activity);
+            row.setText(names[i]);
+            row.setTextSize(18f);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setMinHeight(dp(density, 60));
+            row.setPadding(dp(density, 18), 0, dp(density, 18), 0);
+            row.setCheckMarkDrawable(android.R.drawable.btn_radio);
+            row.setBackgroundResource(selectable.resourceId);
+            row.setOnClickListener(v -> {
+                if (selected[0] >= 0 && selected[0] < rows.length) {
+                    rows[selected[0]].setChecked(false);
+                }
+                selected[0] = index;
+                row.setChecked(true);
+                Button load = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                if (load != null) {
+                    load.setEnabled(true);
+                }
+            });
+            rows[i] = row;
+            container.addView(row, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            if (i < projects.size() - 1) {
+                View divider = new View(activity);
+                divider.setBackgroundColor(0x33000000);
+                container.addView(divider, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        Math.max(1, dp(density, 1))));
+            }
+        }
+
+        dialog.setOnShowListener(shown -> {
+            Button load = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (load == null) {
+                return;
+            }
+            load.setEnabled(false);
+            load.setOnClickListener(v -> {
+                if (selected[0] < 0 || selected[0] >= projects.size()) {
+                    return;
+                }
+                dialog.dismiss();
+                importProject(activity, connection, projects.get(selected[0]));
+            });
+        });
+        dialog.show();
+    }
+
+    private static ScrollView wrapScroll(NGActivity activity, LinearLayout container) {
+        ScrollView scroll = new ScrollView(activity) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                int maxHeight = Math.round(getResources().getDisplayMetrics().heightPixels * 0.55f);
+                int size = MeasureSpec.getSize(heightMeasureSpec);
+                int mode = MeasureSpec.getMode(heightMeasureSpec);
+                if (mode == MeasureSpec.UNSPECIFIED || size > maxHeight) {
+                    heightMeasureSpec = MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.AT_MOST);
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            }
+        };
+        scroll.setFillViewport(false);
+        scroll.addView(container, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT));
+        return scroll;
+    }
+
+    private static int dp(float density, int value) {
+        return Math.round(value * density);
     }
 
     private static void importProject(

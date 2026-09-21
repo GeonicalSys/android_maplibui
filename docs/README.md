@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-20
+last_verified: 2026-09-21
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -22,7 +22,8 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - импорт обычных NGW и Collector vector/style resources;
 - Activity/Dialog выбора NGW сохраняют только account/server, пути remote ID и
   выбранные флаги; деревья ресурсов и credentials не входят в saved state или
-  новые launch intents. `NgwResourceSelectionState` повторно получает учётные
+  новые launch intents. Имена слоёв и групп в списке переносятся, а не
+  обрезаются. `NgwResourceSelectionState` повторно получает учётные
   данные через AccountManager и восстанавливает путь/выбор в фоне. При ошибке
   сохранённый выбор остаётся для повтора, импорт заблокирован; закрытие экрана
   отменяет restore и не позволяет позднему результату открыть диалог.
@@ -40,8 +41,9 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   добавляется над OSM, получает обычный hot reload и сохраняет порядок;
   «Открыть локальный» классифицирует NGRc/MBTiles/ZIP так же, как «Новая
   подложка из файла»;
-- «Загрузить проект» ищет группу Веб ГИС с ключом `lisa` и импортирует выбранный
-  Collector-проект тем же isolated-workspace pipeline;
+- «Загрузить проект» ищет группу Веб ГИС с ключом `lisa`, показывает проекты
+  radio-списком с разделителями и прокруткой и импортирует выбранный
+  Collector-проект после «Загрузить» тем же isolated-workspace pipeline;
 - lease `UNDERLAY_MIGRATION` исключает одновременные switch/sync/fill операции,
   пока приложение потоково собирает подложки старого Debug в активном проекте;
 - deferred reload карты после batch fill, который остаётся pending до фактического
@@ -78,6 +80,7 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
 - track/edit/form UI и foreground workers/services;
 - фото-вложения по умолчанию получают видимый штамп координат из геометрии объекта;
   оба preference можно выключить в настройках карты;
+  карта по умолчанию не гасит экран (`keep_screen_on=true`);
 - `TrackerService`, `WalkEditService` и `ExternalGnssService` подписаны на общий GNSS-only поток
   Application. `ExternalGnssService` держит процесс при выбранном внешнем
   приёмнике без второй LocationManager-подписки. Tracker и Walk сохраняют отфильтрованные точки после прореживания с сохранением

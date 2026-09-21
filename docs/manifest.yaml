@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-09-20
+last_verified: 2026-09-21
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -37,7 +37,7 @@ key_components:
   - path: maplibui/build.gradle
     responsibility: Compile MapLibre UI against the same explicit MapLibre 13.0.2 OpenGL artifact as app and maplib so the final runtime does not require Vulkan.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/NGWResourcesListAdapter.java
-    responsibility: Load NGW resource trees asynchronously and report connection failures only through a live Activity window without crashing after lifecycle transitions.
+    responsibility: Load NGW resource trees asynchronously, wrap long resource names in the list rows, and report connection failures only through a live Activity window without crashing after lifecycle transitions.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGWLoginActivity.java
     responsibility: Complete Web GIS login only after Android AccountManager returns the created variant-specific account; keep recoverable local failures visible.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/RebuildCacheService.java
@@ -49,7 +49,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LayerFactoryUI.java
     responsibility: Route local GeoJSON, KML, GPX, NGRc and raster MBTiles documents to their matching fill task; raster underlays that classify as NGRc/MBTiles go through SharedUnderlayStore.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LoadLisaCollectorProject.java
-    responsibility: Load Collector projects from the Web GIS group with keyname lisa and reuse the existing isolated-workspace import.
+    responsibility: Load Collector projects from the Web GIS group with keyname lisa using a radio list with dividers and a capped scrolling pane, then reuse the existing isolated-workspace import after Load.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     responsibility: Route a URL-resolved vector or raster resource into the existing fill and map-reload pipeline.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CollectorProjectRegistry.java
@@ -119,7 +119,7 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft]
+settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft]
 storage_contracts:
   - id: ngw-resource-selection-state
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java

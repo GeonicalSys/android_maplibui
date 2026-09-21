@@ -34,6 +34,7 @@ public interface SettingsConstantsUI
     String KEY_PREF_ZOOM_LEVEL = "map_zoom_level";
 
     String KEY_PREF_KEEPSCREENON         = "keep_screen_on";
+    boolean DEFAULT_KEEPSCREENON         = true;
     String KEY_PREF_COORD_FORMAT         = "coordinates_format";
     String KEY_PREF_COORD_FRACTION       = "coordinates_fraction_digits";
     String KEY_PREF_SHOW_SYNC     = "show_sync";
