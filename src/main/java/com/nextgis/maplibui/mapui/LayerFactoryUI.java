@@ -173,6 +173,9 @@ public class LayerFactoryUI
                 || kind == null || kind == SharedUnderlayKind.NONE) {
             return;
         }
+        if (FileUtil.isUnusableDisplayName(layerName)) {
+            layerName = context.getString(R.string.new_layer);
+        }
         Intent intent = new Intent(context, LayerFillService.class);
         intent.setAction(LayerFillService.ACTION_ADD_TASK);
         intent.putExtra(LayerFillService.KEY_URI, uri);

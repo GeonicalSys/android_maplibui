@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.nextgis.maplib.util.GeoConstants.DEFAULT_MAX_ZOOM;
+import static com.nextgis.maplibui.util.SettingsConstantsUI.DEFAULT_KEEPSCREENON;
 import static com.nextgis.maplibui.util.SettingsConstantsUI.KEY_PREF_KEEPSCREENON;
 
 
@@ -112,7 +113,7 @@ public class MapViewBase
     {
         SharedPreferences sharedPreferences =
                 PreferenceManager.getDefaultSharedPreferences(getContext());
-        boolean keepScreen = sharedPreferences.getBoolean(KEY_PREF_KEEPSCREENON, false);
+        boolean keepScreen = sharedPreferences.getBoolean(KEY_PREF_KEEPSCREENON, DEFAULT_KEEPSCREENON);
         setKeepScreenOn(keepScreen);
     }
 

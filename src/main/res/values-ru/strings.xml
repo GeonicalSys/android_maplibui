@@ -89,6 +89,7 @@
     <string name="sync_interrupt_wait_upload">Безопасно завершаем отправку текущего изменения…</string>
     <string name="sync_interrupt_wait_project_operation">Синхронизация остановлена. Ждём завершения текущей операции с проектом…</string>
     <string name="lisa_catalog_load_project">Загрузить проект</string>
+    <string name="lisa_catalog_load">Загрузить</string>
     <string name="lisa_catalog_need_account">Добавьте учётную запись Веб ГИС и снова нажмите «Загрузить проект».</string>
     <string name="lisa_catalog_connect_failed">Не удалось войти в Веб ГИС.</string>
     <string name="lisa_catalog_not_found">Каталог Лисы не найден. Проверьте, что у корневой группы задан ключ lisa.</string>

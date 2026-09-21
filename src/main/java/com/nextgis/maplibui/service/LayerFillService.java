@@ -1966,13 +1966,13 @@ public class LayerFillService extends Service implements IProgressor {
                     == GeoConstants.TMSTYPE_MBTILES_RASTER;
             ((LocalTMSLayerUI) mLayer).setCacheSizeMultiply(bundle.getInt(KEY_TMS_CACHE));
 
-            if (!mIsNgrc) { // it's zip
+            if (!mIsNgrc) {
                 ((LocalTMSLayerUI) mLayer).setTMSType(bundle.getInt(KEY_TMS_TYPE));
-                initLayer();
-            } else {
-                mLayerName = mUri.getLastPathSegment();
-                bindLayerToTargetWorkspace();
             }
+            if (FileUtil.isUnusableDisplayName(mLayerName)) {
+                mLayerName = getString(R.string.new_layer);
+            }
+            initLayer();
         }
 
         @Override
