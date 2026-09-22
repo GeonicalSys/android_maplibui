@@ -118,6 +118,10 @@ public class TrackerService extends Service
     public static final String URL = "/ng-mobile";
 
     private boolean         mIsRunning;
+    private static volatile TrackerService sRecordingService;
+    private boolean mFailureReported;
+    private volatile boolean mPersistenceFailing;
+    private long mLastPersistenceWarningAt;
     private LocationManager mLocationManager;
 
     protected GnssStatus.Callback mGnssCallback;
@@ -248,17 +252,27 @@ public class TrackerService extends Service
             closeUnfinishedTracksBeforeRestart(context);
             setTrackRecordingEnabled(context, true);
             HyperLog.v(Constants.TAG, "TrackerService start requested source=menu recovery=true");
-            ContextCompat.startForegroundService(context, trackerServiceIntent);
-            title = R.string.track_stop;
-            icon = R.drawable.ic_action_maps_directions_walk_rec;
+            if (startTrackingService(context, trackerServiceIntent))
+                title = R.string.track_pending;
         } else {
             setTrackRecordingEnabled(context, true);
             HyperLog.v(Constants.TAG, "TrackerService start requested source=menu recovery=false");
-            ContextCompat.startForegroundService(context, trackerServiceIntent);
-            title = R.string.track_stop;
-            icon = R.drawable.ic_action_maps_directions_walk_rec;
+            if (startTrackingService(context, trackerServiceIntent))
+                title = R.string.track_pending;
         }
         return new Pair<>(icon, title);
+    }
+
+    private static boolean startTrackingService(Context context, Intent intent) {
+        try {
+            ContextCompat.startForegroundService(context, intent);
+            return true;
+        } catch (RuntimeException exception) {
+            setTrackRecordingEnabled(context, false);
+            HyperLog.w(Constants.TAG, "TrackerService foreground start failed", exception);
+            Toast.makeText(context, R.string.track_start_failed, Toast.LENGTH_LONG).show();
+            return false;
+        }
     }
 
     /**
@@ -268,6 +282,13 @@ public class TrackerService extends Service
     public static boolean isTrackRecordingEnabled(Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context)
                 .getBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, false);
+    }
+
+    /** The durable intent alone is not proof that Android started the recorder. */
+    public static boolean isTrackRecordingActive() {
+        TrackerService service = sRecordingService;
+        return service != null && service.mIsRunning && service.mTrackId != null
+                && !service.mPersistenceFailing;
     }
 
     public static void setTrackRecordingEnabled(Context context, boolean enabled) {
@@ -306,8 +327,12 @@ public class TrackerService extends Service
         Intent trackerService = new Intent(context, TrackerService.class);
         trackerService.setAction(ACTION_START);
         trackerService.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
-        ContextCompat.startForegroundService(context, trackerService);
-        HyperLog.v(Constants.TAG, "TrackerService start requested source=resume");
+        try {
+            ContextCompat.startForegroundService(context, trackerService);
+            HyperLog.v(Constants.TAG, "TrackerService start requested source=resume");
+        } catch (RuntimeException exception) {
+            HyperLog.w(Constants.TAG, "TrackerService resume start deferred", exception);
+        }
     }
 
 
@@ -371,11 +396,13 @@ public class TrackerService extends Service
                             return START_NOT_STICKY;
                         }
                         if (!startTrack()) {
+                            reportTrackStartFailure();
                             removeNotification();
                             stopSelf();
                             return START_NOT_STICKY;
                         }
                         if (!addNotification()) {
+                            stopTrack("foreground-failed");
                             return START_NOT_STICKY;
                         }
                         return START_STICKY;
@@ -411,6 +438,7 @@ public class TrackerService extends Service
             // there are no tracks or last track correctly ended
             if (mSharedPreferencesTemp.getString(TRACK_URI, null) == null || !restoreData()) {
                 if (!startTrack()) {
+                    reportTrackStartFailure();
                     removeNotification();
                     stopSelf();
                     return START_NOT_STICKY;
@@ -427,6 +455,7 @@ public class TrackerService extends Service
             mLocationSenderThread.start();
 
             if (!addNotification()) {
+                stopTrack("foreground-failed");
                 return START_NOT_STICKY;
             }
         }
@@ -465,6 +494,7 @@ public class TrackerService extends Service
         sendTrackStartBroadcast(checkIsBatteryPermOK(this));
         ((GISApplication)getApplication()).setIsTrackInProgress(true);
         mGpsSource.addRecordingListener(this);
+        sRecordingService = this;
         return true;
     }
 
@@ -479,6 +509,7 @@ public class TrackerService extends Service
         mAcceptedFixCount = 0L;
         mInsertedPointCount = 0L;
         mInsertFailCount = 0L;
+        mPersistenceFailing = false;
 
         // get track name date unique appendix
         String pattern = "yyyy-MM-dd--HH-mm-ss";
@@ -712,7 +743,12 @@ public class TrackerService extends Service
     private boolean startLocationForegroundSafely(
             android.app.Notification notification, String stage) {
         try {
-            startForeground(TRACK_NOTIFICATION_ID, notification);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(TRACK_NOTIFICATION_ID, notification,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(TRACK_NOTIFICATION_ID, notification);
+            }
             return true;
         } catch (SecurityException ex) {
             HyperLog.w(Constants.TAG, "TrackerService location foreground rejected stage="
@@ -732,7 +768,16 @@ public class TrackerService extends Service
                     + ": " + ex.getMessage(), ex);
         }
         mNotificationManager.cancel(TRACK_NOTIFICATION_ID);
+        reportTrackStartFailure();
         stopSelf();
+    }
+
+    private void reportTrackStartFailure() {
+        if (mFailureReported) return;
+        mFailureReported = true;
+        Intent message = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK).setPackage(getPackageName());
+        message.putExtra(ConstantsUI.KEY_TRACK_ACTION, ConstantsUI.VALUE_TRACK_FAILED);
+        sendBroadcast(message);
     }
 
 
@@ -766,6 +811,7 @@ public class TrackerService extends Service
     public void onDestroy() {
         HyperLog.v(Constants.TAG, "TrackerService.onDestroy running=" + mIsRunning + " trackId=" + mTrackId);
         stopTrack("onDestroy");
+        if (sRecordingService == this) sRecordingService = null;
 
         mGpsSource.removeRecordingListener(this);
         unregisterGpsStatusListenerSafely();
@@ -842,19 +888,40 @@ public class TrackerService extends Service
             if (inserted != null && android.content.ContentUris.parseId(inserted) >= 0) {
                 mLastInsertedRowId = android.content.ContentUris.parseId(inserted);
                 mInsertedPointCount++;
+                if (mPersistenceFailing) {
+                    mPersistenceFailing = false;
+                    sendTrackStateBroadcast(ConstantsUI.VALUE_TRACK_START);
+                }
                 sendTrackPointBroadcast();
                 return true;
             }
             mInsertFailCount++;
             HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint returned null trackId=" + mTrackId);
             mRecordingSoundMonitor.onPersistenceFailed();
+            reportTrackPersistenceFailure();
         } catch (Exception ex) {
             mInsertFailCount++;
             Log.e(TrackerService.class.getName(), "onLocation EXCEPTION!!" + ex.getMessage());
             HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint: " + ex.getMessage(), ex);
             mRecordingSoundMonitor.onPersistenceFailed();
+            reportTrackPersistenceFailure();
         }
         return false;
+    }
+
+    private void reportTrackPersistenceFailure() {
+        mPersistenceFailing = true;
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (mLastPersistenceWarningAt != 0
+                && now - mLastPersistenceWarningAt < 60_000L) return;
+        mLastPersistenceWarningAt = now;
+        sendTrackStateBroadcast(ConstantsUI.VALUE_TRACK_SAVE_FAILED);
+    }
+
+    private void sendTrackStateBroadcast(String action) {
+        Intent message = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK).setPackage(getPackageName());
+        message.putExtra(ConstantsUI.KEY_TRACK_ACTION, action);
+        sendBroadcast(message);
     }
 
     private void correctStationaryTrackPoint(Location location) {

@@ -118,7 +118,7 @@
             android:name="com.nextgis.maplibui.service.TrackerService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="location|connectedDevice"/>
+            android:foregroundServiceType="location"/>
 
         <service
             android:name="com.nextgis.maplibui.service.ExternalGnssService"
@@ -130,7 +130,7 @@
             android:name="com.nextgis.maplibui.service.WalkEditService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="location|connectedDevice"/>
+            android:foregroundServiceType="location"/>
 
         <receiver
             android:name=".service.BootLoader"

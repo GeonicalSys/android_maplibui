@@ -247,6 +247,9 @@
     <string name="counting">Идет подсчет…</string>
     <string name="track_start">Начать запись трека</string>
     <string name="track_stop">Завершить запись трека</string>
+    <string name="track_pending">Трек не записывается (нажмите, чтобы остановить)</string>
+    <string name="track_start_failed">Запись трека не началась. Проверьте доступ к геолокации и свободное место.</string>
+    <string name="track_save_failed">Не удалось сохранить точки трека. Проверьте свободное место.</string>
     <string name="tracks_running">Записывается трек</string>
     <string name="external_gnss_keep_alive_title">Внешний GNSS</string>
     <string name="external_gnss_keep_alive_text">Приёмник остаётся подключённым</string>
@@ -555,7 +558,7 @@
     <string name="allow">"Разрешить"</string>
     <string name="deny">"Отклонить"</string>
 
-    <string name="account_permissions">NextGIS Mobile нужен доступ к контактам для создания и управления учетными записями на устройстве для синхронизации с вашей Веб-ГИС</string>
+    <string name="account_permissions">Разрешите доступ к учётным записям устройства для входа и синхронизации Веб-ГИС. Приложение не читает контакты.</string>
     <string name="no_contancts_access">Вы не сможете использовать NGW аккаунт без доступа к контактам</string>
 
     <string name="login_requred">Зарегистрируйтесь и войдите в приложении (Настройки - Учетная запись).</string>

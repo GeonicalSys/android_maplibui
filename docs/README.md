@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-21
+last_verified: 2026-09-22
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -93,6 +93,11 @@ Collector workspaces и защитные backups. MapLibre Android `13.0.2` по
   Подробности и миграция: [GPS pipeline](../../docs/architecture/location-pipeline.md).
   Сервисы работают в основном процессе, сохраняют durable intent/черновики при
   неожиданном завершении и не запускают запрещённый location FGS без permission.
+  Track и Walk запускаются только с foreground type `location`, без требований
+  `connectedDevice`. Меню различает намерение и реально созданный трек, а
+  ошибка запуска или сохранения точки предупреждает пользователя; до успешной
+  повторной записи меню не подтверждает активную запись. Черновик обхода и уже записанные
+  точки сохраняются для восстановления.
 - сообщения результата сохранения мультиполигона: успешное исправление с числом
   частей либо возврат в редактор при невозможности получить валидную геометрию;
 - LineString, Polygon и Multi-варианты используют tap-скетч с одним стартовым
