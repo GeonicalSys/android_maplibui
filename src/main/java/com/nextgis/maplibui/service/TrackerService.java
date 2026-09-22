@@ -538,10 +538,12 @@ public class TrackerService extends Service
             }
 
             mIsRunning = true;
+            sRecordingService = this;
             addSplitter();
         } catch (SQLiteException ex) {
             HyperLog.w(Constants.TAG, "TrackerService.startTrack SQLiteException: " + ex.getMessage(), ex);
             mIsRunning = false;
+            if (sRecordingService == this) sRecordingService = null;
             return false;
         }
 
@@ -611,6 +613,7 @@ public class TrackerService extends Service
         int closed = terminal ? closeTracks(this, (IGISApplication) getApplication()) : 0;
 
         mIsRunning = false;
+        if (sRecordingService == this) sRecordingService = null;
 
         // cancel midnight splitter
         mAlarmManager.cancel(mSplitService);
