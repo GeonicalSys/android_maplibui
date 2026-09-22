@@ -45,7 +45,7 @@ public final class WalkSessionStore {
     public static final class Snapshot {
         public final String id, mapPath, fullWkt, pointId, pointStage;
         public final int layerId, member, ring, pointLayer, pointTool;
-        public final long featureId, revision;
+        public final long featureId, revision, updatedAt;
         public final boolean gpsPaused;
         public final WalkSessionPolicy.Phase phase;
 
@@ -62,6 +62,7 @@ public final class WalkSessionStore {
             member = prefs.getInt(WalkEditService.KEY_GEOMETRY_INDEX, 0);
             ring = prefs.getInt(WalkEditService.KEY_RING_INDEX, 0);
             revision = prefs.getLong(KEY_REVISION, 0);
+            updatedAt = prefs.getLong(WalkEditService.KEY_UPDATED_AT, 0);
             gpsPaused = prefs.getBoolean(WalkEditService.KEY_GPS_PAUSED, false);
             phase = WalkSessionPolicy.Phase.valueOf(prefs.getString(KEY_PHASE, "RECORDING"));
         }
@@ -161,6 +162,18 @@ public final class WalkSessionStore {
     public static synchronized boolean clear(Context context, String id) {
         Snapshot session = load(context);
         if (session == null || !session.id.equals(id) || session.isPointActive()) return false;
+        boolean saved = preferences(context).edit().clear().commit();
+        if (saved) notifyChanged(context);
+        return saved;
+    }
+
+    /** Remove a session whose foreground recorder never acknowledged its initial snapshot. */
+    public static synchronized boolean clearUnconfirmedStart(Context context, String id) {
+        Snapshot session = load(context);
+        if (session == null || !session.id.equals(id) || session.isPointActive()
+                || session.phase != WalkSessionPolicy.Phase.RECORDING
+                || session.revision > 1 || session.updatedAt > 0
+                || WalkEditService.isSessionRunning(id)) return false;
         boolean saved = preferences(context).edit().clear().commit();
         if (saved) notifyChanged(context);
         return saved;

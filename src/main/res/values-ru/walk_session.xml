@@ -15,4 +15,11 @@
     <string name="walk_point_recovery">Незавершённая точка блокирует управление обходом. Продолжите её создание или отмените его.</string>
     <string name="walk_project_busy">Сохраните или отмените обход перед сменой проекта.</string>
     <string name="walk_layer_busy">Этот слой используется для обхода.</string>
+    <string name="walk_emergency_reset">Сбросить зависший обход</string>
+    <string name="walk_emergency_reset_summary">Удалить состояние обхода, если его панель управления недоступна.</string>
+    <string name="walk_emergency_reset_empty">Активного обхода нет.</string>
+    <string name="walk_emergency_reset_confirm">Удалить незавершённую геометрию обхода и связанную с ним точку или форму? Проекты и сохранённые объекты удалены не будут.</string>
+    <string name="walk_emergency_reset_done">Обход сброшен.</string>
+    <string name="walk_foreign_map_message">Незавершённый обход относится к другому проекту и не может быть показан на этой карте. Сбросить его, чтобы разблокировать инструменты обхода?</string>
+    <string name="walk_keep">Оставить</string>
 </resources>

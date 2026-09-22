@@ -16,4 +16,11 @@
     <string name="walk_point_recovery">An unfinished point is blocking walking controls. Continue creating it or discard it.</string>
     <string name="walk_project_busy">Save or discard the walking session before changing the project.</string>
     <string name="walk_layer_busy">This layer is being used by the walking session.</string>
+    <string name="walk_emergency_reset">Reset stuck walking session</string>
+    <string name="walk_emergency_reset_summary">Remove walking state when its controls are unavailable.</string>
+    <string name="walk_emergency_reset_empty">There is no active walking session.</string>
+    <string name="walk_emergency_reset_confirm">Discard the unfinished walking geometry and its pending point or form? Projects and saved objects will not be removed.</string>
+    <string name="walk_emergency_reset_done">The walking session was reset.</string>
+    <string name="walk_foreign_map_message">An unfinished walking session belongs to another project and cannot be shown on this map. Reset it to unblock walking tools?</string>
+    <string name="walk_keep">Keep</string>
 </resources>

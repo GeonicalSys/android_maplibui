@@ -113,6 +113,7 @@ public class TrackerService extends Service
     public static final String ACTION_STOP            = "com.nextgis.maplibui.TRACK_STOP";
     private static final String ACTION_SPLIT          = "com.nextgis.maplibui.TRACK_SPLIT";
     private static final int    TRACK_NOTIFICATION_ID = 1;
+    private static final String KEY_TRACK_FAILURE = "track_recording_failure";
 //    public static final String HOST = "http://dev.nextgis.com/tracker-dev1-hub";
     public static final String HOST = "https://track.nextgis.com";
     public static final String URL = "/ng-mobile";
@@ -155,6 +156,8 @@ public class TrackerService extends Service
     private long mInsertedPointCount;
     private long mInsertFailCount;
     private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
+
+    public enum RecordingState { STOPPED, STARTING, RECORDING, ERROR }
 
     @Override
     public void onCreate() {
@@ -250,11 +253,13 @@ public class TrackerService extends Service
         } else if (hasUnfinishedTracks(context)) {
             // Crash recovery path: keep points, close unfinished session, start a new track.
             closeUnfinishedTracksBeforeRestart(context);
+            setTrackFailure(context, false);
             setTrackRecordingEnabled(context, true);
             HyperLog.v(Constants.TAG, "TrackerService start requested source=menu recovery=true");
             if (startTrackingService(context, trackerServiceIntent))
                 title = R.string.track_pending;
         } else {
+            setTrackFailure(context, false);
             setTrackRecordingEnabled(context, true);
             HyperLog.v(Constants.TAG, "TrackerService start requested source=menu recovery=false");
             if (startTrackingService(context, trackerServiceIntent))
@@ -291,11 +296,47 @@ public class TrackerService extends Service
                 && !service.mPersistenceFailing;
     }
 
+    public static RecordingState getRecordingState(Context context) {
+        TrackerService service = sRecordingService;
+        if (service != null && service.mPersistenceFailing)
+            return RecordingState.ERROR;
+        if (isTrackRecordingActive())
+            return RecordingState.RECORDING;
+        if (!isTrackRecordingEnabled(context))
+            return RecordingState.STOPPED;
+        return isTrackFailure(context) ? RecordingState.ERROR : RecordingState.STARTING;
+    }
+
+    public static boolean isSystemLocationEnabled(Context context) {
+        if (context == null) return false;
+        LocationManager manager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
+        if (manager == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            return manager.isLocationEnabled();
+        try {
+            return manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                    || manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
     public static void setTrackRecordingEnabled(Context context, boolean enabled) {
         PreferenceManager.getDefaultSharedPreferences(context)
                 .edit()
                 .putBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, enabled)
                 .commit();
+        if (!enabled) setTrackFailure(context, false);
+    }
+
+    private static void setTrackFailure(Context context, boolean failed) {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putBoolean(KEY_TRACK_FAILURE, failed).commit();
+    }
+
+    private static boolean isTrackFailure(Context context) {
+        return PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(KEY_TRACK_FAILURE, false);
     }
 
     /**
@@ -321,9 +362,15 @@ public class TrackerService extends Service
             HyperLog.w(Constants.TAG, "TrackerService.ensureRecordingRunningIfEnabled: no location permission");
             return;
         }
+        if (!isSystemLocationEnabled(context)) {
+            HyperLog.w(Constants.TAG,
+                    "TrackerService.ensureRecordingRunningIfEnabled: system location is disabled");
+            return;
+        }
         if (hasUnfinishedTracks(context)) {
             closeUnfinishedTracksBeforeRestart(context);
         }
+        setTrackFailure(context, false);
         Intent trackerService = new Intent(context, TrackerService.class);
         trackerService.setAction(ACTION_START);
         trackerService.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
@@ -416,6 +463,14 @@ public class TrackerService extends Service
                 stopForMissingLocationPermission("start");
                 return START_NOT_STICKY;
             }
+            if (!isSystemLocationEnabled(this)) {
+                HyperLog.w(Constants.TAG,
+                        "TrackerService: system location is disabled, stop startId=" + startId);
+                setTrackRecordingEnabled(this, false);
+                reportTrackStartFailure();
+                stopSelf(startId);
+                return START_NOT_STICKY;
+            }
 
             initTargetIntent(targetActivity);
             if (!addStartingNotification()) {
@@ -486,6 +541,8 @@ public class TrackerService extends Service
             mSegment = points != null && points.moveToFirst() ? points.getInt(0) + 1 : 0;
         }
         mLastRecordingNanos = 0;
+        mPersistenceFailing = false;
+        setTrackFailure(this, false);
         mIsRunning = true;
         mStopBroadcastSent = false;
         setTrackRecordingEnabled(this, true);
@@ -510,6 +567,7 @@ public class TrackerService extends Service
         mInsertedPointCount = 0L;
         mInsertFailCount = 0L;
         mPersistenceFailing = false;
+        setTrackFailure(this, false);
 
         // get track name date unique appendix
         String pattern = "yyyy-MM-dd--HH-mm-ss";
@@ -778,6 +836,7 @@ public class TrackerService extends Service
     private void reportTrackStartFailure() {
         if (mFailureReported) return;
         mFailureReported = true;
+        setTrackFailure(this, true);
         Intent message = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK).setPackage(getPackageName());
         message.putExtra(ConstantsUI.KEY_TRACK_ACTION, ConstantsUI.VALUE_TRACK_FAILED);
         sendBroadcast(message);
@@ -893,6 +952,7 @@ public class TrackerService extends Service
                 mInsertedPointCount++;
                 if (mPersistenceFailing) {
                     mPersistenceFailing = false;
+                    setTrackFailure(this, false);
                     sendTrackStateBroadcast(ConstantsUI.VALUE_TRACK_START);
                 }
                 sendTrackPointBroadcast();
@@ -914,6 +974,7 @@ public class TrackerService extends Service
 
     private void reportTrackPersistenceFailure() {
         mPersistenceFailing = true;
+        setTrackFailure(this, true);
         long now = android.os.SystemClock.elapsedRealtime();
         if (mLastPersistenceWarningAt != 0
                 && now - mLastPersistenceWarningAt < 60_000L) return;
@@ -1202,8 +1263,15 @@ public class TrackerService extends Service
             List<String> permslist = new ArrayList<>();
             permslist.add(Manifest.permission.ACCESS_COARSE_LOCATION);
             permslist.add(Manifest.permission.ACCESS_FINE_LOCATION);
-            requestPermissions(context, R.string.permissions, R.string.location_permissions, LOCATION_BACKGROUND_REQUEST,
-                    permslist.toArray(new String[permslist.size()])); // list.toArray(new Foo[list.size()])
+            new AlertDialog.Builder(context).setTitle(R.string.permissions)
+                    .setMessage(R.string.location_permissions)
+                    .setPositiveButton(R.string.allow, (dialog, which) ->
+                            ActivityCompat.requestPermissions(context,
+                                    permslist.toArray(new String[0]), LOCATION_BACKGROUND_REQUEST))
+                    .setNegativeButton(R.string.deny, (dialog, which) -> listener.onCancelled())
+                    .setOnCancelListener(dialog -> listener.onCancelled())
+                    .setCancelable(true)
+                    .show();
             return;
         }
 
@@ -1236,7 +1304,9 @@ public class TrackerService extends Service
                        }
                    }
                })
-               .setNegativeButton(R.string.cancel, null)
+               .setNegativeButton(R.string.cancel,
+                       (dialog, which) -> listener.onCancelled())
+               .setOnCancelListener(dialog -> listener.onCancelled())
                .show();
     }
 
@@ -1259,6 +1329,7 @@ public class TrackerService extends Service
         void beforeAndroid10(boolean hasBackgroundPermission);
         void onAndroid10(boolean hasBackgroundPermission);
         void afterAndroid10(boolean hasBackgroundPermission);
+        void onCancelled();
     }
 
 }
