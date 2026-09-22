@@ -87,6 +87,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     public static final String ACTION_START = "com.nextgis.maplibui.WALKEDIT_START";
     public static final String ACTION_FINISH = "com.nextgis.maplibui.WALKEDIT_FINISH";
     private static final String EXTRA_USER_RESUME = "walk_user_resume";
+    private static final String EXTRA_EMERGENCY_RESET = "walk_emergency_reset";
     public static final String WALKEDIT_CHANGE = "com.nextgis.maplibui.WALKEDIT_CHANGE";
     /** Intent extra / prefs: clear durable draft only on explicit Save/Cancel stop. */
     public static final String EXTRA_CLEAR_DRAFT = "clear_draft";
@@ -170,6 +171,18 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         String action = intent != null ? intent.getAction() : null;
         if (session != null) {
             String commandId = intent != null ? intent.getStringExtra(WalkSessionStore.KEY_SESSION) : session.id;
+            boolean emergencyReset = intent != null
+                    && intent.getBooleanExtra(EXTRA_EMERGENCY_RESET, false);
+            if (emergencyReset) {
+                if (session.id.equals(commandId)
+                        && (mSessionId == null || mSessionId.equals(session.id))) {
+                    mSessionId = session.id;
+                    finishOwnedSession(true);
+                } else if (mGeometry == null) {
+                    stopSelf();
+                }
+                return mTerminalHandled || mGeometry == null ? START_NOT_STICKY : START_STICKY;
+            }
             if (!WalkSessionStore.isCurrentMap(this, session) || !session.id.equals(commandId)
                     || (mSessionId != null && !mSessionId.equals(session.id))) {
                 if (mGeometry == null) stopSelf();
@@ -683,6 +696,39 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         intent.setAction(ACTION_STOP);
         intent.putExtra(EXTRA_CLEAR_DRAFT, true);
         context.startService(intent);
+    }
+
+    /**
+     * User-confirmed escape hatch for a walk whose normal panel is unavailable.
+     * The point lock is released first so the same session-owned stop command can clear the
+     * durable draft without touching projects, layers or unrelated application preferences.
+     */
+    public static boolean emergencyStopAndClearDraft(Context context) {
+        if (context == null)
+            return false;
+        WalkSessionStore.Snapshot session = WalkSessionStore.load(context);
+        boolean existed = session != null || hasValidDraft(context) || isServiceRunning(context);
+        if (session != null) {
+            if (session.isPointActive())
+                WalkSessionStore.endPoint(context, session.pointId);
+            if (isSessionRunning(session.id)) {
+                Intent intent = new Intent(context, WalkEditService.class)
+                        .setAction(ACTION_STOP)
+                        .putExtra(WalkSessionStore.KEY_SESSION, session.id)
+                        .putExtra(EXTRA_EMERGENCY_RESET, true);
+                context.startService(intent);
+            } else {
+                WalkSessionStore.clear(context, session.id);
+            }
+        } else {
+            stopAndClearDraft(context);
+        }
+        return existed;
+    }
+
+    public static boolean hasAnyWalkState(Context context) {
+        return context != null && (WalkSessionStore.load(context) != null
+                || hasValidDraft(context) || isServiceRunning(context));
     }
 
     /**

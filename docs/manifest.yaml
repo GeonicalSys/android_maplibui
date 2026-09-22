@@ -17,7 +17,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedUnderlayProjects.java
     responsibility: Coordinate migration, catalog usage, duplicate-safe attach and global unlink under a project lease.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
-    responsibility: Persist one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel.
+    responsibility: Persist one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel, including revision and snapshot acknowledgement used by startup repair.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionRecoveryPolicy.java
+    responsibility: Classify unacknowledged empty starts, resumable stopped drafts, interrupted Finish and foreign-map owners without Android dependencies.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionPolicy.java
     responsibility: Validate session identity and phase; reject every walk command while a point owns the foreground flow.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkGeometrySnapshot.java
@@ -77,11 +79,11 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
     responsibility: Export layer tables and only attachment files physically present on this device before destructive rebuild or removal, without downloading server-only payloads.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
-    responsibility: Start a location-only foreground recorder, distinguish confirmed recording from durable intent, report failed starts, keep ordered Start/Stop and preserve validated GNSS points on unexpected termination.
+    responsibility: Start a location-only foreground recorder only while Android system location is enabled, expose stopped/starting/recording/error state, distinguish confirmed recording from durable intent, report failed starts, keep ordered Start/Stop and preserve validated GNSS points on unexpected termination.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/ExternalGnssService.java
     responsibility: Hold the default process as a silent location|connectedDevice foreground service while an in-app NMEA endpoint is configured, without opening a second LocationManager subscription.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
-    responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, acknowledge a durable final snapshot before foreground editing, and retain paused recovery without a raw-location tail.
+    responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, acknowledge a durable final snapshot before foreground editing, retain paused recovery without a raw-location tail, and provide an exact-session emergency stop/clear path across map identity changes.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
     responsibility: Consume the shared validated GNSS stream before geometry sampling, use measurement age for the ten-second background heartbeat, rely on source-owned recording wake lock and retain existing alarm/vibration and persistence-failure feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundPolicy.java

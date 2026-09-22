@@ -270,7 +270,10 @@
     <string name="counting">Counting…</string>
     <string name="track_start">Start new track</string>
     <string name="track_stop">Stop track</string>
-    <string name="track_pending">Not recording — tap Stop</string>
+    <string name="track_pending">Starting track recording…</string>
+    <string name="track_error">Track recording stopped because of an error</string>
+    <string name="recording_location_disabled_title">Turn on location</string>
+    <string name="recording_location_disabled_message">Location is turned off in Android. Turn it on before starting track or walk recording.</string>
     <string name="track_start_failed">Track recording did not start. Check location access and free storage.</string>
     <string name="track_save_failed">Track points could not be saved. Check free storage.</string>
     <string name="tracks_running">Track is recording now</string>
