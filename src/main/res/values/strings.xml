@@ -270,7 +270,7 @@
     <string name="counting">Counting…</string>
     <string name="track_start">Start new track</string>
     <string name="track_stop">Stop track</string>
-    <string name="track_pending">Track is not recording (tap to stop)</string>
+    <string name="track_pending">Not recording — tap Stop</string>
     <string name="track_start_failed">Track recording did not start. Check location access and free storage.</string>
     <string name="track_save_failed">Track points could not be saved. Check free storage.</string>
     <string name="tracks_running">Track is recording now</string>

@@ -247,7 +247,7 @@
     <string name="counting">Идет подсчет…</string>
     <string name="track_start">Начать запись трека</string>
     <string name="track_stop">Завершить запись трека</string>
-    <string name="track_pending">Трек не записывается (нажмите, чтобы остановить)</string>
+    <string name="track_pending">Не пишется — нажмите стоп</string>
     <string name="track_start_failed">Запись трека не началась. Проверьте доступ к геолокации и свободное место.</string>
     <string name="track_save_failed">Не удалось сохранить точки трека. Проверьте свободное место.</string>
     <string name="tracks_running">Записывается трек</string>
