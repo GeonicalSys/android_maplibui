@@ -270,6 +270,9 @@
     <string name="counting">Counting…</string>
     <string name="track_start">Start new track</string>
     <string name="track_stop">Stop track</string>
+    <string name="track_pending">Track is not recording (tap to stop)</string>
+    <string name="track_start_failed">Track recording did not start. Check location access and free storage.</string>
+    <string name="track_save_failed">Track points could not be saved. Check free storage.</string>
     <string name="tracks_running">Track is recording now</string>
     <string name="external_gnss_keep_alive_title">External GNSS</string>
     <string name="external_gnss_keep_alive_text">Receiver connection is active</string>
@@ -567,7 +570,7 @@
     <string name="permissions">Permissions</string>
 
     <string name="location_permissions">NextGIS Mobile collects location  to  show your location on the map</string>
-    <string name="account_permissions">NextGIS Mobile needs access to contacts to create and manage Web GIS Accounts further used for syncronization purposes.</string>
+    <string name="account_permissions">Allow access to device accounts for Web GIS sign-in and synchronization. The app does not read your contacts.</string>
     <string name="no_contancts_access">You cannot use NGW account without contact permissions</string>
 
 <!--    <string name="collector">Collector</string>-->

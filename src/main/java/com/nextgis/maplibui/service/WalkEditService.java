@@ -809,7 +809,12 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     private boolean startLocationForegroundSafely(
             android.app.Notification notification, String stage) {
         try {
-            startForeground(WALK_NOTIFICATION_ID, notification);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(WALK_NOTIFICATION_ID, notification,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(WALK_NOTIFICATION_ID, notification);
+            }
             return true;
         } catch (SecurityException ex) {
             HyperLog.w(Constants.TAG, "WalkEditService location foreground rejected stage="
