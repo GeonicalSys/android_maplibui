@@ -2,12 +2,14 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-03
+last_verified: 2026-10-04
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/build.gradle
+    responsibility: Compile the shared UI against the coupled app and maplib version contract; the pending production 3.1.2.27/221 bump preserves variant account identities and the OpenGL backend.
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/LayersListAdapter.java
     responsibility: Show a green visibility icon for enabled map layers and retain the themed icon color for disabled layers.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/SelectNGWResourceDialog.java
@@ -81,7 +83,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
     responsibility: Start a location-only foreground recorder only while Android system location is enabled, expose stopped/starting/recording/error state, distinguish confirmed recording from durable intent, report failed starts, keep ordered Start/Stop and preserve validated GNSS points on unexpected termination.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/ExternalGnssService.java
-    responsibility: Hold the default process as a silent location|connectedDevice foreground service while an in-app NMEA endpoint is configured, without opening a second LocationManager subscription.
+    responsibility: Hold the default process as a silent location|connectedDevice foreground service while an external endpoint is configured; maplib owns Pigo UART readiness and fix expiry, and service presence does not imply a usable fix; no second LocationManager subscription.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
     responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, acknowledge a durable final snapshot before foreground editing, retain paused recovery without a raw-location tail, and provide an exact-session emergency stop/clear path across map identity changes.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java

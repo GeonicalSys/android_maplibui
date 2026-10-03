@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-03
+last_verified: 2026-10-04
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -12,6 +12,14 @@ UI-библиотека и runtime orchestration: выбор NGW resources, со
 слоёв, batch fill, layer list/reorder, edit overlays, sync/account UI,
 Collector workspaces и защитные backups. MapLibre Android `13.0.2` подключён
 через явный OpenGL-артефакт, согласованный с `app` и `maplib`.
+
+При подготовке production `3.1.2.27` библиотека проверяется вместе с consuming
+app и maplib; shared UI, account identities и OpenGL backend сохраняют прежний
+контракт. APK version matrix выполняется после закрытия library PRs.
+
+`ExternalGnssService` удерживает внешнюю сессию, а готовность BLE-подписки и
+свежесть качества определяет maplib. Живой foreground service не подтверждает
+наличие свежего фикса; Pigo использует профиль UART `3A20` и BESTPOSB.
 
 ## Основные сценарии
 
