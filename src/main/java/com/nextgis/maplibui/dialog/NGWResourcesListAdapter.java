@@ -419,11 +419,11 @@ public class NGWResourcesListAdapter
                 v = inflater.inflate(R.layout.row_resourcegroup, null);
                 v.setId(R.id.resourcegroup_row);
 
-                ImageView ivIcon = v.findViewById(R.id.ivIcon);
-                ivIcon.setImageDrawable(ContextCompat.getDrawable(mActivity.get(), R.drawable.ic_ngw_folder));
-
 //                Log.e("CRVV", "Inflate view for  " + resource.getName());
             }
+
+            ImageView ivIcon = v.findViewById(R.id.ivIcon);
+            ivIcon.setImageDrawable(ContextCompat.getDrawable(mActivity.get(), R.drawable.ic_ngw_folder));
 
             TextView tvText = v.findViewById(R.id.tvName);
             tvText.setText(mActivity.get().getString(R.string.up_dots));
@@ -456,9 +456,11 @@ public class NGWResourcesListAdapter
                         v = inflater.inflate(R.layout.row_resourcegroup, null);
                         v.setId(R.id.resourcegroup_row);
 
-                        ivIcon = v.findViewById(R.id.ivIcon);
-                        ivIcon.setImageDrawable(ContextCompat.getDrawable(mActivity.get(), R.drawable.ic_ngw_folder));
                     }
+
+                    // Account, add-account and folder rows share the same layout.
+                    ivIcon = v.findViewById(R.id.ivIcon);
+                    ivIcon.setImageDrawable(ContextCompat.getDrawable(mActivity.get(), R.drawable.ic_ngw_folder));
 
                     tvDesc = v.findViewById(R.id.tvDesc);
                     tvDesc.setText(mActivity.get().getString(R.string.resource_group));

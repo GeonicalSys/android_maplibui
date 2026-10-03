@@ -91,6 +91,14 @@ public class Tabs extends LinearLayout implements IFormControl
         super(context);
     }
 
+    /** Includes inactive pages, whose edited controls still belong to the form. */
+    public List<? extends android.view.View> getPageLayouts() {
+        List<android.view.View> layouts = new ArrayList<>();
+        if (mTabs != null) for (Fragment fragment : mTabs)
+            if (fragment instanceof TabFragment) layouts.add(((TabFragment) fragment).mLayout);
+        return layouts;
+    }
+
     public Tabs(Context context, AttributeSet attrs) {
         super(context, attrs);
     }

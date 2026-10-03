@@ -119,7 +119,8 @@ public final class NGIDUtils {
 
         String base = mPreferences.getString("ngid_url", NGIDUtils.NGID_MY);
         base = NetworkUtil.trimSlash(base);
-        new Load(context, callback, base).execute(USER_INFO, "GET", null, login, password);
+        new Load(context, callback, base).execute(USER_INFO, "GET", null,
+                NGIDLoginName.normalize(login), password);
     }
 
     private static class Load extends AsyncTask<String, Void, HttpResponse> {

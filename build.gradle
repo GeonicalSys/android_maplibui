@@ -114,7 +114,8 @@ dependencies {
 
     implementation 'androidx.work:work-runtime:2.11.2'
     implementation project(':easypicker-module')
-    implementation 'com.github.barsrb:hyperlog-android:master-SNAPSHOT'
+    // Immutable, byte-identical AAR. Its dependency-free POM still declares master-SNAPSHOT.
+    implementation 'com.github.barsrb:hyperlog-android:master-0.0.10-g855ebf8-12@aar'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'

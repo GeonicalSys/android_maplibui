@@ -419,66 +419,85 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                    @Override
                    public void onClick(DialogInterface dialogInterface, int i) {
-                       if (((IGISApplication) mActivity.get().getApplication()).isLayerReservedForWalk(layer.getId())) {
+                       android.app.Activity activity = mActivity.get();
+                       if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+                       if (((IGISApplication) activity.getApplication()).isLayerReservedForWalk(layer.getId())) {
                            android.widget.Toast.makeText(mActivity.get(), R.string.walk_layer_busy,
                                    android.widget.Toast.LENGTH_LONG).show();
                            return;
                        }
                        if (layer instanceof NGWVectorLayer) {
-                           android.content.Context appCtx =
-                                   mActivity.get().getApplicationContext();
-                           if (!(appCtx instanceof IGISApplication)
-                                   || !((IGISApplication) appCtx).backupEditableLayerData(
-                                           (NGWVectorLayer) layer,
-                                           LayerBackupManager.REASON_MANUAL_LAYER_DELETE)) {
-                               return;
-                           }
-                       }
-
-                       final int position = mMap.removeLayer(layer);
-                       final View root = mActivity.get().getWindow().getDecorView().getRootView();
-                       if (root == null) {
-                           layer.delete(true);
-                           mMap.save();
-                           return;
-                       }
-
-                       String done = mActivity.get().getString(R.string.delete_layer_done);
-                       Snackbar snackbar = Snackbar.make(root, done, Snackbar.LENGTH_LONG)
-                                                   .setAction(R.string.undo, new View.OnClickListener() {
-                                                       @Override
-                                                       public void onClick(View v) {
-
-                                                           mMap.insertLayer(position, layer);
-                                                       }
-                                                   })
-                                                   .setCallback(new Snackbar.Callback() {
-                                                       @Override
-                                                       public void onDismissed(Snackbar snackbar, int event) {
-                                                           super.onDismissed(snackbar, event);
-                                                           if (event == DISMISS_EVENT_MANUAL)
-                                                               return;
-                                                           if (event != DISMISS_EVENT_ACTION) {
-                                                               layer.delete(true);
-                                                               mMap.save();
-                                                           }
-                                                       }
-
-                                                       @Override
-                                                       public void onShown(Snackbar snackbar) {
-                                                           super.onShown(snackbar);
-                                                       }
-                                                   });
-
-                       View view = snackbar.getView();
-                       TextView textView = view.findViewById(com.google.android.material.R.id.snackbar_text);
-                       textView.setTextColor(ContextCompat.getColor(mActivity.get(), R.color.color_white));
-                       snackbar.show();
+                           IGISApplication app = (IGISApplication) activity.getApplication();
+                           final com.nextgis.maplib.map.MapBase owner = app.getMap();
+                           final long generation = ((NGWVectorLayer) layer).getDataGeneration();
+                           android.app.ProgressDialog progress = android.app.ProgressDialog.show(
+                                   activity, null, activity.getString(R.string.form_save_processing), true, false);
+                           new Thread(() -> {
+                               boolean backedUp = app.backupEditableLayerData((NGWVectorLayer) layer,
+                                       LayerBackupManager.REASON_MANUAL_LAYER_DELETE);
+                               activity.runOnUiThread(() -> {
+                                   if (activity.isFinishing() || activity.isDestroyed()) return;
+                                   if (progress.isShowing()) progress.dismiss();
+                                   if (!backedUp) return;
+                                   if (app.getMap() != owner || layer.getParent() == null
+                                           || ((NGWVectorLayer) layer).getDataGeneration() != generation
+                                           || app.isLayerReservedForWalk(layer.getId())) {
+                                       android.widget.Toast.makeText(activity, R.string.layer_delete_retry,
+                                               android.widget.Toast.LENGTH_LONG).show();
+                                       return;
+                                   }
+                                   removeBackedUpLayer(layer, generation);
+                               });
+                           }, "layer-delete-backup").start();
+                       } else removeBackedUpLayer(layer, -1);
                    }
                })
                .setNegativeButton(R.string.cancel, null).show();
-
         return true;
+    }
+
+    private void removeBackedUpLayer(final ILayer layer, final long generation) {
+        android.app.Activity activity = mActivity.get();
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        IGISApplication app = (IGISApplication) activity.getApplication();
+        final ILayer parent = layer.getParent();
+        if (parent == null || app.getMap() != mMap) return;
+        // Keep the layer attached during Undo. Sync/form writes still resolve its owning database,
+        // and the final gate can compare against the exact snapshot that was backed up.
+        View root = activity.getWindow().getDecorView().getRootView();
+        if (root == null) return;
+        Snackbar snackbar = Snackbar.make(root, R.string.layer_delete_pending, Snackbar.LENGTH_LONG)
+                .setAction(R.string.undo, view -> { })
+                .addCallback(new Snackbar.Callback() {
+                    @Override public void onDismissed(Snackbar bar, int event) {
+                        if (event == DISMISS_EVENT_ACTION || event == DISMISS_EVENT_MANUAL) return;
+                        if (app.getMap() != mMap || layer.getParent() != parent
+                                || app.isLayerReservedForWalk(layer.getId())
+                                || layer instanceof NGWVectorLayer
+                                && ((NGWVectorLayer) layer).getDataGeneration() != generation) {
+                            android.app.Activity current = mActivity.get();
+                            if (current != null && !current.isFinishing() && !current.isDestroyed())
+                                android.widget.Toast.makeText(current, R.string.layer_delete_retry,
+                                        android.widget.Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        try {
+                            if (!layer.delete(true)) return;
+                            mMap.save();
+                            notifyDataChanged(false, false);
+                        } catch (RuntimeException error) {
+                            android.util.Log.e(com.nextgis.maplib.util.Constants.TAG,
+                                    "Layer removal failed after backup", error);
+                            android.app.Activity current = mActivity.get();
+                            if (current != null && !current.isFinishing() && !current.isDestroyed())
+                                android.widget.Toast.makeText(current, R.string.layer_delete_retry,
+                                        android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
+        TextView text = snackbar.getView().findViewById(com.google.android.material.R.id.snackbar_text);
+        text.setTextColor(ContextCompat.getColor(activity, R.color.color_white));
+        snackbar.show();
     }
 
     @Override

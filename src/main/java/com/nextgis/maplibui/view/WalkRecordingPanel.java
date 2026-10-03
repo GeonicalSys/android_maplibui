@@ -148,7 +148,8 @@ public class WalkRecordingPanel extends LinearLayout {
         title.setText(getContext().getString(R.string.walk_panel_title, layer == null ? "" : layer.getName()));
         boolean running = WalkEditService.isSessionRunning(session.id);
         Location location = app.getGpsEventSource().getLastRecordingLocation();
-        if (session.phase == WalkSessionPolicy.Phase.FINISHED) status.setText(R.string.walk_finished_pending);
+        if (WalkEditService.isPersistenceFailed(session.id)) status.setText(R.string.walk_checkpoint_failed);
+        else if (session.phase == WalkSessionPolicy.Phase.FINISHED) status.setText(R.string.walk_finished_pending);
         else if (session.phase == WalkSessionPolicy.Phase.FINISHING) status.setText(R.string.walk_finishing);
         else if (!running) status.setText(R.string.walkedit_interrupted_title);
         else if (session.gpsPaused) status.setText(R.string.walk_gps_paused);

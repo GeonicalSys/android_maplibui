@@ -49,6 +49,8 @@ import com.nextgis.maplibui.api.IFormControl;
 import com.nextgis.maplibui.util.ControlHelper;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
+import org.json.JSONException;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -76,6 +78,10 @@ public class Sign extends View implements IFormControl {
     protected File mPreviousSign;
     protected boolean mNotInitialized;
     protected Bitmap mPreviousSignBitmap;
+    private final List<List<Float>> mStrokes = new java.util.ArrayList<>();
+    private boolean mEdited;
+    private int mStrokeWidth, mStrokeHeight;
+    private static final String DRAFT_STROKES = "signature_strokes";
 
     protected final int CLEAR_BUFF_DP = 15;
     protected final int CLEAR_IMAGE_SIZE_DP = 32;
@@ -125,6 +131,7 @@ public class Sign extends View implements IFormControl {
         else
             mPaint.setColor(Color.BLACK);
 
+        mPaths.clear();
         mPath = new Path();
         mPaths.add(mPath);
     }
@@ -133,13 +140,22 @@ public class Sign extends View implements IFormControl {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
 
+        if (mEdited) {
+            rebuildPaths(w, h);
+            mNotInitialized = false;
+            return;
+        }
+        if (mPreviousSignPath == null || w <= 0 || h <= 0) return;
         mPreviousSign = new File(mPreviousSignPath, SIGN_FILE);
-        if (mNotInitialized = mPreviousSign.exists()) {
-            try {
-                BitmapFactory.Options options = ControlHelper.getOptions(new FileInputStream(mPreviousSign), w, h);
-                mPreviousSignBitmap = ControlHelper.getBitmap(new FileInputStream(mPreviousSign), options);
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
+        if (mNotInitialized = mPreviousSign.isFile()) {
+            try (FileInputStream bounds = new FileInputStream(mPreviousSign);
+                 FileInputStream pixels = new FileInputStream(mPreviousSign)) {
+                BitmapFactory.Options options = ControlHelper.getOptions(bounds, w, h);
+                Bitmap previous = mPreviousSignBitmap;
+                mPreviousSignBitmap = ControlHelper.getBitmap(pixels, options);
+                if (previous != null && previous != mPreviousSignBitmap) previous.recycle();
+            } catch (IOException | RuntimeException error) {
+                android.util.Log.w(com.nextgis.maplib.util.Constants.TAG, "Cannot load signature", error);
             }
         }
     }
@@ -151,8 +167,10 @@ public class Sign extends View implements IFormControl {
             canvas.drawBitmap(mPreviousSignBitmap, 0, 0, null);
 
         int posX = canvas.getWidth() - mClearImageSize - mClearBuff;
-        mCleanImage.setBounds(posX, mClearBuff, posX + mClearImageSize, mClearImageSize + mClearBuff);
-        mCleanImage.draw(canvas);
+        if (mCleanImage != null) {
+            mCleanImage.setBounds(posX, mClearBuff, posX + mClearImageSize, mClearImageSize + mClearBuff);
+            mCleanImage.draw(canvas);
+        }
 
         if (!mNotInitialized)
             for (Path path : mPaths)
@@ -167,6 +185,12 @@ public class Sign extends View implements IFormControl {
     }
 
     protected void touchStart(float x, float y) {
+        mEdited = true;
+        mStrokeWidth = getWidth();
+        mStrokeHeight = getHeight();
+        List<Float> stroke = new java.util.ArrayList<>();
+        stroke.add(x); stroke.add(y);
+        mStrokes.add(stroke);
         mPath.reset();
         mPath.moveTo(x, y);
         mX = x;
@@ -177,6 +201,10 @@ public class Sign extends View implements IFormControl {
         float dx = Math.abs(x - mX);
         float dy = Math.abs(y - mY);
         if (dx >= TOUCH_TOLERANCE || dy >= TOUCH_TOLERANCE) {
+            if (!mStrokes.isEmpty()) {
+                List<Float> stroke = mStrokes.get(mStrokes.size() - 1);
+                stroke.add(x); stroke.add(y);
+            }
             mPath.quadTo(mX, mY, (x + mX)/2, (y + mY)/2);
             mX = x;
             mY = y;
@@ -233,6 +261,10 @@ public class Sign extends View implements IFormControl {
     }
 
     private void onClearSign() {
+        mEdited = true;
+        mStrokes.clear();
+        mStrokeWidth = getWidth();
+        mStrokeHeight = getHeight();
         if (mNotInitialized)
             mNotInitialized = false;
 
@@ -243,24 +275,32 @@ public class Sign extends View implements IFormControl {
         postInvalidate();
     }
 
+    public boolean needsSave() {
+        return mEdited && getWidth() > 0 && getHeight() > 0;
+    }
+
+    public boolean hasEdits() { return mEdited; }
+
     public void save(int width, int height, boolean transparentBackground, File sigFile) throws IOException {
-        if (mNotInitialized)
-            return;
+        if (!mEdited) return;
+        if (width <= 0 || height <= 0 || getWidth() <= 0 || getHeight() <= 0)
+            throw new IOException("Signature has no drawable size");
 
         float scale = Math.min((float) width / getWidth(), (float) height / getHeight());
         Matrix matrix = new Matrix();
         matrix.setScale(scale, scale);
 
         Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bmp);
-        canvas.setMatrix(matrix);
-
-        int color = transparentBackground ? Color.TRANSPARENT : 0xFFFFFF - mPaint.getColor();
-        drawSign(canvas, color, mPaint);
-        if(sigFile.exists() || sigFile.createNewFile()) {
-            FileOutputStream out = new FileOutputStream(sigFile);
-            bmp.compress(Bitmap.CompressFormat.PNG, 90, out);
-        }
+        try (FileOutputStream out = new FileOutputStream(sigFile)) {
+            Canvas canvas = new Canvas(bmp);
+            canvas.setMatrix(matrix);
+            int color = transparentBackground ? Color.TRANSPARENT : 0xFFFFFF - mPaint.getColor();
+            drawSign(canvas, color, mPaint);
+            if (!bmp.compress(Bitmap.CompressFormat.PNG, 90, out))
+                throw new IOException("Signature encoding failed");
+            out.flush();
+            out.getFD().sync();
+        } finally { bmp.recycle(); }
     }
 
     public void setPath(String path) {
@@ -273,6 +313,27 @@ public class Sign extends View implements IFormControl {
                      Map<String, Map<String, String>> translations,
                      final ModifyAttributesActivity modifyAttributesActivity) {
         init();
+        if (savedState != null && savedState.containsKey(DRAFT_STROKES)) {
+            try {
+                JSONObject state = new JSONObject(savedState.getString(DRAFT_STROKES));
+                mStrokeWidth = state.getInt("width");
+                mStrokeHeight = state.getInt("height");
+                JSONArray strokes = state.getJSONArray("strokes");
+                mStrokes.clear();
+                for (int i=0; i<strokes.length(); i++) {
+                    JSONArray coordinates = strokes.getJSONArray(i);
+                    if (coordinates.length() % 2 != 0) throw new JSONException("Invalid signature coordinates");
+                    List<Float> stroke = new java.util.ArrayList<>();
+                    for (int j=0; j<coordinates.length(); j++) stroke.add((float) coordinates.getDouble(j));
+                    mStrokes.add(stroke);
+                }
+                mEdited = true;
+                mNotInitialized = false;
+                if (getWidth() > 0 && getHeight() > 0) rebuildPaths(getWidth(), getHeight());
+            } catch (JSONException | RuntimeException error) {
+                android.util.Log.w(com.nextgis.maplib.util.Constants.TAG, "Cannot restore signature draft", error);
+            }
+        }
     }
 
     @Override
@@ -302,6 +363,42 @@ public class Sign extends View implements IFormControl {
 
     @Override
     public void saveState(Bundle outState) {
+        if (!mEdited) return;
+        try {
+            JSONObject state = new JSONObject();
+            state.put("width", mStrokeWidth);
+            state.put("height", mStrokeHeight);
+            JSONArray strokes = new JSONArray();
+            for (List<Float> stroke : mStrokes) strokes.put(new JSONArray(stroke));
+            state.put("strokes", strokes);
+            outState.putString(DRAFT_STROKES, state.toString());
+        } catch (JSONException error) {
+            throw new IllegalStateException("Cannot checkpoint signature", error);
+        }
+    }
 
+    private void rebuildPaths(int width, int height) {
+        float sx = mStrokeWidth > 0 ? (float) width / mStrokeWidth : 1;
+        float sy = mStrokeHeight > 0 ? (float) height / mStrokeHeight : 1;
+        mPaths.clear();
+        for (List<Float> stroke : mStrokes) {
+            if (stroke.size() < 2) continue;
+            for (int i=0; i<stroke.size(); i+=2) {
+                stroke.set(i, stroke.get(i) * sx); stroke.set(i+1, stroke.get(i+1) * sy);
+            }
+            Path path = new Path();
+            float x = stroke.get(0), y = stroke.get(1);
+            path.moveTo(x, y);
+            for (int i=2; i<stroke.size(); i+=2) {
+                float nextX = stroke.get(i), nextY = stroke.get(i+1);
+                path.quadTo(x, y, (x+nextX)/2, (y+nextY)/2);
+                x = nextX; y = nextY;
+            }
+            path.lineTo(x, y);
+            mPaths.add(path);
+        }
+        mStrokeWidth = width; mStrokeHeight = height;
+        mPath = new Path();
+        mPaths.add(mPath);
     }
 }

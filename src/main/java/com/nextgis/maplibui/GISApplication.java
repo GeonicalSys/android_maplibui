@@ -367,6 +367,7 @@ public abstract class GISApplication extends Application
     }
 
     public synchronized void resetMap(){
+        interceptorNG.clearAuth();
         if (null != mMap) {
             mMap = null;
             getMap();
@@ -374,6 +375,7 @@ public abstract class GISApplication extends Application
     }
 
     public synchronized void closeMapObj(){
+        interceptorNG.clearAuth();
         mMap = null;
     }
 
@@ -467,6 +469,7 @@ public abstract class GISApplication extends Application
 
     @Override
     public AccountManagerFuture<Boolean> removeAccount(Account account) {
+        if (account != null) refreshRasterAuthentication(account.name, true);
         AccountManagerFuture<Boolean> bool = new AccountManagerFuture<Boolean>() {
             @Override
             public boolean cancel(boolean mayInterruptIfRunning) {
@@ -621,6 +624,7 @@ public abstract class GISApplication extends Application
         Account account = getAccount(name);
         if (null != account) {
             mAccountManager.setPassword(account, value);
+            refreshRasterAuthentication(name, false);
         }
     }
 
@@ -633,6 +637,8 @@ public abstract class GISApplication extends Application
         Account account = getAccount(name);
         if (null != account) {
             mAccountManager.setUserData(account, key, value);
+            if ("login".equals(key) || "url".equals(key))
+                refreshRasterAuthentication(name, "url".equals(key));
         }
     }
 
@@ -2536,9 +2542,6 @@ public abstract class GISApplication extends Application
         if (layer == null) {
             return false;
         }
-        if (!layer.isEditingAllowed()) {
-            return true;
-        }
         if (featureIds == null || featureIds.isEmpty()) {
             return true;
         }
@@ -2546,13 +2549,8 @@ public abstract class GISApplication extends Application
         LayerBackupManager.BackupResult backupResult =
                 LayerBackupManager.backupFeatures(this, layer, featureIds, reason);
         if (!backupResult.isSuccess()) {
-            String detail = TextUtils.isEmpty(backupResult.getError())
-                    ? getString(com.nextgis.maplib.R.string.layer_feature_backup_failed,
-                            layer.getName())
-                    : getString(
-                            com.nextgis.maplib.R.string.layer_backup_feature_delete_cancelled_detail,
-                            layer.getName(),
-                            backupResult.getError());
+            String detail = getString(com.nextgis.maplib.R.string.layer_feature_backup_failed,
+                    layer.getName());
             String title = isManualDeleteReason(reason)
                     ? getString(com.nextgis.maplib.R.string.layer_backup_delete_cancelled_title)
                     : getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_title);
@@ -2570,40 +2568,12 @@ public abstract class GISApplication extends Application
             return false;
         }
         if (isLayerReservedForWalk(layer.getId())) return false;
-        if (!layer.isEditingAllowed()) {
-            return true;
-        }
 
         LayerBackupManager.BackupResult backupResult =
                 LayerBackupManager.backupLayerData(this, layer, reason);
         if (!backupResult.isSuccess()) {
-            String title;
-            String message;
-            if (isManualDeleteReason(reason)
-                    || LayerBackupManager.REASON_COLLECTOR_LAYER_REMOVED.equals(reason)) {
-                title = isManualDeleteReason(reason)
-                        ? getString(com.nextgis.maplib.R.string.layer_backup_delete_cancelled_title)
-                        : getString(com.nextgis.maplib.R.string.collector_layer_removed_title);
-                message = TextUtils.isEmpty(backupResult.getError())
-                        ? (LayerBackupManager.REASON_COLLECTOR_LAYER_REMOVED.equals(reason)
-                                ? getString(com.nextgis.maplib.R.string.collector_layer_backup_failed,
-                                        layer.getName())
-                                : getString(com.nextgis.maplib.R.string.layer_data_backup_failed,
-                                        layer.getName()))
-                        : getString(
-                                com.nextgis.maplib.R.string.layer_backup_delete_cancelled_detail,
-                                layer.getName(),
-                                backupResult.getError());
-            } else {
-                title = getString(com.nextgis.maplib.R.string.ngw_schema_mismatch_title);
-                message = TextUtils.isEmpty(backupResult.getError())
-                        ? getString(com.nextgis.maplib.R.string.layer_data_backup_failed,
-                                layer.getName())
-                        : getString(
-                                com.nextgis.maplib.R.string.layer_backup_delete_cancelled_detail,
-                                layer.getName(),
-                                backupResult.getError());
-            }
+            String title = getString(com.nextgis.maplib.R.string.layer_backup_delete_cancelled_title);
+            String message = getString(com.nextgis.maplib.R.string.layer_data_backup_failed, layer.getName());
             postLayerBackupAlert(title, message);
             HyperLog.w(Constants.TAG, "Layer backup failed for \"" + layer.getName()
                     + "\" reason=" + reason + ": " + backupResult.getError());
@@ -2703,6 +2673,16 @@ public abstract class GISApplication extends Application
 
     @Override
     public boolean isLayerReservedForWalk(int id) {
+        com.nextgis.maplibui.util.FeatureFormDraftStore.Snapshot draft =
+                com.nextgis.maplibui.util.FeatureFormDraftStore.load(this);
+        if (draft != null && mMap != null && (draft.mapPath == null
+                || draft.mapPath.equals(mMap.getPath().getAbsolutePath()))) {
+            ILayer draftLayer = mMap.getLayerById(draft.layerId);
+            while (draftLayer != null) {
+                if (draftLayer.getId() == id) return true;
+                draftLayer = draftLayer.getParent();
+            }
+        }
         com.nextgis.maplibui.util.WalkSessionStore.Snapshot session =
                 com.nextgis.maplibui.util.WalkSessionStore.load(this);
         if (!com.nextgis.maplibui.util.WalkSessionStore.isCurrentMap(this, session)) return false;
@@ -2731,9 +2711,36 @@ public abstract class GISApplication extends Application
     };
 
     @Override
-    public void updateAuthPair(String[] authPart){
+    public synchronized void updateAuthPair(String[] authPart){
+        if (mMap == null || authPart == null || authPart.length < 4 || authPart[3] == null) return;
+        java.nio.file.Path root = mMap.getPath().toPath().toAbsolutePath().normalize();
+        if (!new File(authPart[3]).toPath().toAbsolutePath().normalize().startsWith(root)) return;
         interceptorNG.addAuth(authPart);
     };
+
+    private synchronized void refreshRasterAuthentication(String accountName, boolean removeOnly) {
+        if (mMap == null) return;
+        List<ILayer> layers = new ArrayList<>();
+        LayerGroup.getLayersByType(mMap, Constants.LAYERTYPE_NGW_RASTER, layers);
+        for (ILayer item : layers) {
+            if (!(item instanceof NGWRasterLayer)) continue;
+            NGWRasterLayer layer = (NGWRasterLayer) item;
+            if (!accountName.equals(layer.getAccountName())) continue;
+            String owner = layer.getPath().getAbsolutePath();
+            interceptorNG.removeAuth(new String[]{owner});
+            if (removeOnly) continue;
+            try {
+                Account account = getAccount(accountName);
+                if (account == null) continue;
+                String authorization = NetworkUtil.getHTTPBaseAuth(getAccountLogin(account), getAccountPassword(account));
+                layer.setAccountName(accountName); // refresh the library's cached credentials too
+                interceptorNG.addAuth(new String[]{NetworkUtil.getBaseUrlpart(layer.getURL()),
+                        "resource=" + NetworkUtil.extractResourceValue(layer.getURL()), authorization, owner});
+            } catch (RuntimeException error) {
+                Log.w(Constants.TAG, "Cannot refresh raster authentication", error);
+            }
+        }
+    }
 
 
     @Override

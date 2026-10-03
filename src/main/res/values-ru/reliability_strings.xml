@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ngid_login_hint">Почта или логин</string>
+    <string name="walk_checkpoint_failed">Не удалось сохранить обход. Освободите место и повторите завершение.</string>
+    <string name="walk_start_failed">Не удалось продолжить обход. Откройте приложение и проверьте разрешения на местоположение.</string>
+    <string name="error_form_checkpoint">Не удалось сохранить черновик. Освободите место и повторите попытку.</string>
+    <string name="error_form_attachments">Не удалось сохранить часть фотографий или подпись. Форма остаётся открытой. Повторите сохранение.</string>
+    <string name="form_save_processing">Сохранение объекта…</string>
+    <string name="layer_delete_retry">Слой изменился во время резервного копирования. Повторите удаление.</string>
+    <string name="layer_delete_pending">Удаление слоя…</string>
+    <string name="attribute_link_unavailable">Не удалось открыть ссылку. Проверьте, установлен ли браузер.</string>
+</resources>

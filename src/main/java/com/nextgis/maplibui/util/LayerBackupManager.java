@@ -96,15 +96,19 @@ public final class LayerBackupManager {
                 .format(new Date());
         String fileName = timestamp + "_rid" + layer.getRemoteId() + "_"
                 + safeFileName(layer.getName()) + "_" + safeFileName(reason) + ".zip";
-        File backupFile = new File(backupRoot, fileName);
+        File backupFile;
+        try { backupFile = File.createTempFile(fileName + "_", ".partial", backupRoot); }
+        catch (IOException error) { return BackupResult.failure(error.getMessage()); }
 
         try (ZipOutputStream zos = new ZipOutputStream(
                 new BufferedOutputStream(new FileOutputStream(backupFile, false)))) {
-            MapContentProviderHelper map = (MapContentProviderHelper) MapBase.getInstance();
+            MapContentProviderHelper map = com.nextgis.maplib.util.DatabaseContext.getMapForLayer(layer);
             if (map == null) {
-                return BackupResult.failure("Map database is not available");
+                throw new IOException("Map database is not available");
             }
             SQLiteDatabase db = map.getDatabase(true);
+            db.beginTransactionNonExclusive();
+            try {
             JSONObject manifest = buildManifest(layer, reason, timestamp, null);
             writeJsonEntry(zos, "manifest.json", manifest);
             writeTableDump(zos, db, layer.getPath().getName(), "tables/features.json",
@@ -118,7 +122,8 @@ public final class LayerBackupManager {
             if (attachError != null) {
                 throw new IOException(attachError);
             }
-        } catch (IOException | JSONException | SQLiteException | ClassCastException e) {
+            } finally { db.endTransaction(); }
+        } catch (IOException | JSONException | RuntimeException e) {
             HyperLog.w(Constants.TAG, "LayerBackupManager.backupLayerData: "
                     + e.getMessage(), e);
             if (backupFile.exists()) {
@@ -128,6 +133,12 @@ public final class LayerBackupManager {
             return BackupResult.failure(e.getMessage());
         }
 
+        try { backupFile = commitArchive(backupFile); }
+        catch (IOException error) {
+            backupFile.delete();
+            HyperLog.w(Constants.TAG, "Cannot finalize backup", error);
+            return BackupResult.failure(error.getMessage());
+        }
         enforceBackupQuota(context, getMaxBackupBytes(context), backupFile);
         HyperLog.v(Constants.TAG, "Layer backup created: " + backupFile.getAbsolutePath());
         return BackupResult.success(backupFile);
@@ -160,15 +171,19 @@ public final class LayerBackupManager {
         String fileName = timestamp + "_rid" + layer.getRemoteId() + "_"
                 + safeFileName(layer.getName()) + "_" + safeFileName(reason)
                 + "_n" + ids.size() + ".zip";
-        File backupFile = new File(backupRoot, fileName);
+        File backupFile;
+        try { backupFile = File.createTempFile(fileName + "_", ".partial", backupRoot); }
+        catch (IOException error) { return BackupResult.failure(error.getMessage()); }
 
         try (ZipOutputStream zos = new ZipOutputStream(
                 new BufferedOutputStream(new FileOutputStream(backupFile, false)))) {
-            MapContentProviderHelper map = (MapContentProviderHelper) MapBase.getInstance();
+            MapContentProviderHelper map = com.nextgis.maplib.util.DatabaseContext.getMapForLayer(layer);
             if (map == null) {
-                return BackupResult.failure("Map database is not available");
+                throw new IOException("Map database is not available");
             }
             SQLiteDatabase db = map.getDatabase(true);
+            db.beginTransactionNonExclusive();
+            try {
             JSONObject manifest = buildManifest(layer, reason, timestamp, ids);
             writeJsonEntry(zos, "manifest.json", manifest);
             writeTableDump(zos, db, layer.getPath().getName(), "tables/features.json",
@@ -182,7 +197,8 @@ public final class LayerBackupManager {
             if (attachError != null) {
                 throw new IOException(attachError);
             }
-        } catch (IOException | JSONException | SQLiteException | ClassCastException e) {
+            } finally { db.endTransaction(); }
+        } catch (IOException | JSONException | RuntimeException e) {
             HyperLog.w(Constants.TAG, "LayerBackupManager.backupFeatures: "
                     + e.getMessage(), e);
             if (backupFile.exists()) {
@@ -191,10 +207,42 @@ public final class LayerBackupManager {
             return BackupResult.failure(e.getMessage());
         }
 
+        try { backupFile = commitArchive(backupFile); }
+        catch (IOException error) {
+            backupFile.delete();
+            HyperLog.w(Constants.TAG, "Cannot finalize backup", error);
+            return BackupResult.failure(error.getMessage());
+        }
         enforceBackupQuota(context, getMaxBackupBytes(context), backupFile);
         HyperLog.v(Constants.TAG, "Feature backup created: " + backupFile.getAbsolutePath()
                 + " ids=" + ids.size());
         return BackupResult.success(backupFile);
+    }
+
+    /** Validate the completed ZIP before exposing it or allowing destructive work. */
+    static File commitArchive(File partial) throws IOException {
+        try (java.util.zip.ZipFile archive = new java.util.zip.ZipFile(partial)) {
+            for (String required : new String[]{"manifest.json", "tables/features.json",
+                    "tables/changes.json", "tables/attachments.json"}) {
+                if (archive.getEntry(required) == null) throw new IOException("Missing backup entry");
+            }
+            java.util.Enumeration<? extends ZipEntry> entries = archive.entries();
+            byte[] buffer = new byte[8192];
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.isDirectory()) continue;
+                java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+                try (java.io.InputStream input = archive.getInputStream(entry)) {
+                    int count;
+                    while ((count = input.read(buffer)) != -1) crc.update(buffer, 0, count);
+                }
+                if (crc.getValue() != entry.getCrc()) throw new IOException("Backup CRC mismatch");
+            }
+        }
+        File completed = new File(partial.getParentFile(), partial.getName()
+                .replaceFirst("\\.partial$", ".zip"));
+        java.nio.file.Files.move(partial.toPath(), completed.toPath()); // Never replaces an older copy.
+        return completed;
     }
 
     public static File getBackupRoot(Context context) {
@@ -370,6 +418,8 @@ public final class LayerBackupManager {
         manifest.put("reason", reason);
         manifest.put("layer_name", layer.getName());
         manifest.put("layer_path", layer.getPath().getName());
+        manifest.put("map_path", com.nextgis.maplib.util.DatabaseContext.getMapForLayer(layer)
+                .getPath().getAbsolutePath());
         manifest.put("account_name", layer.getAccountName());
         manifest.put("remote_id", layer.getRemoteId());
         manifest.put("sync_direction", layer.getSyncDirection());
@@ -405,6 +455,8 @@ public final class LayerBackupManager {
         JSONObject dump = new JSONObject();
         dump.put("table", tableName);
         if (TextUtils.isEmpty(tableName) || !tableExists(db, tableName)) {
+            if ("tables/features.json".equals(entryName))
+                throw new IOException("The required feature table is missing");
             dump.put("exists", false);
             dump.put("columns", new JSONArray());
             dump.put("rows", new JSONArray());
@@ -413,7 +465,7 @@ public final class LayerBackupManager {
         }
 
         JSONArray columns = new JSONArray();
-        JSONArray rows = new JSONArray();
+
         String sql = "SELECT * FROM " + quoteIdentifier(tableName);
         String[] args = null;
         if (featureIds != null && !featureIds.isEmpty() && !TextUtils.isEmpty(idColumn)) {
@@ -435,19 +487,23 @@ public final class LayerBackupManager {
             for (String name : names) {
                 columns.put(name);
             }
+            zos.putNextEntry(new ZipEntry(entryName));
+            java.io.Writer writer = new java.io.OutputStreamWriter(zos, StandardCharsets.UTF_8);
+            writer.write("{\"table\":" + JSONObject.quote(tableName)
+                    + ",\"exists\":true,\"columns\":" + columns + ",\"rows\":[");
+            long rowCount = 0;
             while (cursor.moveToNext()) {
                 JSONObject row = new JSONObject();
                 for (int i = 0; i < names.length; i++) {
                     row.put(names[i], cursorValueToJson(cursor, i));
                 }
-                rows.put(row);
+                if (rowCount++ > 0) writer.write(',');
+                writer.write(row.toString());
             }
+            writer.write("],\"row_count\":" + rowCount + "}");
+            writer.flush();
+            zos.closeEntry();
         }
-        dump.put("exists", true);
-        dump.put("columns", columns);
-        dump.put("row_count", rows.length());
-        dump.put("rows", rows);
-        writeJsonEntry(zos, entryName, dump);
     }
 
     private static Object cursorValueToJson(Cursor cursor, int columnIndex) throws JSONException {
@@ -589,7 +645,8 @@ public final class LayerBackupManager {
         if (TextUtils.isEmpty(value)) {
             return "layer";
         }
-        return value.replaceAll("[^A-Za-z0-9._-]+", "_");
+        String safe = value.replaceAll("[^A-Za-z0-9._-]+", "_");
+        return safe.substring(0, Math.min(safe.length(), 64));
     }
 
     public static final class BackupResult {

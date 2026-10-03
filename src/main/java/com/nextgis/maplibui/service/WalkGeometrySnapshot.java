@@ -49,8 +49,8 @@ public final class WalkGeometrySnapshot {
         result.setCRS(base.getCRS());
         GeoLineString target = part(result, member, ring);
         target.clear();
-        for (int i = 0; i < recorded.getPointCount(); i++) {
-            target.add((com.nextgis.maplib.datasource.GeoPoint) recorded.getPoint(i).copy());
+        for (com.nextgis.maplib.datasource.GeoPoint point : recorded.getPoints()) {
+            target.add((com.nextgis.maplib.datasource.GeoPoint) point.copy());
         }
         target.setCRS(recorded.getCRS());
         return result;

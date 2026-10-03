@@ -102,11 +102,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="4dp"
-            android:autofillHints="emailAddress"
+            android:autofillHints="username"
             android:ems="10"
             android:gravity="center"
-            android:hint="@string/user_name_ngid"
-            android:inputType="textPersonName"
+            android:hint="@string/ngid_login_hint"
+            android:inputType="textEmailAddress|textNoSuggestions"
             />
     </com.google.android.material.textfield.TextInputLayout>
 

@@ -48,6 +48,8 @@ public final class FeatureFormDraftStore {
     public static final class Snapshot {
         public int layerId = Constants.NOT_FOUND;
         public long featureId = Constants.NOT_FOUND;
+        public String operationId = java.util.UUID.randomUUID().toString();
+        public String mapPath;
         public boolean geometryChanged;
         /** WKT in CRS_WEB_MERCATOR, or null */
         public String geometryWkt;
@@ -73,6 +75,18 @@ public final class FeatureFormDraftStore {
             return false;
         }
         try {
+            JSONObject encoded = encode(snapshot);
+            String existing = preferences(context).getString(KEY_STATE, null);
+            if (existing != null) {
+                try {
+                    JSONObject previous = new JSONObject(existing);
+                    previous.remove("updated_at");
+                    encoded.remove("updated_at");
+                    if (previous.toString().equals(encoded.toString())) return true;
+                } catch (JSONException error) {
+                    Log.w(TAG, "Replacing unreadable form checkpoint", error);
+                }
+            }
             snapshot.updatedAtMs = System.currentTimeMillis();
             boolean committed = preferences(context).edit()
                     .putString(KEY_STATE, encode(snapshot).toString())
@@ -277,6 +291,8 @@ public final class FeatureFormDraftStore {
         root.put("version", VERSION);
         root.put("layer_id", snapshot.layerId);
         root.put("feature_id", snapshot.featureId);
+        root.put("operation_id", snapshot.operationId);
+        root.put("map_path", snapshot.mapPath);
         root.put("geometry_changed", snapshot.geometryChanged);
         root.put("point_session_id", snapshot.pointSessionId);
         root.put("walk_session_id", snapshot.walkSessionId);
@@ -304,6 +320,8 @@ public final class FeatureFormDraftStore {
         Snapshot snapshot = new Snapshot();
         snapshot.layerId = root.optInt("layer_id", Constants.NOT_FOUND);
         snapshot.featureId = root.optLong("feature_id", Constants.NOT_FOUND);
+        snapshot.operationId = root.optString("operation_id", snapshot.operationId);
+        snapshot.mapPath = root.optString("map_path", null);
         snapshot.geometryChanged = root.optBoolean("geometry_changed", false);
         snapshot.pointSessionId = root.optString("point_session_id", null);
         snapshot.walkSessionId = root.optString("walk_session_id", null);

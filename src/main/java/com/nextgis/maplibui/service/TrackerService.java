@@ -68,6 +68,10 @@ import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.map.TrackLayer;
+import com.nextgis.maplib.map.MapBase;
+import com.nextgis.maplib.map.MapContentProviderHelper;
+import com.nextgis.maplib.util.FeatureSaveJournal;
+import com.nextgis.maplib.util.PendingTrackPoints;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.HttpResponse;
@@ -93,6 +97,9 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.nextgis.maplibui.util.ConstantsUI.VALUE_TRACK_START;
 import static com.nextgis.maplibui.util.ConstantsUI.VALUE_TRACK_POINT;
@@ -114,6 +121,8 @@ public class TrackerService extends Service
     private static final String ACTION_SPLIT          = "com.nextgis.maplibui.TRACK_SPLIT";
     private static final int    TRACK_NOTIFICATION_ID = 1;
     private static final String KEY_TRACK_FAILURE = "track_recording_failure";
+    private static final String TRACK_MAP = "track_map";
+    private static final String PENDING_STOP = "pending_stop";
 //    public static final String HOST = "http://dev.nextgis.com/tracker-dev1-hub";
     public static final String HOST = "https://track.nextgis.com";
     public static final String URL = "/ng-mobile";
@@ -156,6 +165,18 @@ public class TrackerService extends Service
     private long mInsertedPointCount;
     private long mInsertFailCount;
     private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
+    private MapContentProviderHelper mRecordingMap;
+    private TrackLayer mTrackLayer;
+    private PendingTrackPoints mPendingPoints;
+    private Exception mQueueError;
+    private volatile String mPendingStop;
+    private volatile boolean mStoragePaused;
+    private boolean mDestroyed, mWaitingToStart, mFlushingPoints;
+    private Intent mDeferredStart;
+    private final ExecutorService mPointWriter = Executors.newSingleThreadExecutor();
+    private final AtomicBoolean mDrainScheduled = new AtomicBoolean();
+    private final android.os.Handler mPointHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable mRetryPoints = this::schedulePointDrain;
 
     public enum RecordingState { STOPPED, STARTING, RECORDING, ERROR }
 
@@ -185,6 +206,17 @@ public class TrackerService extends Service
         // MODE_MULTI_PROCESS is deprecated and cannot make start/stop state atomic.
         mSharedPreferences = getSharedPreferences(name, MODE_PRIVATE);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE);
+        try {
+            mRecordingMap = (MapContentProviderHelper) application.getMap();
+            mTrackLayer = (TrackLayer) MapContentProviderHelper.getVectorLayerByPath(
+                    mRecordingMap, TrackLayer.TABLE_TRACKS);
+            if (mTrackLayer == null) throw new IOException("Track layer is unavailable");
+            mPendingPoints = new PendingTrackPoints(mRecordingMap.getPath());
+        } catch (IOException | RuntimeException error) {
+            mQueueError = error;
+            HyperLog.w(Constants.TAG, "Cannot open pending track storage", error);
+        }
+        mPendingStop = mSharedPreferencesTemp.getString(PENDING_STOP, null);
         mRecordingSoundMonitor = new BackgroundRecordingSoundMonitor(this, mSharedPreferences);
 
         mTicker = getString(R.string.tracks_running);
@@ -236,23 +268,26 @@ public class TrackerService extends Service
         trackerServiceIntent.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
 
         int title = R.string.track_start, icon = R.drawable.ic_action_maps_directions_walk;
-        if (isTrackRecordingEnabled(context)) {
+        if (isTrackRecordingEnabled(context) || context.getSharedPreferences(TEMP_PREFERENCES,
+                MODE_PRIVATE).contains(PENDING_STOP)) {
             /*
              * The durable user intent is authoritative.  The service may be temporarily dead
              * after a crash or because permission was revoked; pressing the menu's Stop item
              * must still stop, not accidentally start a new track.
              */
-            setTrackRecordingEnabled(context, false);
+            boolean checkpointed = context.getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE)
+                    .edit().putString(PENDING_STOP, ACTION_STOP).commit();
+            if (!checkpointed) setTrackFailure(context, true);
             if (isTrackerServiceRunning(context)) {
                 trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
                 HyperLog.v(Constants.TAG, "TrackerService stop requested source=menu");
                 context.startService(trackerServiceIntent);
-            } else if (hasUnfinishedTracks(context)) {
-                closeUnfinishedTracksBeforeRestart(context);
+            } else {
+                trackerServiceIntent.setAction(ACTION_STOP);
+                startTrackingService(context, trackerServiceIntent);
             }
         } else if (hasUnfinishedTracks(context)) {
-            // Crash recovery path: keep points, close unfinished session, start a new track.
-            closeUnfinishedTracksBeforeRestart(context);
+            // The service recovers queued points before restoring the unfinished session.
             setTrackFailure(context, false);
             setTrackRecordingEnabled(context, true);
             HyperLog.v(Constants.TAG, "TrackerService start requested source=menu recovery=true");
@@ -273,7 +308,7 @@ public class TrackerService extends Service
             ContextCompat.startForegroundService(context, intent);
             return true;
         } catch (RuntimeException exception) {
-            setTrackRecordingEnabled(context, false);
+            setTrackFailure(context, true);
             HyperLog.w(Constants.TAG, "TrackerService foreground start failed", exception);
             Toast.makeText(context, R.string.track_start_failed, Toast.LENGTH_LONG).show();
             return false;
@@ -302,7 +337,8 @@ public class TrackerService extends Service
             return RecordingState.ERROR;
         if (isTrackRecordingActive())
             return RecordingState.RECORDING;
-        if (!isTrackRecordingEnabled(context))
+        if (!isTrackRecordingEnabled(context) && !context.getSharedPreferences(TEMP_PREFERENCES,
+                MODE_PRIVATE).contains(PENDING_STOP))
             return RecordingState.STOPPED;
         return isTrackFailure(context) ? RecordingState.ERROR : RecordingState.STARTING;
     }
@@ -322,11 +358,17 @@ public class TrackerService extends Service
     }
 
     public static void setTrackRecordingEnabled(Context context, boolean enabled) {
-        PreferenceManager.getDefaultSharedPreferences(context)
+        if (!checkpointRecordingIntent(context, enabled))
+            HyperLog.w(Constants.TAG, "Track recording preference checkpoint failed");
+    }
+
+    private static boolean checkpointRecordingIntent(Context context, boolean enabled) {
+        boolean saved = PreferenceManager.getDefaultSharedPreferences(context)
                 .edit()
                 .putBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, enabled)
                 .commit();
-        if (!enabled) setTrackFailure(context, false);
+        if (saved && !enabled) setTrackFailure(context, false);
+        return saved;
     }
 
     private static void setTrackFailure(Context context, boolean failed) {
@@ -348,11 +390,13 @@ public class TrackerService extends Service
         if (context == null) {
             return;
         }
+        boolean pendingStop = context.getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE)
+                .contains(PENDING_STOP);
         // Migrate pre-flag sessions: unfinished open track implies recording was on.
         if (!isTrackRecordingEnabled(context) && hasUnfinishedTracks(context)) {
             setTrackRecordingEnabled(context, true);
         }
-        if (!isTrackRecordingEnabled(context)) {
+        if (!isTrackRecordingEnabled(context) && !pendingStop) {
             return;
         }
         if (isTrackerServiceRunning(context)) {
@@ -367,12 +411,8 @@ public class TrackerService extends Service
                     "TrackerService.ensureRecordingRunningIfEnabled: system location is disabled");
             return;
         }
-        if (hasUnfinishedTracks(context)) {
-            closeUnfinishedTracksBeforeRestart(context);
-        }
-        setTrackFailure(context, false);
         Intent trackerService = new Intent(context, TrackerService.class);
-        trackerService.setAction(ACTION_START);
+        trackerService.setAction(pendingStop ? ACTION_STOP : ACTION_START);
         trackerService.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
         try {
             ContextCompat.startForegroundService(context, trackerService);
@@ -389,6 +429,23 @@ public class TrackerService extends Service
         String actionForLog = intent != null ? intent.getAction() : "null";
         HyperLog.v(Constants.TAG, "TrackerService.onStartCommand startId=" + startId
                 + " action=" + actionForLog + " running=" + mIsRunning);
+
+        String savedMap = mSharedPreferencesTemp.getString(TRACK_MAP, null);
+        if (mQueueError != null || savedMap != null
+                && !savedMap.equals(mRecordingMap.getPath().getAbsolutePath())) {
+            initTargetIntent(intent == null ? null : intent.getStringExtra(ConstantsUI.TARGET_CLASS));
+            addStartingNotification();
+            reportTrackPersistenceFailure();
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
+        if (mPendingStop == null) mPendingStop = mSharedPreferencesTemp.getString(PENDING_STOP, null);
+        if (mPendingStop != null && (intent == null || !ACTION_STOP.equals(intent.getAction()))) {
+            initTargetIntent(intent == null ? null : intent.getStringExtra(ConstantsUI.TARGET_CLASS));
+            if (!addStartingNotification()) return START_NOT_STICKY;
+            stopTrack(mPendingStop);
+            return START_STICKY;
+        }
 
         boolean isRecordingStart = intent == null || ACTION_START.equals(intent.getAction());
         if (isRecordingStart && !isTrackRecordingEnabled(this)) {
@@ -431,33 +488,34 @@ public class TrackerService extends Service
                         mLocationSenderThread.start();
                         return START_NOT_STICKY;
                     case ACTION_STOP:
+                        initTargetIntent(targetActivity);
+                        if (!addStartingNotification()) return START_NOT_STICKY;
                         stopTrack(ACTION_STOP);
-                        removeNotification();
-                        stopSelf();
-                        return START_NOT_STICKY;
+                        return START_STICKY;
                     case ACTION_SPLIT:
                         HyperLog.v(Constants.TAG, "TrackerService.ACTION_SPLIT trackId=" + mTrackId);
-                        stopTrack("ACTION_SPLIT");
                         initTargetIntent(targetActivity);
                         if (!addStartingNotification()) {
                             return START_NOT_STICKY;
                         }
-                        if (!startTrack()) {
-                            reportTrackStartFailure();
-                            removeNotification();
-                            stopSelf();
-                            return START_NOT_STICKY;
-                        }
-                        if (!addNotification()) {
-                            stopTrack("foreground-failed");
-                            return START_NOT_STICKY;
-                        }
+                        stopTrack(ACTION_SPLIT);
                         return START_STICKY;
                 }
             }
         }
 
         if (!mIsRunning) {
+            if (mPendingPoints.size() > 0) {
+                initTargetIntent(targetActivity);
+                if (!addStartingNotification()) return START_NOT_STICKY;
+                mWaitingToStart = true;
+                mDeferredStart = intent == null ? new Intent(this, TrackerService.class)
+                        .setAction(ACTION_START) : new Intent(intent);
+                sRecordingService = this;
+                ((GISApplication) getApplication()).setIsTrackInProgress(true);
+                schedulePointDrain();
+                return START_STICKY;
+            }
             if (!PermissionUtil.hasLocationPermissions(this)) {
                 HyperLog.w(Constants.TAG, "TrackerService: missing location permission, stop startId=" + startId);
                 stopForMissingLocationPermission("start");
@@ -484,14 +542,22 @@ public class TrackerService extends Service
             String minTimeStr = mSharedPreferences.getString(time, "5");
 
             String minDistanceStr = mSharedPreferences.getString(distance, "5");
-            long minTime = Long.parseLong(minTimeStr) * 1000;
-            float minDistance = Float.parseFloat(minDistanceStr);
+            long minTime = 5000;
+            float minDistance = 5;
+            try {
+                minTime = Math.max(0, Math.multiplyExact(Long.parseLong(minTimeStr), 1000));
+                minDistance = Float.parseFloat(minDistanceStr);
+                if (!Float.isFinite(minDistance) || minDistance < 0) minDistance = 5;
+            } catch (RuntimeException error) {
+                HyperLog.w(Constants.TAG, "Invalid track sampling preferences; using defaults", error);
+            }
             mSampler = new LocationRecordingSampler(minTime, minDistance);
 
             NotificationHelper.showLocationInfo(this);
 
             // there are no tracks or last track correctly ended
-            if (mSharedPreferencesTemp.getString(TRACK_URI, null) == null || !restoreData()) {
+            try {
+            if (!restoreData()) {
                 if (!startTrack()) {
                     reportTrackStartFailure();
                     removeNotification();
@@ -501,6 +567,12 @@ public class TrackerService extends Service
                 mSharedPreferencesTemp.edit().putString(ConstantsUI.TARGET_CLASS, targetActivity).apply();
             } else {
                 targetActivity = mSharedPreferencesTemp.getString(ConstantsUI.TARGET_CLASS, "");
+            }
+            } catch (RuntimeException error) {
+                HyperLog.w(Constants.TAG, "Cannot restore track session", error);
+                reportTrackPersistenceFailure();
+                stopSelf(startId);
+                return START_NOT_STICKY;
             }
 
             mRecordingSoundMonitor.start();
@@ -535,10 +607,11 @@ public class TrackerService extends Service
 
         mTrackId = trackId;
         // A restarted process cannot establish continuity with a pre-crash measurement.
-        try (Cursor points = getContentResolver().query(mContentUriTrackPoints,
+        try (Cursor points = mTrackLayer.query(mContentUriTrackPoints,
                 new String[]{"MAX(" + TrackLayer.FIELD_SEGMENT + ")"},
-                TrackLayer.FIELD_SESSION + " = ?", new String[]{trackId}, null)) {
-            mSegment = points != null && points.moveToFirst() ? points.getInt(0) + 1 : 0;
+                TrackLayer.FIELD_SESSION + " = ?", new String[]{trackId}, null, null)) {
+            if (points == null) throw new SQLiteException("Cannot read track segment");
+            mSegment = points.moveToFirst() && !points.isNull(0) ? points.getInt(0) + 1 : 0;
         }
         mLastRecordingNanos = 0;
         mPersistenceFailing = false;
@@ -582,12 +655,14 @@ public class TrackerService extends Service
         mValues.put(TrackLayer.FIELD_VISIBLE, true);
 
         try {
-            Uri newTrack = getContentResolver().insert(mContentUriTracks, mValues);
-            if (null != newTrack) {
+            Uri newTrack = mTrackLayer.insert(mContentUriTracks, mValues);
+            if (newTrack != null && android.content.ContentUris.parseId(newTrack) >= 0) {
                 // save vars
                 mTrackId = newTrack.getLastPathSegment();
-                mSharedPreferencesTemp.edit().putString(TRACK_URI, newTrack.toString()).commit();
-                setTrackRecordingEnabled(this, true);
+                if (!mSharedPreferencesTemp.edit().putString(TRACK_URI, newTrack.toString())
+                        .putString(TRACK_MAP, mRecordingMap.getPath().getAbsolutePath()).commit()
+                        || !checkpointRecordingIntent(this, true))
+                    throw new SQLiteException("Cannot checkpoint track session");
                 HyperLog.v(Constants.TAG, "TrackerService.startTrack trackId=" + mTrackId
                         + " name=" + mTrackName);
             } else {
@@ -598,7 +673,7 @@ public class TrackerService extends Service
             mIsRunning = true;
             sRecordingService = this;
             addSplitter();
-        } catch (SQLiteException ex) {
+        } catch (RuntimeException ex) {
             HyperLog.w(Constants.TAG, "TrackerService.startTrack SQLiteException: " + ex.getMessage(), ex);
             mIsRunning = false;
             if (sRecordingService == this) sRecordingService = null;
@@ -627,16 +702,9 @@ public class TrackerService extends Service
                 + TrackLayer.FIELD_END + " IS NULL OR " + TrackLayer.FIELD_END + " = '')";
         String[] projection = new String[]{TrackLayer.FIELD_ID};
         String[] args = new String[]{trackId};
-        Cursor data = null;
-        try {
-            data = getContentResolver().query(mContentUriTracks, projection, selection, args, null);
-            return data != null && data.moveToFirst();
-        } catch (RuntimeException ex) {
-            HyperLog.w(Constants.TAG, "TrackerService.isUnfinishedTrack: " + ex.getMessage(), ex);
-            return false;
-        } finally {
-            if (data != null)
-                data.close();
+        try (Cursor data = mTrackLayer.query(mContentUriTracks, projection, selection, args, null, null)) {
+            if (data == null) throw new SQLiteException("Cannot read track session");
+            return data.moveToFirst();
         }
     }
 
@@ -653,61 +721,135 @@ public class TrackerService extends Service
     }
 
     private void stopTrack(String reason) {
-        if (!mIsRunning && mTrackId == null && !ACTION_STOP.equals(reason)) {
-            HyperLog.v(Constants.TAG, "TrackerService.stopTrack ignored empty state reason=" + reason);
-            return;
+        boolean terminal = ACTION_STOP.equals(reason) || ACTION_SPLIT.equals(reason);
+        if (terminal) {
+            // Stop wins over the automatic midnight split, including a repeated menu request.
+            if (!ACTION_STOP.equals(mPendingStop)) mPendingStop = reason;
+            mWaitingToStart = false;
+            if (mTrackId == null) {
+                String saved = mSharedPreferencesTemp.getString(TRACK_URI, null);
+                if (saved != null) mTrackId = Uri.parse(saved).getLastPathSegment();
+            }
         }
-        if (!mIsRunning && mTrackId == null && mStopBroadcastSent) {
-            HyperLog.v(Constants.TAG, "TrackerService.stopTrack ignored reason=" + reason);
-            return;
-        }
-
-        int flushed = flushTrackFilterPointsToDb();
-        String diagnostics = mGpsSource.getRecordingDiagnostics();
+        flushTrackFilterPointsToDb();
         mGpsSource.removeRecordingListener(this);
-
-        // update unclosed tracks in DB
-        boolean terminal = ACTION_STOP.equals(reason) || "ACTION_SPLIT".equals(reason);
-        int closed = terminal ? closeTracks(this, (IGISApplication) getApplication()) : 0;
-
         mIsRunning = false;
-        if (sRecordingService == this) sRecordingService = null;
-
-        // cancel midnight splitter
         mAlarmManager.cancel(mSplitService);
         if (terminal) {
-            mSharedPreferencesTemp.edit().remove(ConstantsUI.TARGET_CLASS).remove(TRACK_URI).apply();
+            sRecordingService = this;
+            ((GISApplication) getApplication()).setIsTrackInProgress(true);
+            schedulePointDrain();
+        } else if (sRecordingService == this) {
+            sRecordingService = null;
         }
-
         HyperLog.v(Constants.TAG, "TrackerService.stopTrack reason=" + reason
-                + " trackId=" + mTrackId
-                + " accepted=" + mAcceptedFixCount
-                + " filter=" + diagnostics
-                + " inserted=" + mInsertedPointCount
-                + " insertFail=" + mInsertFailCount
-                + " flushed=" + flushed
-                + " closedTracks=" + closed);
-
-        if (!mStopBroadcastSent) {
-            Intent msgT = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK);
-            msgT.putExtra(ConstantsUI.KEY_MESSAGE_TRACK, false);
-            msgT.putExtra(ConstantsUI.KEY_TRACK_ACTION, VALUE_TRACK_STOP);
-            msgT.setPackage(this.getPackageName());
-            sendBroadcast(msgT);
-            mStopBroadcastSent = true;
-        }
-
-        ((GISApplication)getApplication()).setIsTrackInProgress(false);
-        mTrackId = null;
-
-        // Only explicit menu finish clears the durable recording flag.
-        // onDestroy / crash / reboot must leave it set so recording auto-resumes.
-        if (ACTION_STOP.equals(reason)) {
-            setTrackRecordingEnabled(this, false);
-        }
+                + " trackId=" + mTrackId + " accepted=" + mAcceptedFixCount
+                + " inserted=" + mInsertedPointCount + " insertFail=" + mInsertFailCount
+                + " pending=" + (mPendingPoints == null ? -1 : mPendingPoints.size()));
     }
 
+    private void schedulePointDrain() {
+        if (mDestroyed || mFlushingPoints || mPendingPoints == null
+                || !mDrainScheduled.compareAndSet(false, true)) return;
+        mPointHandler.removeCallbacks(mRetryPoints);
+        String stopping = mPendingStop;
+        boolean stopCheckpoint = stopping == null || mSharedPreferencesTemp.edit()
+                .putString(PENDING_STOP, stopping)
+                .putString(TRACK_MAP, mRecordingMap.getPath().getAbsolutePath()).commit();
+        mPointWriter.execute(() -> {
+            PendingTrackPoints.DrainResult result = mPendingPoints.drain(new PendingTrackPoints.Writer() {
+                @Override public long insert(String operation, ContentValues values) {
+                    Uri uri = mContentUriTrackPoints.buildUpon()
+                            .appendQueryParameter(FeatureSaveJournal.URI_PARAMETER, operation).build();
+                    Uri inserted = mTrackLayer.insert(uri, values);
+                    if (inserted == null) throw new SQLiteException("Track point insert returned null");
+                    return android.content.ContentUris.parseId(inserted);
+                }
+                @Override public void acknowledged(String operation) {
+                    FeatureSaveJournal.forget(mRecordingMap.getDatabase(false),
+                            TrackLayer.TABLE_TRACKPOINTS, operation);
+                }
+            });
+            if (result.failure == null && stopping != null && stopCheckpoint) {
+                try {
+                    ContentValues closed = new ContentValues();
+                    closed.put(TrackLayer.FIELD_END, System.currentTimeMillis());
+                    String unfinished = TrackLayer.FIELD_END + " IS NULL OR " + TrackLayer.FIELD_END + " = ''";
+                    // This layer owns the captured map; never route through the active-map provider.
+                    mTrackLayer.update(mContentUriTracks, closed, unfinished, null);
+                } catch (RuntimeException error) { result.failure = error; }
+            }
+            mPointHandler.post(() -> {
+                mDrainScheduled.set(false);
+                if (mDestroyed) return;
+                mInsertedPointCount += result.count;
+                if (result.lastValues != null
+                        && result.lastValues.getAsString(TrackLayer.FIELD_SESSION).equals(mTrackId)
+                        && result.lastValues.getAsInteger(TrackLayer.FIELD_SEGMENT) == mSegment)
+                    mLastInsertedRowId = result.lastRowId;
+                if (result.count > 0) sendTrackPointBroadcast();
+                if (result.failure != null || !stopCheckpoint) {
+                    mInsertFailCount++;
+                    if (result.failure != null)
+                        HyperLog.w(Constants.TAG, "Pending track write deferred", result.failure);
+                    mRecordingSoundMonitor.onPersistenceFailed();
+                    reportTrackPersistenceFailure();
+                    mPointHandler.postDelayed(mRetryPoints, 5000);
+                    return;
+                }
+                if (mPendingPoints.size() > 0 || mPendingStop != null && stopping == null
+                        || stopping != null && !stopping.equals(mPendingStop)) {
+                    schedulePointDrain();
+                    return;
+                }
+                if (stopping != null) {
+                    finishStoppedTrack(stopping);
+                    return;
+                }
+                if (mPersistenceFailing) {
+                    mPersistenceFailing = false;
+                    setTrackFailure(this, false);
+                    sendTrackStateBroadcast(VALUE_TRACK_START);
+                }
+                if (mWaitingToStart) {
+                    mWaitingToStart = false;
+                    onStartCommand(mDeferredStart, 0, 0);
+                } else if (mStoragePaused) {
+                    mStoragePaused = false;
+                    mGapPending = true;
+                    mIsRunning = true;
+                    mGpsSource.addRecordingListener(this);
+                }
+            });
+        });
+    }
 
+    private void finishStoppedTrack(String reason) {
+        boolean stopped = ACTION_STOP.equals(reason);
+        if (stopped && !checkpointRecordingIntent(this, false)
+                || !mSharedPreferencesTemp.edit().remove(PENDING_STOP).remove(TRACK_URI)
+                .remove(TRACK_MAP).remove(ConstantsUI.TARGET_CLASS).commit()) {
+            reportTrackPersistenceFailure();
+            mPointHandler.postDelayed(mRetryPoints, 5000);
+            return;
+        }
+        mPendingStop = null;
+        mTrackId = null;
+        mPersistenceFailing = false;
+        setTrackFailure(this, false);
+        if (!mStopBroadcastSent) {
+            sendTrackStateBroadcast(VALUE_TRACK_STOP);
+            mStopBroadcastSent = true;
+        }
+        if (stopped) {
+            if (sRecordingService == this) sRecordingService = null;
+            ((GISApplication) getApplication()).setIsTrackInProgress(false);
+            removeNotification();
+            stopSelf();
+        } else {
+            onStartCommand(new Intent(this, TrackerService.class).setAction(ACTION_START), 0, 0);
+        }
+    }
 
     public static int closeTracks(Context context, IGISApplication app) {
         ContentValues cv = new ContentValues();
@@ -811,7 +953,7 @@ public class TrackerService extends Service
                 startForeground(TRACK_NOTIFICATION_ID, notification);
             }
             return true;
-        } catch (SecurityException ex) {
+        } catch (RuntimeException ex) {
             HyperLog.w(Constants.TAG, "TrackerService location foreground rejected stage="
                     + stage + ": " + ex.getMessage(), ex);
             stopForMissingLocationPermission(stage);
@@ -881,6 +1023,9 @@ public class TrackerService extends Service
         if (mLocationSenderThread != null)
             mLocationSenderThread.interrupt();
 
+        mDestroyed = true;
+        mPointHandler.removeCallbacksAndMessages(null);
+        mPointWriter.shutdown(); // already queued writes may finish; pending files survive a kill
         if (mRecordingSoundMonitor != null)
             mRecordingSoundMonitor.release();
 
@@ -895,6 +1040,17 @@ public class TrackerService extends Service
     @Override
     public void onRecordingLocation(Location location) {
         if (!mIsRunning || mSampler == null) return;
+        if (mPendingPoints.size() >= PendingTrackPoints.CAPACITY - 16) {
+            // Reserve enough space for the sampler tail. Explicitly expose a gap while storage
+            // is unavailable instead of dropping older points or growing memory without bound.
+            mStoragePaused = true;
+            mIsRunning = false;
+            mGpsSource.removeRecordingListener(this);
+            flushTrackFilterPointsToDb();
+            reportTrackPersistenceFailure();
+            schedulePointDrain();
+            return;
+        }
         long nanos = location.getElapsedRealtimeNanos();
         if (nanos <= mLastRecordingNanos) return;
         if (mGapPending || mLastRecordingNanos > 0
@@ -945,31 +1101,18 @@ public class TrackerService extends Service
         mValues.put(TrackLayer.FIELD_SENT, 0);
         mValues.put(TrackLayer.FIELD_TIMESTAMP, location.getTime());
         try {
-            mLastInsertedRowId = -1;
-            Uri inserted = getContentResolver().insert(mContentUriTrackPoints, mValues);
-            if (inserted != null && android.content.ContentUris.parseId(inserted) >= 0) {
-                mLastInsertedRowId = android.content.ContentUris.parseId(inserted);
-                mInsertedPointCount++;
-                if (mPersistenceFailing) {
-                    mPersistenceFailing = false;
-                    setTrackFailure(this, false);
-                    sendTrackStateBroadcast(ConstantsUI.VALUE_TRACK_START);
-                }
-                sendTrackPointBroadcast();
-                return true;
-            }
+            mPendingPoints.append(mValues);
+            schedulePointDrain();
+            return true;
+        } catch (IOException | RuntimeException error) {
+            // A failed disk checkpoint is still retained in RAM and retried against SQLite.
+            HyperLog.w(Constants.TAG, "Track point checkpoint failed", error);
             mInsertFailCount++;
-            HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint returned null trackId=" + mTrackId);
             mRecordingSoundMonitor.onPersistenceFailed();
             reportTrackPersistenceFailure();
-        } catch (Exception ex) {
-            mInsertFailCount++;
-            Log.e(TrackerService.class.getName(), "onLocation EXCEPTION!!" + ex.getMessage());
-            HyperLog.w(Constants.TAG, "TrackerService.insertTrackPoint: " + ex.getMessage(), ex);
-            mRecordingSoundMonitor.onPersistenceFailed();
-            reportTrackPersistenceFailure();
+            schedulePointDrain();
+            return false;
         }
-        return false;
     }
 
     private void reportTrackPersistenceFailure() {
@@ -984,12 +1127,14 @@ public class TrackerService extends Service
 
     private void sendTrackStateBroadcast(String action) {
         Intent message = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK).setPackage(getPackageName());
+        message.putExtra(ConstantsUI.KEY_MESSAGE_TRACK, !VALUE_TRACK_STOP.equals(action));
         message.putExtra(ConstantsUI.KEY_TRACK_ACTION, action);
         sendBroadcast(message);
     }
 
     private void correctStationaryTrackPoint(Location location) {
-        if (mLastInsertedRowId < 0 || mTrackId == null) return;
+        if (mLastInsertedRowId < 0 || mTrackId == null || mPendingPoints.size() > 0
+                || mDrainScheduled.get()) return;
         GeoPoint point = new GeoPoint(location.getLongitude(), location.getLatitude());
         point.setCRS(GeoConstants.CRS_WGS84);
         point.project(GeoConstants.CRS_WEB_MERCATOR);
@@ -1000,7 +1145,7 @@ public class TrackerService extends Service
         values.put(TrackLayer.FIELD_SPEED, 0);
         // Keep the arrival time and row order. Do not append a path for an improving stop fix.
         try {
-            int updated = getContentResolver().update(mContentUriTrackPoints, values,
+            int updated = mTrackLayer.update(mContentUriTrackPoints, values,
                     "rowid = ? AND " + TrackLayer.FIELD_SESSION + " = ? AND " + TrackLayer.FIELD_SEGMENT + " = ?",
                     new String[]{Long.toString(mLastInsertedRowId), mTrackId, Integer.toString(mSegment)});
             if (updated != 1) mRecordingSoundMonitor.onPersistenceFailed();
@@ -1013,10 +1158,14 @@ public class TrackerService extends Service
 
     private int flushTrackFilterPointsToDb() {
         if (mSampler == null || mTrackId == null) return 0;
-        long before = mInsertedPointCount;
-        mGpsSource.flushRecordingLocations();
-        for (Location point : mSampler.flush()) insertTrackPoint(point);
-        return (int) (mInsertedPointCount - before);
+        int before = mPendingPoints.size();
+        mFlushingPoints = true;
+        try {
+            mGpsSource.flushRecordingLocations();
+            for (Location point : mSampler.flush()) insertTrackPoint(point);
+        } finally { mFlushingPoints = false; }
+        schedulePointDrain();
+        return Math.max(0, mPendingPoints.size() - before);
     }
 
     private void sendTrackPointBroadcast() {
@@ -1137,7 +1286,7 @@ public class TrackerService extends Service
                     } catch (SQLiteException ignored) {
                     }
 
-                    if (!mIsRunning) {
+                    if (!mIsRunning && mPendingStop == null && !mStoragePaused) {
                         removeNotification();
                         stopSelf();
                     }

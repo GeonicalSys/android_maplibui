@@ -691,9 +691,17 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     @Override
     protected boolean saveFeature() {
         boolean success = super.saveFeature();
-        if (success)
-            for (Field field : mLayer.getFields())
-                saveLastValue(field);
+        if (success) {
+            try {
+                onMain(() -> {
+                    for (Field field : mLayer.getFields()) saveLastValue(field);
+                    return null;
+                });
+            } catch (RuntimeException error) {
+                android.util.Log.w(com.nextgis.maplib.util.Constants.TAG,
+                        "Saved object; optional last-value cache failed", error);
+            }
+        }
 
         return success;
     }
