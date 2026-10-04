@@ -94,7 +94,7 @@
         <service
             android:name="com.nextgis.maplibui.service.TileDownloadService"
             android:enabled="true"
-            android:exported="true"
+            android:exported="false"
             android:process=":tile_download"
             android:foregroundServiceType="dataSync"/>
 
@@ -102,14 +102,14 @@
         <service
             android:name="com.nextgis.maplibui.service.LayerFillService"
             android:enabled="true"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="dataSync"
             />
 
         <service
             android:name="com.nextgis.maplibui.service.RebuildCacheService"
             android:enabled="true"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="dataSync"
             />
 
@@ -117,7 +117,7 @@
         <service
             android:name="com.nextgis.maplibui.service.TrackerService"
             android:enabled="true"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="location"/>
 
         <service
@@ -129,7 +129,7 @@
         <service
             android:name="com.nextgis.maplibui.service.WalkEditService"
             android:enabled="true"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="location"/>
 
         <receiver

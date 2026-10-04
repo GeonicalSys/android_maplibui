@@ -179,6 +179,16 @@ public class ModifyAttributesActivity
      * without this guard a successfully cleared draft can be written again immediately.
      */
     private volatile boolean mFormDraftFinalized;
+    private volatile boolean mFormSaving;
+    private long mLastCheckpointWarning;
+    private String mFormOperationId = java.util.UUID.randomUUID().toString();
+    private final android.os.Handler mDraftHandler = new android.os.Handler(Looper.getMainLooper());
+    private final Runnable mDraftCheckpoint = new Runnable() {
+        @Override public void run() {
+            if (!mFormSaving && !mFormDraftFinalized) persistFormDraftIfNeeded();
+            mDraftHandler.postDelayed(this, 3000);
+        }
+    };
     private String mPointSessionId, mWalkSessionId;
 
     MessageReceiver messageReceiver;
@@ -188,6 +198,13 @@ public class ModifyAttributesActivity
     protected void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() {
+                if (!checkEdits()) finish();
+            }
+        });
+        if (savedInstanceState != null)
+            mFormOperationId = savedInstanceState.getString("form_save_operation", mFormOperationId);
 
         setContentView(R.layout.activity_standard_attributes);
         setToolbar(R.id.main_toolbar);
@@ -389,6 +406,7 @@ public class ModifyAttributesActivity
                 if (applyDraft) {
                     draft = FeatureFormDraftStore.load(this);
                     if (draft != null && draft.layerId == layerId && draft.featureId == mFeatureId) {
+                        mFormOperationId = draft.operationId;
                         controlsState = FeatureFormDraftStore.controlStateToBundle(draft);
                         if (draft.geometryWkt != null) {
                             GeoGeometry fromDraft = FeatureFormDraftStore.geometryFromSnapshot(draft);
@@ -530,11 +548,13 @@ public class ModifyAttributesActivity
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
+        outState.putString("form_save_operation", mFormOperationId);
         LinearLayout controlLayout = findViewById(R.id.controls_list);
         for (int i = 0; i < controlLayout.getChildCount(); i++)
             if (controlLayout.getChildAt(i) instanceof IControl)
                 ((IControl) controlLayout.getChildAt(i)).saveState(outState);
 
+        for (Sign sign : getSignControls()) sign.saveState(outState);
         super.onSaveInstanceState(outState);
     }
 
@@ -542,6 +562,7 @@ public class ModifyAttributesActivity
     @Override
     protected void onPause()
     {
+        mDraftHandler.removeCallbacks(mDraftCheckpoint);
         if (null != findViewById(R.id.location_panel)) {
             IGISApplication app = (IGISApplication) getApplication();
             if (null != app) {
@@ -561,12 +582,41 @@ public class ModifyAttributesActivity
 
     /** Durable crash draft: only when the user has unsaved edits. */
     protected void persistFormDraftIfNeeded() {
-        if (mFormDraftFinalized || mIsViewOnly || mLayer == null || mFields == null || !hasEdits()) {
-            return;
+        checkpointFormDraft(false);
+    }
+
+    private boolean checkpointFormDraft(boolean force) {
+        try {
+            boolean saved = captureFormDraft(force);
+            if (!saved && !mFormDraftFinalized && !mIsViewOnly && mLayer != null && mFields != null)
+                warnCheckpointFailure();
+            return saved;
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Cannot capture form checkpoint", error);
+            warnCheckpointFailure();
+            return false;
         }
+    }
+
+    private void warnCheckpointFailure() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (mLastCheckpointWarning == 0 || now - mLastCheckpointWarning >= 60000) {
+            showShortToast(R.string.error_form_checkpoint);
+            mLastCheckpointWarning = now;
+        }
+    }
+
+    private boolean captureFormDraft(boolean force) {
+        if (mFormDraftFinalized || mIsViewOnly || mLayer == null || mFields == null) {
+            return false;
+        }
+        if (!force && !hasEdits()) return true;
         FeatureFormDraftStore.Snapshot snapshot = new FeatureFormDraftStore.Snapshot();
         snapshot.layerId = mLayer.getId();
         snapshot.featureId = mFeatureId;
+        snapshot.operationId = mFormOperationId;
+        snapshot.mapPath = com.nextgis.maplib.util.DatabaseContext.getMapForLayer(mLayer)
+                .getPath().getAbsolutePath();
         snapshot.geometryChanged = mIsGeometryChanged;
         snapshot.pointSessionId = mPointSessionId;
         snapshot.walkSessionId = mWalkSessionId;
@@ -598,6 +648,7 @@ public class ModifyAttributesActivity
                 }
             }
         }
+        for (Sign sign : getSignControls()) sign.saveState(controlState);
         FeatureFormDraftStore.putControlStateFromBundle(snapshot, controlState);
         snapshot.photoPaths = new ArrayList<>();
         for (Map.Entry<String, IControl> field : mFields.entrySet()) {
@@ -609,7 +660,7 @@ public class ModifyAttributesActivity
                 }
             }
         }
-        FeatureFormDraftStore.save(this, snapshot);
+        return FeatureFormDraftStore.save(this, snapshot);
     }
 
     /**
@@ -667,6 +718,8 @@ public class ModifyAttributesActivity
             mMaxTakeCount = Integer.parseInt(preferred != null ? preferred : def);
         }
         super.onResume();
+        mDraftHandler.removeCallbacks(mDraftCheckpoint);
+        mDraftHandler.postDelayed(mDraftCheckpoint, 3000);
     }
 
 
@@ -684,6 +737,7 @@ public class ModifyAttributesActivity
 
 
     private boolean checkEdits() {
+        if (mFormSaving) return true;
         if (hasEdits() && !mIsViewOnly) {
             AlertDialog builder = new AlertDialog.Builder(this)
                     .setTitle(R.string.save)
@@ -734,24 +788,23 @@ public class ModifyAttributesActivity
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    public void onBackPressed() {
-        if (!checkEdits())
-            super.onBackPressed();
-    }
-
     private boolean hasEdits() {
-        boolean result = mFeatureId == NOT_FOUND;
+        boolean result = mFeatureId == NOT_FOUND || mGeometry != null && mIsGeometryChanged;
 
-        if (mLayer == null) {
-            Toast.makeText(this, R.string.error_layer_not_inited, Toast.LENGTH_SHORT).show();
-            return false;
+        if (mLayer == null || mFields == null) return true;
+
+        for (IControl control : mFields.values()) {
+            if (control instanceof PhotoGallery) {
+                PhotoGallery gallery = (PhotoGallery) control;
+                result |= !gallery.getNewAttaches().isEmpty() || !gallery.getDeletedAttaches().isEmpty();
+            }
         }
+        for (Sign sign : getSignControls()) result |= sign.hasEdits();
 
         if (!result) {
-            Cursor featureCursor = mLayer.query(null, FIELD_ID + " = " + mFeatureId, null, null, null);
-            if (featureCursor == null || !featureCursor.moveToFirst())
-                return false;
+            try (Cursor featureCursor = mLayer.query(null, FIELD_ID + " = " + mFeatureId,
+                    null, null, null)) {
+                if (featureCursor == null || !featureCursor.moveToFirst()) return true;
 
             for (Map.Entry<String, IControl> field : mFields.entrySet()) {
                 int column = getColumnIndexSafely(featureCursor, field.getKey()); // featureCursor.getColumnIndex(field.getKey());
@@ -766,7 +819,10 @@ public class ModifyAttributesActivity
                     break;
             }
 
-            featureCursor.close();
+            } catch (RuntimeException error) {
+                Log.w(TAG, "Unable to compare form with saved feature", error);
+                return true;
+            }
         }
 
         return result;
@@ -816,45 +872,53 @@ public class ModifyAttributesActivity
 
 
     private void runSaveAndFinish() {
-        PhotoOverlaySettings overlaySettings = readPhotoOverlaySettings();
-        PhotoOverlayData overlayData = overlaySettings.enabled
-                ? buildPhotoOverlayData(overlaySettings) : null;
-        boolean async = overlayData != null
-                && overlayData.hasContent()
-                && hasNewPhotoAttaches();
+        if (mFormSaving || mFormDraftFinalized) return;
+        mFormSaving = true;
+        ProgressDialog dialog = ProgressDialog.show(this, null,
+                getString(R.string.form_save_processing), true, false);
+        new Thread(() -> {
+            boolean success;
+            try { success = saveFeature(); }
+            catch (RuntimeException error) {
+                Log.e(TAG, "Form save failed", error);
+                showShortToast(R.string.error_form_attachments);
+                success = false;
+            }
+            final boolean saved = success;
+            runOnUiThread(() -> {
+                mFormSaving = false;
+                if (!isDestroyed() && dialog.isShowing()) dialog.dismiss();
+                if (saved && !isDestroyed()) finish();
+            });
+        }, "feature-save").start();
+    }
 
-        if (async) {
-            ProgressDialog dialog = ProgressDialog.show(
-                    this,
-                    null,
-                    getString(R.string.photo_overlay_processing),
-                    true,
-                    false);
-            new Thread(() -> {
-                boolean ok = saveFeatureInternal(overlayData, overlaySettings);
-                runOnUiThread(() -> {
-                    if (dialog.isShowing()) {
-                        dialog.dismiss();
-                    }
-                    if (ok) {
-                        finish();
-                    }
-                });
-            }).start();
-            return;
-        }
-
-        if (saveFeatureInternal(overlayData, overlaySettings)) {
-            finish();
+    /** Android controls are read only on the main thread; database/files run on the save worker. */
+    protected final <T> T onMain(java.util.function.Supplier<T> work) {
+        java.util.function.Supplier<T> currentForm = () -> {
+            // An old worker must not read destroyed controls or clear a recreated form's draft.
+            // Its pre-save UUID checkpoint can reconcile any database commit on the next retry.
+            if (isDestroyed() || isFinishing())
+                throw new IllegalStateException("Form activity is no longer active");
+            return work.get();
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) return currentForm.get();
+        java.util.concurrent.FutureTask<T> task = new java.util.concurrent.FutureTask<>(currentForm::get);
+        runOnUiThread(task);
+        try { return task.get(); }
+        catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Form save interrupted", error);
+        } catch (java.util.concurrent.ExecutionException error) {
+            throw new IllegalStateException("Cannot capture form state", error.getCause());
         }
     }
 
-
     protected boolean saveFeature()
     {
-        PhotoOverlaySettings overlaySettings = readPhotoOverlaySettings();
+        PhotoOverlaySettings overlaySettings = onMain(this::readPhotoOverlaySettings);
         PhotoOverlayData overlayData = overlaySettings.enabled
-                ? buildPhotoOverlayData(overlaySettings) : null;
+                ? onMain(() -> buildPhotoOverlayData(overlaySettings)) : null;
         return saveFeatureInternal(overlayData, overlaySettings);
     }
 
@@ -872,26 +936,33 @@ public class ModifyAttributesActivity
             return false;
         }
 
-        //create new row or modify existing
-        List<Field> fields = mLayer.getFields();
+        if (!onMain(() -> checkpointFormDraft(true))) return false;
         ContentValues values = new ContentValues();
-
-        for (Field field : fields) {
-            putFieldValue(values, field);
-            IControl control = mFields.get(field.getName());
-            if (control instanceof AutoTextEdit) {
-                if (((AutoTextEdit) control).isNotFromList()) {
+        boolean valid = onMain(() -> {
+            for (Field field : mLayer.getFields()) {
+                putFieldValue(values, field);
+                IControl control = mFields.get(field.getName());
+                if (control instanceof AutoTextEdit && ((AutoTextEdit) control).isNotFromList())
                     return false;
-                }
             }
-        }
-
-        GeoGeometry geoGeometry = putGeometry(values);
+            return true;
+        });
+        if (!valid) return false;
+        GeoGeometry geoGeometry = onMain(() -> putGeometry(values));
         IGISApplication app = (IGISApplication) getApplication();
 
         if (null == app) {
             throw new IllegalArgumentException("Not a IGISApplication");
         }
+
+        if (app.getMap() != com.nextgis.maplib.util.DatabaseContext.getMapForLayer(mLayer)) {
+            showShortToast(R.string.error_layer_not_inited);
+            return false;
+        }
+        long previouslySaved = com.nextgis.maplib.util.FeatureSaveJournal.find(
+                com.nextgis.maplib.util.DatabaseContext.getDatabaseForLayer(mLayer, false),
+                mLayer.getPath().getName(), mFormOperationId);
+        if (previouslySaved != NOT_FOUND) mFeatureId = previouslySaved;
 
         Uri uri = Uri.parse(
                 "content://" + app.getAuthority() + "/" + mLayer.getPath().getName());
@@ -907,7 +978,9 @@ public class ModifyAttributesActivity
             // we need to get proper mFeatureId for new features first
             Uri result = null;
             try {
-                result = getContentResolver().insert(uri, values);
+                result = getContentResolver().insert(uri.buildUpon().appendQueryParameter(
+                        com.nextgis.maplib.util.FeatureSaveJournal.URI_PARAMETER,
+                        mFormOperationId).build(), values);
             } catch (RuntimeException e) {
                 logFeatureSaveException("insert threw", uri, values, geoGeometry, e);
                 showDbError(R.string.error_db_insert);
@@ -943,11 +1016,19 @@ public class ModifyAttributesActivity
             return false;
         }
 
+        // Checkpoint the assigned id before copying attachments; a failed copy keeps this form open.
+        if (!onMain(() -> checkpointFormDraft(true))) return false;
         for (Map.Entry<String, IControl> field : mFields.entrySet()) {
-            if (field.getKey().startsWith(PhotoGallery.GALLERY_PREFIX) && field.getValue() instanceof PhotoGallery)
-                putAttaches((PhotoGallery) field.getValue(), overlayData, overlaySettings);
+            if (field.getValue() instanceof PhotoGallery
+                    && putAttaches((PhotoGallery) field.getValue(), overlayData, overlaySettings) < 0) {
+                showShortToast(R.string.error_form_attachments);
+                return false;
+            }
         }
-        putSign();
+        if (!putSign()) {
+            showShortToast(R.string.error_form_attachments);
+            return false;
+        }
         Intent data = new Intent();
         data.putExtra(ConstantsUI.KEY_FEATURE_ID, mFeatureId);
         data.putExtra(ConstantsUI.KEY_LAYER_ID, mLayer.getId());
@@ -956,9 +1037,12 @@ public class ModifyAttributesActivity
             data.putExtra(KEY_ADDED_POINT, new double[]{ ((GeoPoint)geoGeometry).getX(), ((GeoPoint)geoGeometry).getY() });
         HyperLog.v(Constants.TAG, "FormSave result ready layer=" + mLayer.getId()
                 + " feature=" + mFeatureId + " wasNew=" + wasNewFeature);
-        setResult(RESULT_OK, data);
-        if (mWalkSessionId != null) WalkSessionStore.clear(this, mWalkSessionId);
-        clearFormDraft();
+        onMain(() -> {
+            setResult(RESULT_OK, data);
+            if (mWalkSessionId != null) WalkSessionStore.clear(this, mWalkSessionId);
+            clearFormDraft();
+            return null;
+        });
         return !error;
     }
 
@@ -1090,55 +1174,69 @@ public class ModifyAttributesActivity
     }
 
 
-    protected void putSign() {
-        LinearLayout layout = findViewById(R.id.controls_list);
-        for (int i = 0; i < layout.getChildCount(); i++) {
-            View child = layout.getChildAt(i);
-            if (child instanceof Sign) {
-                IGISApplication application = (IGISApplication) getApplication();
-                Uri uri = Uri.parse("content://" + application.getAuthority() + "/" +
-                        mLayer.getPath().getName() + "/" + mFeatureId + "/" + Constants.URI_ATTACH);
-
-                ContentValues values = new ContentValues();
-                values.put(VectorLayer.ATTACH_DISPLAY_NAME, "_signature");
-                values.put(VectorLayer.ATTACH_DESCRIPTION, "_signature");
-                values.put(VectorLayer.ATTACH_MIME_TYPE, "image/jpeg");
-
-                String selection = VectorLayer.ATTACH_ID + " =  ?";
-                String[] args = new String[]{Sign.SIGN_FILE};
-                Cursor saved = getContentResolver().query(uri, null, selection, args, null);
-                boolean hasSign = false;
-                if (saved != null) {
-                    hasSign = saved.moveToFirst();
-                    saved.close();
-                }
-
-                if (!hasSign) {
-                    Uri result = getContentResolver().insert(uri, values);
-                    if (result != null) {
-                        long id = Long.parseLong(result.getLastPathSegment());
-                        values.clear();
-                        values.put(VectorLayer.ATTACH_ID, Integer.MAX_VALUE);
-                        uri = Uri.withAppendedPath(uri, id + "");
-                        getContentResolver().update(uri, values, null, null);
+    protected boolean putSign() {
+        java.util.List<Sign> signs = onMain(this::getSignControls);
+        for (Sign sign : signs) {
+            if (!onMain(sign::hasEdits)) continue;
+            File staged = null;
+            try {
+                staged = File.createTempFile("signature_", ".png", getCacheDir());
+                final File signatureFile = staged;
+                boolean rendered = onMain(() -> {
+                    try { sign.save(sign.getWidth(), sign.getHeight(), true, signatureFile); return true; }
+                    catch (IOException | RuntimeException error) {
+                        Log.e(TAG, "Cannot stage signature", error); return false;
                     }
+                });
+                if (!rendered || staged.length() == 0) return false;
+                IGISApplication application = (IGISApplication) getApplication();
+                Uri base = Uri.parse("content://" + application.getAuthority() + "/"
+                        + mLayer.getPath().getName() + "/" + mFeatureId + "/" + Constants.URI_ATTACH);
+                boolean hasSign;
+                try (Cursor saved = getContentResolver().query(base, null,
+                        VectorLayer.ATTACH_ID + " = ?", new String[]{Sign.SIGN_FILE}, null)) {
+                    if (saved == null) return false;
+                    hasSign = saved.moveToFirst();
                 }
-
-                File png = new File(mLayer.getPath(), mFeatureId + "");
-                Sign sign = (Sign) child;
-                try {
-                    if (!png.isDirectory())
-                        FileUtil.createDir(png);
-
-                    png = new File(png, Sign.SIGN_FILE);
-                    sign.save(sign.getWidth(), sign.getHeight(), true, png);
-                } catch (IOException | RuntimeException e) {
-                    e.printStackTrace();
+                if (!hasSign) {
+                    ContentValues values = new ContentValues();
+                    values.put(VectorLayer.ATTACH_DISPLAY_NAME, "_signature");
+                    values.put(VectorLayer.ATTACH_DESCRIPTION, "_signature");
+                    values.put(VectorLayer.ATTACH_MIME_TYPE, "image/png");
+                    Uri created = getContentResolver().insert(base, values);
+                    if (created == null) return false;
+                    values.clear();
+                    values.put(VectorLayer.ATTACH_ID, Integer.MAX_VALUE);
+                    if (getContentResolver().update(created, values, null, null) != 1) return false;
                 }
+                if (!copyToStream(Uri.withAppendedPath(base, Sign.SIGN_FILE), staged.getAbsolutePath()))
+                    return false;
+            } catch (IOException | RuntimeException error) {
+                Log.e(TAG, "Cannot save signature", error); return false;
+            } finally {
+                if (staged != null) staged.delete();
             }
         }
+        return true;
     }
 
+    private java.util.List<Sign> getSignControls() {
+        java.util.List<Sign> signs = new ArrayList<>();
+        collectSigns(findViewById(R.id.controls_list), signs, new java.util.HashSet<>());
+        return signs;
+    }
+
+    private void collectSigns(View view, java.util.List<Sign> signs, java.util.Set<View> visited) {
+        if (view == null || !visited.add(view)) return;
+        if (view instanceof Sign) signs.add((Sign) view);
+        if (view instanceof com.nextgis.maplibui.formcontrol.Tabs)
+            for (View page : ((com.nextgis.maplibui.formcontrol.Tabs) view).getPageLayouts())
+                collectSigns(page, signs, visited);
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i=0; i<group.getChildCount(); i++) collectSigns(group.getChildAt(i), signs, visited);
+        }
+    }
 
     protected Object putFieldValue(
             ContentValues values,
@@ -1218,7 +1316,7 @@ public class ModifyAttributesActivity
             PhotoOverlaySettings overlaySettings) {
         int total = 0;
         if (gallery != null && mFeatureId != NOT_FOUND) {
-            List<Integer> deletedAttaches = gallery.getDeletedAttaches();
+            List<Integer> deletedAttaches = onMain(gallery::getDeletedAttaches);
             IGISApplication application = (IGISApplication) getApplication();
             Uri uri = Uri.parse("content://" + application.getAuthority() + "/" +
                     mLayer.getPath().getName() + "/" + mFeatureId + "/" + Constants.URI_ATTACH);
@@ -1236,18 +1334,18 @@ public class ModifyAttributesActivity
 //            if (size > 0)
 //                total += getContentResolver().delete(uri, MapUtil.makePlaceholders(size), args);
 
-            if (total == 0 && size > 0) {
-                Toast.makeText(this, getText(com.keenfin.easypicker.R.string.photo_fail_attach), Toast.LENGTH_SHORT).show();
+            if (total != size && size > 0) {
+                showShortToast(com.keenfin.easypicker.R.string.photo_fail_attach);
                 Log.d(TAG, "attach delete failed");
+                return -1;
             } else {
                 Log.d(TAG, "attach delete success: " + total);
             }
 
-            List<AttachInfo> imagesPath = gallery.getNewAttaches();
-            String comment = gallery.getComment();
+            List<AttachInfo> imagesPath = onMain(gallery::getNewAttaches);
+            String comment = onMain(gallery::getComment);
             for (AttachInfo path : imagesPath) {
-                if (path == null || path.oldAttachString == null )
-                    continue;
+                if (path == null || path.oldAttachString == null) return -1;
                 String pathString = path.oldAttachString;
                 String[] segments = pathString.split("/");
                 String name = segments.length > 0 ? segments[segments.length - 1] : "image.jpg";
@@ -1262,13 +1360,17 @@ public class ModifyAttributesActivity
                 values.put(VectorLayer.ATTACH_MIME_TYPE, "image/jpeg");
 
                 //Log.e(TAG, "modify insert " + uri.toString() + " values: " + values.toString());
-                Uri result = getContentResolver().insert(uri, values);
+                Uri result = getContentResolver().insert(uri.buildUpon().appendQueryParameter(
+                        com.nextgis.maplib.util.FeatureSaveJournal.URI_PARAMETER,
+                        mFormOperationId + ":photo:" + pathString).build(), values);
                 if (result == null) {
-                    Toast.makeText(this, getText(com.keenfin.easypicker.R.string.photo_fail_attach), Toast.LENGTH_SHORT).show();
+                    showShortToast(com.keenfin.easypicker.R.string.photo_fail_attach);
                     Log.d(TAG, "attach insert failed");
+                    return -1;
                 } else {
-                    if (copyAttachmentToStream(result, pathString, overlayData, overlaySettings))
-                        total++;
+                    if (!copyAttachmentToStream(result, pathString, overlayData, overlaySettings))
+                        return -1;
+                    total++;
 
                     Log.d(TAG, "attach insert success: " + result.toString());
                 }
@@ -1278,60 +1380,22 @@ public class ModifyAttributesActivity
         return total;
     }
 
-    protected boolean copyAttachmentToStream(
-            Uri uri,
-            String path,
-            PhotoOverlayData overlayData,
-            PhotoOverlaySettings overlaySettings)
-    {
-        boolean shouldProcess = overlaySettings != null
-                && overlaySettings.enabled
-                && overlayData != null
-                && overlayData.hasContent();
-        if (!shouldProcess) {
-            return copyToStream(uri, path);
-        }
-
+    protected boolean copyAttachmentToStream(Uri uri, String path,
+            PhotoOverlayData overlayData, PhotoOverlaySettings overlaySettings) {
+        boolean process = overlaySettings != null && overlaySettings.enabled
+                && overlayData != null && overlayData.hasContent();
+        if (!process) return copyToStream(uri, path);
         File processedFile = null;
         try {
             processedFile = File.createTempFile("photo_attach_", ".jpg", getCacheDir());
-            if (!PhotoOverlayUtil.processToFile(
-                    this,
-                    path,
-                    processedFile,
-                    overlayData,
-                    overlaySettings.coordFormat,
-                    overlaySettings.coordFraction)) {
-                return copyToStream(uri, path);
-            }
-
-            OutputStream outStream = getContentResolver().openOutputStream(uri);
-            if (outStream == null) {
-                return false;
-            }
-            try (FileInputStream inStream = new FileInputStream(processedFile)) {
-                byte[] buffer = new byte[8192];
-                int counter;
-                while ((counter = inStream.read(buffer)) > 0) {
-                    outStream.write(buffer, 0, counter);
-                    outStream.flush();
-                }
-            } finally {
-                outStream.close();
-            }
-            return true;
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(
-                    this,
-                    getText(com.keenfin.easypicker.R.string.photo_fail_attach),
-                    Toast.LENGTH_SHORT).show();
+            if (PhotoOverlayUtil.processToFile(this, path, processedFile, overlayData,
+                    overlaySettings.coordFormat, overlaySettings.coordFraction))
+                return copyToStream(uri, processedFile.getAbsolutePath());
             return copyToStream(uri, path);
-        } finally {
-            if (processedFile != null) {
-                processedFile.delete();
-            }
-        }
+        } catch (IOException | RuntimeException error) {
+            Log.e(TAG, "Photo processing failed", error);
+            return false;
+        } finally { if (processedFile != null) processedFile.delete(); }
     }
 
     private PhotoOverlaySettings readPhotoOverlaySettings() {
@@ -1452,35 +1516,26 @@ public class ModifyAttributesActivity
     }
 
     protected boolean copyToStream(Uri uri, String path) {
-        try {
-            OutputStream outStream = getContentResolver().openOutputStream(uri);
-
-            if (outStream != null) {
-                InputStream inStream;
-                if (!path.startsWith("/"))
-                    inStream = getContentResolver().openInputStream(Uri.parse(path));
-                else
-                    inStream = new FileInputStream(path);
-                byte[] buffer = new byte[8192];
-                int counter;
-
-                while ((counter = inStream.read(buffer, 0, buffer.length)) > 0) {
-                    outStream.write(buffer, 0, counter);
-                    outStream.flush();
-                }
-
-                outStream.close();
-                inStream.close();
-
-                return true;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        java.util.List<String> parts = uri.getPathSegments();
+        if (parts.size() != 4 || !parts.get(0).equals(mLayer.getPath().getName())) return false;
+        File target = new File(new File(mLayer.getPath(), parts.get(1)), parts.get(3));
+        android.util.AtomicFile atomic = new android.util.AtomicFile(target);
+        java.io.FileOutputStream out = null;
+        try (InputStream in = path.startsWith("/") ? new FileInputStream(path)
+                : getContentResolver().openInputStream(Uri.parse(path))) {
+            if (in == null) return false;
+            out = atomic.startWrite();
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            atomic.finishWrite(out);
+            return true;
+        } catch (IOException | RuntimeException error) {
+            if (out != null) atomic.failWrite(out);
+            Log.e(TAG, "Cannot copy attachment", error);
+            return false;
         }
-
-        return false;
     }
-
 
     protected void setLocationText(Location location)
     {

@@ -94,6 +94,7 @@ public class VectorLayerUI
     @Override
     public boolean delete(boolean keepTrack) throws SQLiteException {
         if (isReservedForWalk()) return false;
+        if (!super.delete(keepTrack)) return false;
         File preference = new File(mContext.getApplicationInfo().dataDir, "shared_prefs");
 
         if (preference.exists() && preference.isDirectory()) {
@@ -101,7 +102,7 @@ public class VectorLayerUI
             preference.delete();
         }
 
-        return super.delete(keepTrack);
+        return true;
     }
 
     @Override

@@ -135,6 +135,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     private int mLastSampledIndex = -1;
     private long mLastRecordingNanos;
     private boolean mGpsPaused;
+    private boolean mPersistenceFailed;
     private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
     private String mSessionId;
     private boolean mTerminalHandled;
@@ -243,7 +244,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                             if (mSampler != null) mSampler.reset();
                             mGpsSource.removeRecordingListener(this);
                             mGpsSource.addRecordingListener(this);
-                            reportWalkPersistence(persistWalkGeometryToTempPrefs());
+                            persistWalkGeometryToTempPrefs();
                             sendGeometryBroadcast();
                             addNotification();
                         } else {
@@ -327,8 +328,15 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
 
         String minTimeStr = sharedPreferences.getString(SettingsConstants.KEY_PREF_LOCATION_MIN_TIME, "2");
         String minDistanceStr = sharedPreferences.getString(SettingsConstants.KEY_PREF_LOCATION_MIN_DISTANCE, "5");
-        long minTime = Long.parseLong(minTimeStr) * 1000;
-        float minDistance = Float.parseFloat(minDistanceStr);
+        long minTime = 2000;
+        float minDistance = 5;
+        try {
+            minTime = Math.max(0, Math.multiplyExact(Long.parseLong(minTimeStr), 1000));
+            float parsedDistance = Float.parseFloat(minDistanceStr);
+            if (Float.isFinite(parsedDistance) && parsedDistance >= 0) minDistance = parsedDistance;
+        } catch (RuntimeException invalid) {
+            HyperLog.w(Constants.TAG, "Invalid walk sampling preferences; using safe defaults", invalid);
+        }
 
         initTargetIntent(mTargetActivity);
 
@@ -474,6 +482,12 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                 && id.equals(sActive.mSessionId);
     }
 
+    public static boolean isPersistenceFailed(String id) {
+        WalkEditService service = sActive;
+        return service != null && id != null && id.equals(service.mSessionId)
+                && !service.mTerminalHandled && service.mPersistenceFailed;
+    }
+
     /** Upgrade a live legacy recorder without resetting its GNSS subscription or sampler. */
     public static void adoptLegacySession(String id) {
         WalkEditService service = sActive;
@@ -510,7 +524,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             changed |= WalkGeometryInsertion.correct(line, mLastSampledIndex, point);
         }
         if (changed) {
-            reportWalkPersistence(persistWalkGeometryToTempPrefs());
+            persistWalkGeometryToTempPrefs();
             sendGeometryBroadcast();
         }
     }
@@ -521,7 +535,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (mGeometry == null || mGpsPaused || mLastRecordingNanos == 0) return;
         saveSampledPoints(mSampler.flush());
         mGpsPaused = true;
-        reportWalkPersistence(persistWalkGeometryToTempPrefs());
+        persistWalkGeometryToTempPrefs();
         sendGeometryBroadcast();
         addNotification();
     }
@@ -536,7 +550,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         boolean changed = false;
         for (Location point : points) changed |= appendWalkGeometryPoint(point);
         if (changed) {
-            reportWalkPersistence(persistWalkGeometryToTempPrefs());
+            persistWalkGeometryToTempPrefs();
             sendGeometryBroadcast();
         }
     }
@@ -570,6 +584,18 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     }
 
     private boolean persistWalkDraftSnapshot(boolean includeMeta) {
+        boolean persisted;
+        try {
+            persisted = writeWalkDraftSnapshot(includeMeta);
+        } catch (RuntimeException error) {
+            HyperLog.w(Constants.TAG, "Walk geometry checkpoint failed", error);
+            persisted = false;
+        }
+        reportWalkPersistence(persisted);
+        return persisted;
+    }
+
+    private boolean writeWalkDraftSnapshot(boolean includeMeta) {
         if (mGeometry == null)
             return false;
         if (mSessionId != null) {
@@ -595,9 +621,19 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     }
 
     private void reportWalkPersistence(boolean persisted) {
+        boolean changed = mPersistenceFailed == persisted;
+        mPersistenceFailed = !persisted;
         if (!persisted) {
             HyperLog.w(Constants.TAG, "WalkEditService: failed to persist walk geometry");
             mRecordingSoundMonitor.onPersistenceFailed();
+        }
+        if (changed && mGeometry != null && !mTerminalHandled) {
+            try {
+                addNotification();
+                sendGeometryBroadcast();
+            } catch (RuntimeException error) {
+                HyperLog.w(Constants.TAG, "Cannot publish walk persistence state", error);
+            }
         }
     }
 
@@ -675,8 +711,15 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         intent.putExtra(ConstantsUI.KEY_MESSAGE, true);
         if (!TextUtils.isEmpty(targetActivity))
             intent.putExtra(ConstantsUI.TARGET_CLASS, targetActivity);
-        ContextCompat.startForegroundService(context, intent);
-        return true;
+        try {
+            ContextCompat.startForegroundService(context, intent);
+            return true;
+        } catch (RuntimeException error) {
+            HyperLog.w(Constants.TAG, "Walk resume foreground start deferred", error);
+            android.widget.Toast.makeText(context, R.string.walk_start_failed,
+                    android.widget.Toast.LENGTH_LONG).show();
+            return false;
+        }
     }
 
     /** Request an explicit stop that clears the durable draft (Save/Cancel). */
@@ -767,6 +810,17 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     }
 
     private boolean addNotification() {
+        if (mPersistenceFailed) {
+            NotificationCompat.Builder failed = createBuilder(this, R.string.title_edit_by_walk)
+                    .setSmallIcon(mSmallIcon)
+                    .setContentTitle(getString(R.string.title_edit_by_walk))
+                    .setContentText(getString(R.string.walk_checkpoint_failed))
+                    .setStyle(new NotificationCompat.BigTextStyle()
+                            .bigText(getString(R.string.walk_checkpoint_failed)))
+                    .setOngoing(true);
+            if (mOpenActivity != null) failed.setContentIntent(mOpenActivity);
+            return startLocationForegroundSafely(failed.build(), "checkpoint-failed");
+        }
         if (mGpsPaused) {
             Intent resume = new Intent(this, WalkEditService.class).setAction(ACTION_RESUME_GPS);
             if (mSessionId != null) {
@@ -862,7 +916,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                 startForeground(WALK_NOTIFICATION_ID, notification);
             }
             return true;
-        } catch (SecurityException ex) {
+        } catch (RuntimeException ex) {
             HyperLog.w(Constants.TAG, "WalkEditService location foreground rejected stage="
                     + stage + ": " + ex.getMessage(), ex);
             stopWithoutLocationForeground(stage);

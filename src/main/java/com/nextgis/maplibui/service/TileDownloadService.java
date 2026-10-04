@@ -94,6 +94,7 @@ public class TileDownloadService extends Service {
 
     protected Queue<DownloadTask> mQueue;
     protected Thread              mDownloadThread;
+    private volatile ThreadPoolExecutor mActiveDownloadPool;
 
     protected volatile boolean mIsDownloadError = false;
 
@@ -161,12 +162,19 @@ public class TileDownloadService extends Service {
         }
 
 
+        try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             String title = getString(R.string.download_tiles);
             mBuilder.setContentTitle(title).setTicker(title).setWhen(System.currentTimeMillis());
             startForeground(TILE_DOWNLOAD_NOTIFICATION_ID, mBuilder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } else {
             startForeground(TILE_DOWNLOAD_NOTIFICATION_ID, mBuilder.build());
+        }
+        } catch (RuntimeException error) {
+            Log.w(Constants.TAG, "Tile download foreground start rejected", error);
+            cancelDownload();
+            stopSelf(startId);
+            return START_NOT_STICKY;
         }
 
         if (intent != null) {
@@ -236,7 +244,10 @@ public class TileDownloadService extends Service {
 
     // For overriding in subclasses
     protected void clearResources() {
+        mIsDownloadInterrupted = true;
         mQueue.clear();
+        ThreadPoolExecutor pool = mActiveDownloadPool;
+        if (pool != null) pool.shutdownNow();
         if (mDownloadThread != null && mDownloadThread.isAlive()) {
             mDownloadThread.interrupt();
             mDownloadThread = null;
@@ -260,6 +271,12 @@ public class TileDownloadService extends Service {
             Log.d(Constants.TAG, "TileDownloadService.onDestroy(), service is stopped");
         }
         super.onDestroy();
+    }
+
+    @Override public void onTimeout(int startId, int foregroundServiceType) {
+        Log.w(Constants.TAG, "Tile download reached foreground time limit");
+        try { cancelDownload(); }
+        finally { stopSelf(); }
     }
 
     protected void addTask(
@@ -406,15 +423,21 @@ public class TileDownloadService extends Service {
                                         Runnable r,
                                         ThreadPoolExecutor executor)
                                 {
+                                    if (executor.isShutdown()) {
+                                        if (r instanceof Future) ((Future<?>) r).cancel(true);
+                                        return;
+                                    }
                                     try {
                                         executor.getQueue().put(r);
                                     } catch (InterruptedException e) {
-                                        e.printStackTrace();
-                                        //throw new RuntimeException("Interrupted while submitting task", e);
+                                        Thread.currentThread().interrupt();
+                                        mIsDownloadInterrupted = true;
+                                        if (r instanceof Future) ((Future<?>) r).cancel(true);
                                     }
                                 }
                             });
 
+            mActiveDownloadPool = threadPool;
             int tilesSize = tiles.size();
             List<Future> futures = new ArrayList<>(tilesSize);
 
@@ -508,12 +531,15 @@ public class TileDownloadService extends Service {
                 }
             }
 
-            sendProgressorsValues(futuresSize, futuresSize, tmsLayer.getPath().getName());
+            if (!mIsDownloadInterrupted)
+                sendProgressorsValues(futuresSize, futuresSize, tmsLayer.getPath().getName());
+            for (Future future : futures) if (!future.isDone()) future.cancel(true);
 
             threadPool.shutdownNow(); // Cancel currently executing tasks
+            if (mActiveDownloadPool == threadPool) mActiveDownloadPool = null;
             try {
                 // Wait a while for tasks to respond to being cancelled
-                if (!threadPool.awaitTermination(2000, Constants.KEEP_ALIVE_TIME_UNIT)) {
+                if (!threadPool.awaitTermination(2000, java.util.concurrent.TimeUnit.MILLISECONDS)) {
                     if (Constants.DEBUG_MODE) {
                         Log.d(
                                 Constants.TAG,

@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-09-22
+last_verified: 2026-10-04
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -12,6 +12,14 @@ UI-библиотека и runtime orchestration: выбор NGW resources, со
 слоёв, batch fill, layer list/reorder, edit overlays, sync/account UI,
 Collector workspaces и защитные backups. MapLibre Android `13.0.2` подключён
 через явный OpenGL-артефакт, согласованный с `app` и `maplib`.
+
+При подготовке production `3.1.2.27` библиотека проверяется вместе с consuming
+app и maplib; shared UI, account identities и OpenGL backend сохраняют прежний
+контракт. APK version matrix выполняется после закрытия library PRs.
+
+`ExternalGnssService` удерживает внешнюю сессию, а готовность BLE-подписки и
+свежесть качества определяет maplib. Живой foreground service не подтверждает
+наличие свежего фикса; Pigo использует профиль UART `3A20` и BESTPOSB.
 
 ## Основные сценарии
 
@@ -300,3 +308,26 @@ partial wake lock, пока активен хотя бы один recorder, не
 ## Подложки между проектами
 
 SharedUnderlayProjects координирует migration, attach, usage и подтверждённое глобальное удаление через UNDERLAY_MIGRATION lease. LayerFillService не добавляет второй shared ID в один проект и не подменяет имя NGRc-подложки SAF-идентификатором документа. Старые подложки защищаются перед удалением проекта; список слоёв снимает только проектную ссылку. Контракт: [shared-underlays](../../docs/architecture/shared-underlays.md).
+
+## Восстановление и безопасное сохранение — 2026-10-03
+
+Форма собирает значения контролов в UI-потоке, пишет данные в worker и остаётся
+открытой при ошибке фотографии/подписи. Черновик сохраняется периодически,
+перед записью и после назначения id; UUID позволяет повторить insert без второго
+объекта. Подпись хранит штрихи и закрывает файловые потоки. AndroidX Back
+сохраняет подтверждение выхода и блокирует уход во время Save.
+
+TrackerService сохраняет очередь точек и намерение Stop до успешной выгрузки
+хвоста. WalkEditService показывает ошибку checkpoint в панели/уведомлении и
+снимает её после успешной записи. Внутренние службы не экспортированы; dataSync
+службы обрабатывают timeout отменой и быстрым stopSelf.
+
+Backup format2 публикуется уникальным ZIP после проверки содержимого; ручной
+backup выполняется вне UI-потока, окончательное удаление повторно проверяет
+карту, резервирование и поколение данных. Текущая невозможность редактировать
+слой не отключает защиту уже существующих локальных данных.
+NextGIS ID просит почту или логин, приводит только идентификатор к нижнему
+регистру; Web GIS folder/up icons привязываются при каждом повторном использовании
+строки. См. [хранение](../../docs/architecture/ngw-sync-and-storage.md),
+[восстановление](../../docs/architecture/crash-recovery.md) и
+[результаты аудита](../../docs/reference/mobile-reliability-audit.md).

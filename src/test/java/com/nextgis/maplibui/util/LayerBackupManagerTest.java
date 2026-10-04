@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
+import java.util.zip.ZipEntry;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -95,6 +96,53 @@ public class LayerBackupManagerTest {
             assertTrue(zip.getEntry("attachments/10/META") != null);
             assertTrue(zip.getEntry("attachments/20/6") == null);
         }
+    }
+
+    @Test public void incompleteArchiveIsNeverCommitted() throws Exception {
+        File partial = temporaryFolder.newFile("incomplete.partial");
+        try (ZipOutputStream output = new ZipOutputStream(new FileOutputStream(partial))) {
+            output.putNextEntry(new ZipEntry("manifest.json"));
+            output.write("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.closeEntry();
+        }
+        try {
+            LayerBackupManager.commitArchive(partial);
+            throw new AssertionError("Incomplete archive accepted");
+        } catch (IOException expected) { }
+        assertFalse(new File(partial.getParentFile(), "incomplete.zip").exists());
+    }
+
+    @Test public void archiveCommitNeverOverwritesAnEarlierBackup() throws Exception {
+        File partial = completeArchive("collision.partial");
+        File earlier = writeZip(partial.getParentFile(), "collision.zip", 37);
+        try {
+            LayerBackupManager.commitArchive(partial);
+            throw new AssertionError("Earlier backup overwritten");
+        } catch (java.nio.file.FileAlreadyExistsException expected) { }
+        assertEquals(37, earlier.length());
+        assertTrue(partial.exists());
+    }
+
+    @Test public void completedArchiveRetainsEveryRequiredEntry() throws Exception {
+        File partial = completeArchive("complete.partial");
+        File complete = LayerBackupManager.commitArchive(partial);
+        assertFalse(partial.exists());
+        try (ZipFile archive = new ZipFile(complete)) {
+            assertEquals(4, archive.size());
+        }
+    }
+
+    private File completeArchive(String name) throws IOException {
+        File partial = temporaryFolder.newFile(name);
+        try (ZipOutputStream output = new ZipOutputStream(new FileOutputStream(partial))) {
+            for (String entry : new String[]{"manifest.json", "tables/features.json",
+                    "tables/changes.json", "tables/attachments.json"}) {
+                output.putNextEntry(new ZipEntry(entry));
+                output.write("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                output.closeEntry();
+            }
+        }
+        return partial;
     }
 
     private File writeZip(File root, String name, int size) throws IOException {

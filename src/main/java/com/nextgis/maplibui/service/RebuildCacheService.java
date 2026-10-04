@@ -67,7 +67,7 @@ public class RebuildCacheService extends IntentService implements IProgressor
     public static final String KEY_MAX = "max";
 
     protected NotificationManager mNotifyManager;
-    protected List<Integer> mQueue;
+    protected final java.util.Queue<Integer> mQueue = new java.util.concurrent.ConcurrentLinkedQueue<>();
     protected int mTotalTasks;
     protected static final int NOTIFICATION_ID = 99;
     protected NotificationCompat.Builder mBuilder;
@@ -76,7 +76,9 @@ public class RebuildCacheService extends IntentService implements IProgressor
     protected VectorLayer mLayer;
     protected int mProgressMax, mCurrentTasks;
     protected long mLastUpdate = 0;
-    protected boolean mIsRunning, mIsCanceled, mRemoveCurrent;
+    protected volatile boolean mIsRunning, mIsCanceled, mRemoveCurrent;
+    private boolean mStopped;
+    private final android.os.Handler mWorkHandler = new android.os.Handler(Looper.getMainLooper());
 
     MyCustomThread thread = null;
 
@@ -140,10 +142,18 @@ public class RebuildCacheService extends IntentService implements IProgressor
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             String title = getString(com.nextgis.maplib.R.string.rebuild_cache);
             mBuilder.setWhen(System.currentTimeMillis()).setContentTitle(title).setTicker(title);
-            startForeground(NOTIFICATION_ID, mBuilder.build());
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    startForeground(NOTIFICATION_ID, mBuilder.build(),
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                else startForeground(NOTIFICATION_ID, mBuilder.build());
+            } catch (RuntimeException error) {
+                Log.w(TAG, "Cache rebuild foreground start rejected", error);
+                stopService();
+            }
         }
 
-        mQueue = new LinkedList<>();
+
     }
 
 
@@ -151,6 +161,7 @@ public class RebuildCacheService extends IntentService implements IProgressor
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (mStopped) return START_NOT_STICKY;
         if (intent != null) {
             String action = intent.getAction();
             if (action != null && !TextUtils.isEmpty(action)) {
@@ -169,15 +180,12 @@ public class RebuildCacheService extends IntentService implements IProgressor
                         int layerIdRemove = intent.getIntExtra(key, Constants.NOT_FOUND);
                         mCurrentTasks--;
 
-                        if (!mQueue.contains(layerIdRemove))
-                            if (mLayer != null && mLayer.getId() == layerIdRemove)
-                                mRemoveCurrent = true;
-                            else
-                                mQueue.remove(layerIdRemove);
+                        if (mLayer != null && mLayer.getId() == layerIdRemove)
+                            mRemoveCurrent = true;
+                        else mQueue.remove(layerIdRemove);
                         return START_STICKY;
                     case ACTION_STOP:
-                        mQueue.clear();
-                        mIsCanceled = true;
+                        stopService();
                         break;
                     case ACTION_SHOW:
                         Intent settings = new Intent(this, VectorLayerSettingsActivity.class);
@@ -192,75 +200,63 @@ public class RebuildCacheService extends IntentService implements IProgressor
     }
 
     protected void stopService() {
+        mStopped = true;
+        mIsCanceled = true;
+        mIsRunning = false;
+        mQueue.clear();
         mCurrentTasks = 0;
-        mProgressIntent.putExtra(KEY_PROGRESS, 0)
-                .setPackage(getPackageName());
+        mProgressIntent.putExtra(KEY_PROGRESS, 0).setPackage(getPackageName());
         sendBroadcast(mProgressIntent);
-        mLayer = null;
+        MyCustomThread worker = thread;
+        thread = null;
+        if (worker != null && worker != Thread.currentThread()) worker.interrupt();
+        // Never join a worker on Android's main thread, or join the current worker itself.
+        try { stopForeground(true); }
+        finally { stopSelf(); }
+    }
 
+    @Override public void onTimeout(int startId, int foregroundServiceType) {
+        Log.w(TAG, "Cache rebuild reached foreground time limit");
+        stopService();
+    }
 
-            stopForeground(true);
-//        else
-//            mNotifyManager.cancel(NOTIFICATION_ID);
-
-        
-        if (thread!= null){
-            thread.interrupt();
-            try {
-                thread.join(); // Wait for the thread to finish
-            } catch (InterruptedException e) {
-
-                Log.e("TAG", e.getMessage() == null? "null on InterruptedException" : e.getMessage());
-            }
-            thread = null; // Clean up
-        }
-
-        stopSelf();
+    @Override public void onDestroy() {
+        stopService();
+        mWorkHandler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 
     protected void startNextTask() {
-        if (mQueue.isEmpty()) {
-            stopService();
-            return;
+        if (mStopped || mIsRunning) return;
+        Integer layerId = mQueue.poll();
+        if (layerId == null) { stopService(); return; }
+        mIsCanceled = mRemoveCurrent = false;
+        mIsRunning = true; // reserve the worker before another start intent can enqueue work
+        try {
+            MapBase owner = ((IGISApplication) getApplication()).getMap();
+            mLayer = (VectorLayer) owner.getLayerById(layerId);
+        } catch (RuntimeException error) {
+            mLayer = null;
+            Log.w(TAG, "Cache rebuild layer is unavailable", error);
         }
-
-        mIsCanceled = false;
-        final IProgressor progressor = this;
-        if (thread != null)
-            thread.interrupt();
-        thread = new MyCustomThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    mLayer = (VectorLayer) MapBase.getInstance().getLayerById(mQueue.remove(0));
-                } catch (Exception ex) {
-                    mLayer = null;
-                    Log.e("error", ex.getMessage());
-                }
-                mIsRunning = true;
-                mCurrentTasks++;
-                String notifyTitle;
-                if (isMobileApplication()) {
-                    notifyTitle = getString(com.nextgis.maplib.R.string.rebuild_cache);
-                    notifyTitle += ": " + mCurrentTasks + "/" + mTotalTasks;
-                } else {
-                    notifyTitle = getString(com.nextgis.maplib.R.string.updating_data);
-                }
-
-                mBuilder.setWhen(System.currentTimeMillis())
-                        .setContentTitle(notifyTitle)
-                        .setTicker(notifyTitle);
-                mNotifyManager.notify(NOTIFICATION_ID, mBuilder.build());
-
+        final VectorLayer layer = mLayer;
+        mCurrentTasks++;
+        String title = getString(com.nextgis.maplib.R.string.rebuild_cache);
+        if (isMobileApplication()) title += ": " + mCurrentTasks + "/" + mTotalTasks;
+        mBuilder.setWhen(System.currentTimeMillis()).setContentTitle(title).setTicker(title);
+        mNotifyManager.notify(NOTIFICATION_ID, mBuilder.build());
+        thread = new MyCustomThread(() -> {
+            try {
                 Process.setThreadPriority(Constants.DEFAULT_DOWNLOAD_THREAD_PRIORITY);
-                if (mLayer != null)
-                    mLayer.rebuildCache(progressor);
-
-                mIsRunning = mRemoveCurrent = false;
-                startNextTask();
+                if (layer != null) layer.rebuildCache(this);
+            } catch (RuntimeException error) { Log.w(TAG, "Cache rebuild failed", error); }
+            finally {
+                mWorkHandler.post(() -> {
+                    mIsRunning = false;
+                    if (!mStopped) startNextTask();
+                });
             }
         });
-        thread.setLooper(Looper.myLooper());
         thread.start();
     }
 
@@ -288,6 +284,7 @@ public class RebuildCacheService extends IntentService implements IProgressor
 
     @Override
     public void setValue(int value) {
+        if (mIsCanceled) return;
         if (mLastUpdate + ConstantsUI.NOTIFICATION_DELAY < System.currentTimeMillis()) {
             mLastUpdate = System.currentTimeMillis();
             mBuilder.setProgress(mProgressMax, value, false);

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ngid_login_hint">Email or username</string>
+    <string name="walk_checkpoint_failed">Could not save the walk. Free up storage and try finishing again.</string>
+    <string name="walk_start_failed">Could not resume the walk. Open the app and check location permissions.</string>
+    <string name="error_form_checkpoint">Could not save the form draft. Free up storage and try again.</string>
+    <string name="error_form_attachments">Some photos or the signature could not be saved. The form remains open. Try saving again.</string>
+    <string name="form_save_processing">Saving object…</string>
+    <string name="layer_delete_retry">The layer changed during backup. Repeat the deletion.</string>
+    <string name="layer_delete_pending">Deleting layer…</string>
+    <string name="attribute_link_unavailable">Could not open the link. Check that a browser is installed.</string>
+</resources>

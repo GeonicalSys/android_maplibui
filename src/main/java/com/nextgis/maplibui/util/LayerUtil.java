@@ -272,6 +272,20 @@ public final class LayerUtil {
         if (!(layer instanceof VectorLayer)) {
             return false;
         }
+        if (draft.mapPath != null && !draft.mapPath.equals(app.getMap().getPath().getAbsolutePath())) {
+            return false;
+        }
+        try {
+            long savedId = com.nextgis.maplib.util.FeatureSaveJournal.find(
+                    com.nextgis.maplib.util.DatabaseContext.getDatabaseForLayer(layer, false),
+                    layer.getPath().getName(), draft.operationId);
+            if (savedId != Constants.NOT_FOUND && draft.featureId != savedId) {
+                draft.featureId = savedId;
+                FeatureFormDraftStore.save(context, draft);
+            }
+        } catch (RuntimeException error) {
+            HyperLog.e(Constants.TAG, "Cannot reconcile recovered form", error);
+        }
         WalkSessionStore.Snapshot session = WalkSessionStore.load(context);
         if (draft.pointSessionId != null && (session == null || !draft.pointSessionId.equals(session.pointId)
                 || !WalkSessionStore.isCurrentMap(context, session))) return false;
