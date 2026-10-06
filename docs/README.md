@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-04
+last_verified: 2026-10-06
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -22,6 +22,14 @@ app и maplib; shared UI, account identities и OpenGL backend сохраняю�
 наличие свежего фикса; Pigo использует профиль UART `3A20` и BESTPOSB.
 
 ## Основные сценарии
+
+- `TrackerService` сохраняет выбранный в кнопке карты режим «Пешеход» или
+  «Пешеход + машина». Track-only `TrackSpeedGate` пропускает скорость выше
+  30 км/ч до sampling/queue, дописывает только разрешённый хвост и возобновляет
+  запись новым сегментом. Без скорости приёмника используется соседняя GNSS-пара;
+  без пригодной пары запись ждёт измерений. Stop работает и во время пропуска.
+  Режим переживает restart/split, legacy default — смешанный. Heartbeat трека
+  молчит во время пропуска; общие GNSS callbacks, курсор и обход не меняются.
 
 - В списке слоёв карты значок включённой видимости зелёный; выключенное
   состояние сохраняет прежний значок и цвет в светлой и тёмной темах.

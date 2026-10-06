@@ -2,12 +2,16 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-04
+last_verified: 2026-10-06
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackRecordingMode.java
+    responsibility: Stable pedestrian and walk_and_drive preference values with backward-compatible mixed fallback.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackSpeedGate.java
+    responsibility: Track-only 30 km/h pedestrian gate with receiver-speed preference and consecutive-fix fallback; no dependency on shared cursor or walk policy.
   - path: maplibui/build.gradle
     responsibility: Compile the shared UI against the coupled app and maplib version contract; the pending production 3.1.2.27/221 bump preserves variant account identities and the OpenGL backend.
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/LayersListAdapter.java
@@ -81,7 +85,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
     responsibility: Export layer tables and only attachment files physically present on this device before destructive rebuild or removal, without downloading server-only payloads.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
-    responsibility: Start a location-only foreground recorder only while Android system location is enabled, expose stopped/starting/recording/error state, distinguish confirmed recording from durable intent, report failed starts, keep ordered Start/Stop and preserve validated GNSS points on unexpected termination.
+    responsibility: Start a location-only foreground recorder only while Android system location is enabled, expose stopped/starting/recording/error state, distinguish confirmed recording from durable intent, report failed starts, keep ordered Start/Stop, checkpoint the selected pedestrian/mixed mode, gate speed before sampling and preserve validated GNSS points plus segment gaps on unexpected termination.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/ExternalGnssService.java
     responsibility: Hold the default process as a silent location|connectedDevice foreground service while an external endpoint is configured; maplib owns Pigo UART readiness and fix expiry, and service presence does not imply a usable fix; no second LocationManager subscription.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
@@ -115,6 +119,10 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
     responsibility: Recoverable stroke state and checked atomic signature output.
 public_contracts:
+  - id: track-recording-mode
+    symbol: TrackerService.selectRecordingMode and getRecordingMode
+    path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
+    consumers: [app]
   - id: independent-walk-session
     symbol: WalkSessionStore and WalkSessionPolicy
     path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
@@ -127,7 +135,7 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
+settings_refs: [track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
 storage_contracts:
   - id: tracks_temp
     path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java

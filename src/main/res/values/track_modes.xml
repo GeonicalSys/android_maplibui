@@ -1,0 +1,6 @@
+<resources>
+    <string name="track_mode_pedestrian">Pedestrian</string>
+    <string name="track_mode_walk_drive">Pedestrian + car</string>
+    <string name="track_mode_choose">Choose track recording mode</string>
+    <string name="track_mode_active">Stop recording: %1$s</string>
+</resources>
