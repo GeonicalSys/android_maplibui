@@ -77,6 +77,8 @@ import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.HttpResponse;
 import com.nextgis.maplib.location.GpsEventSource;
 import com.nextgis.maplib.util.LocationRecordingSampler;
+import com.nextgis.maplibui.util.TrackRecordingMode;
+import com.nextgis.maplibui.util.TrackSpeedGate;
 import com.nextgis.maplib.util.LocationFixPolicy;
 import com.nextgis.maplib.util.MapUtil;
 import com.nextgis.maplib.util.NetworkUtil;
@@ -121,6 +123,7 @@ public class TrackerService extends Service
     private static final String ACTION_SPLIT          = "com.nextgis.maplibui.TRACK_SPLIT";
     private static final int    TRACK_NOTIFICATION_ID = 1;
     private static final String KEY_TRACK_FAILURE = "track_recording_failure";
+    public static final String KEY_RECORDING_MODE = "track_recording_mode";
     private static final String TRACK_MAP = "track_map";
     private static final String PENDING_STOP = "pending_stop";
 //    public static final String HOST = "http://dev.nextgis.com/tracker-dev1-hub";
@@ -156,6 +159,8 @@ public class TrackerService extends Service
 
     private GpsEventSource mGpsSource;
     private LocationRecordingSampler mSampler;
+    private TrackSpeedGate mSpeedGate;
+    private Location mPreviousSpeedLocation;
     private long mLastInsertedRowId = -1;
     private long mLastRecordingNanos;
     private int mSegment;
@@ -268,8 +273,7 @@ public class TrackerService extends Service
         trackerServiceIntent.putExtra(ConstantsUI.TARGET_CLASS, context.getClass().getName());
 
         int title = R.string.track_start, icon = R.drawable.ic_action_maps_directions_walk;
-        if (isTrackRecordingEnabled(context) || context.getSharedPreferences(TEMP_PREFERENCES,
-                MODE_PRIVATE).contains(PENDING_STOP)) {
+        if (hasRecordingSession(context)) {
             /*
              * The durable user intent is authoritative.  The service may be temporarily dead
              * after a crash or because permission was revoked; pressing the menu's Stop item
@@ -322,6 +326,25 @@ public class TrackerService extends Service
     public static boolean isTrackRecordingEnabled(Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context)
                 .getBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, false);
+    }
+
+    /** Stop remains available while starting, recovering, or draining a failed write. */
+    public static boolean hasRecordingSession(Context context) {
+        return isTrackRecordingEnabled(context) || context.getSharedPreferences(TEMP_PREFERENCES,
+                MODE_PRIVATE).contains(PENDING_STOP);
+    }
+
+    public static TrackRecordingMode getRecordingMode(Context context) {
+        return TrackRecordingMode.fromPreference(
+                PreferenceManager.getDefaultSharedPreferences(context).getString(KEY_RECORDING_MODE, null));
+    }
+
+    /** Checkpoint before requesting permissions; recovery must use the same selected mode. */
+    public static boolean selectRecordingMode(Context context,
+            TrackRecordingMode mode) {
+        if (hasRecordingSession(context)) return false;
+        return PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putString(KEY_RECORDING_MODE, mode.preferenceValue).commit();
     }
 
     /** The durable intent alone is not proof that Android started the recorder. */
@@ -552,6 +575,8 @@ public class TrackerService extends Service
                 HyperLog.w(Constants.TAG, "Invalid track sampling preferences; using defaults", error);
             }
             mSampler = new LocationRecordingSampler(minTime, minDistance);
+            mSpeedGate = new TrackSpeedGate(getRecordingMode(this));
+            mPreviousSpeedLocation = null;
 
             NotificationHelper.showLocationInfo(this);
 
@@ -1053,11 +1078,30 @@ public class TrackerService extends Service
         }
         long nanos = location.getElapsedRealtimeNanos();
         if (nanos <= mLastRecordingNanos) return;
+        Location previous = mPreviousSpeedLocation;
+        boolean record = mSpeedGate.shouldRecord(location.hasSpeed() ? location.getSpeed() : Float.NaN,
+                previous == null ? Float.NaN : previous.distanceTo(location),
+                previous == null ? 0 : nanos - previous.getElapsedRealtimeNanos(),
+                LocationFixPolicy.FRESHNESS_MS * 1_000_000L);
+        mPreviousSpeedLocation = new Location(location);
+        if (!record) {
+            // Flush only the already accepted walking tail. The skipped point never enters
+            // the sampler, stationary correction or durable queue, even on explicit Stop.
+            if (!mGapPending) {
+                for (Location point : mSampler.flush()) insertTrackPoint(point);
+                mSampler.reset();
+            }
+            mGapPending = true;
+            mLastRecordingNanos = nanos;
+            mRecordingSoundMonitor.onLocationUnavailable();
+            return;
+        }
         if (mGapPending || mLastRecordingNanos > 0
                 && (nanos - mLastRecordingNanos) / 1_000_000L > LocationFixPolicy.FRESHNESS_MS) {
             for (Location point : mSampler.flush()) insertTrackPoint(point);
             mSampler.reset();
             mSegment++;
+            mLastInsertedRowId = -1;
             mGapPending = false;
         }
         mLastRecordingNanos = nanos;
@@ -1071,6 +1115,7 @@ public class TrackerService extends Service
     @Override
     public void onRecordingUnavailable() {
         if (mLastRecordingNanos > 0) mGapPending = true;
+        mPreviousSpeedLocation = null;
         mRecordingSoundMonitor.onLocationUnavailable();
     }
 
