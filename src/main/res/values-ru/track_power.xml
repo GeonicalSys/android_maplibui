@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="track_power_title">Энергосбережение может прервать трек</string>
+    <string name="track_power_message">Энергосбережение телефона ограничивает GPS при выключенном экране. Для непрерывной записи трека выключите энергосбережение. Одного разрешения приложению работать в фоне может быть недостаточно.</string>
+    <string name="track_power_notification">Энергосбережение может прервать GPS при выключенном экране</string>
+    <string name="track_power_settings">Настройки батареи</string>
+    <string name="track_power_continue">Всё равно записывать</string>
+    <string name="track_power_acknowledge">Понятно</string>
+</resources>
