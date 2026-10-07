@@ -8,6 +8,12 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptFormController.java
+    responsibility: Pinned form hooks, stale-result guards and warning/block before Save.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java
+    responsibility: Worker-only isolated service binding and Binder execution.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
+    responsibility: Backward-compatible persistence of the complete script reference pin.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/RequiredFieldValidation.java
     responsibility: Reject missing or whitespace-only required values and the legacy Russian placeholder while accepting not-applicable, zero and false.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/RequiredFieldUi.java

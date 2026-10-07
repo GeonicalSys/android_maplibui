@@ -230,6 +230,10 @@ public abstract class GISApplication extends Application
     @Override
     public void onCreate()
     {
+        if (com.nextgis.maplib.scripts.ProjectScriptProcess.isSandbox(this)) {
+            super.onCreate();
+            return;
+        }
         super.onCreate();
         instance = this;
 

@@ -49,6 +49,8 @@ public final class FeatureFormDraftStore {
         public int layerId = Constants.NOT_FOUND;
         public long featureId = Constants.NOT_FOUND;
         public String operationId = java.util.UUID.randomUUID().toString();
+        /** Full immutable deployment reference; empty means no rules when this form was opened. */
+        public String scriptReference;
         public String mapPath;
         public boolean geometryChanged;
         /** WKT in CRS_WEB_MERCATOR, or null */
@@ -292,6 +294,7 @@ public final class FeatureFormDraftStore {
         root.put("layer_id", snapshot.layerId);
         root.put("feature_id", snapshot.featureId);
         root.put("operation_id", snapshot.operationId);
+        root.put("script_reference", snapshot.scriptReference);
         root.put("map_path", snapshot.mapPath);
         root.put("geometry_changed", snapshot.geometryChanged);
         root.put("point_session_id", snapshot.pointSessionId);
@@ -321,6 +324,7 @@ public final class FeatureFormDraftStore {
         snapshot.layerId = root.optInt("layer_id", Constants.NOT_FOUND);
         snapshot.featureId = root.optLong("feature_id", Constants.NOT_FOUND);
         snapshot.operationId = root.optString("operation_id", snapshot.operationId);
+        snapshot.scriptReference = root.optString("script_reference", null);
         snapshot.mapPath = root.optString("map_path", null);
         snapshot.geometryChanged = root.optBoolean("geometry_changed", false);
         snapshot.pointSessionId = root.optString("point_session_id", null);

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="project_scripts_notice_title">Проверка проекта</string>
+    <string name="project_scripts_continue">Продолжить сохранение</string>
+    <string name="project_scripts_return">Вернуться к форме</string>
+    <string name="project_scripts_unavailable">Не удалось выполнить проверку проекта. Сведения могут быть неполными.</string>
+    <string name="project_scripts_unavailable_block">Не удалось выполнить обязательную проверку проекта. Сохраните черновик и повторите попытку после обновления проекта.</string>
+    <string name="project_scripts_previous_version">Не удалось обновить правила проекта. Используется предыдущая проверенная версия.</string>
+</resources>
