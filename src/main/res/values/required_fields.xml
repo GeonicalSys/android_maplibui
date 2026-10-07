@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="form_required_fields_title">Required fields</string>
+    <string name="form_required_fields_message">Please fill in the required fields:</string>
+    <string name="form_required_field_hint">%1$s (required)</string>
+    <string name="form_required_field_unavailable">A required field is missing from this form. Please contact your administrator.</string>
+</resources>

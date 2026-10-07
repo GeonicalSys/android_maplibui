@@ -104,6 +104,8 @@ import com.nextgis.maplibui.formcontrol.Sign;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.ControlHelper;
 import com.nextgis.maplibui.util.FeatureFormDraftStore;
+import com.nextgis.maplibui.util.RequiredFieldUi;
+import com.nextgis.maplibui.util.RequiredFieldValidation;
 import com.nextgis.maplibui.util.WalkSessionStore;
 import com.nextgis.maplibui.view.WalkRecordingPanel;
 import com.nextgis.maplibui.util.NotificationHelper;
@@ -154,6 +156,7 @@ public class ModifyAttributesActivity
     protected long MAX_TAKE_TIME  = Integer.MAX_VALUE;
 
     protected Map<String, IControl> mFields;
+    private Map<String, String> mRequiredFieldCaptions = new HashMap<>();
     protected VectorLayer           mLayer;
     protected long                  mFeatureId;
 
@@ -422,6 +425,8 @@ public class ModifyAttributesActivity
 
                 LinearLayout layout = findViewById(R.id.controls_list);
                 fillControls(layout, controlsState);
+                if (!mIsViewOnly)
+                    mRequiredFieldCaptions = RequiredFieldUi.decorate(mLayer.getFields(), mFields);
                 if (draft != null && draft.photoPaths != null && !draft.photoPaths.isEmpty()) {
                     applyDraftPhotos(draft.photoPaths);
                 }
@@ -948,6 +953,7 @@ public class ModifyAttributesActivity
             return true;
         });
         if (!valid) return false;
+        if (!validateRequiredFields(values)) return false;
         GeoGeometry geoGeometry = onMain(() -> putGeometry(values));
         IGISApplication app = (IGISApplication) getApplication();
 
@@ -1236,6 +1242,57 @@ public class ModifyAttributesActivity
             android.view.ViewGroup group = (android.view.ViewGroup) view;
             for (int i=0; i<group.getChildCount(); i++) collectSigns(group.getChildAt(i), signs, visited);
         }
+    }
+
+    private boolean validateRequiredFields(ContentValues values) {
+        List<Field> required = new ArrayList<>();
+        for (Field field : mLayer.getFields()) if (field.isRequired()) required.add(field);
+        if (required.isEmpty()) return true;
+
+        // An existing value omitted by this form is preserved. An explicitly cleared control
+        // must still fail, and a required field on an inactive page is read like every other.
+        List<Field> unbound = onMain(() -> {
+            List<Field> result = new ArrayList<>();
+            for (Field field : required)
+                if (!values.containsKey(field.getName())
+                        && RequiredFieldUi.fieldView(field, mFields) == null) result.add(field);
+            return result;
+        });
+        ContentValues stored = new ContentValues();
+        if (mFeatureId != NOT_FOUND && !unbound.isEmpty()) {
+            String[] projection = new String[unbound.size()];
+            for (int i = 0; i < unbound.size(); i++) projection[i] = unbound.get(i).getName();
+            try (Cursor cursor = mLayer.query(projection, FIELD_ID + " = " + mFeatureId,
+                    null, null, null)) {
+                if (cursor != null && cursor.moveToFirst())
+                    android.database.DatabaseUtils.cursorRowToContentValues(cursor, stored);
+            }
+        }
+        List<Field> missing = new ArrayList<>();
+        for (Field field : required) {
+            Object value = values.containsKey(field.getName())
+                    ? values.get(field.getName()) : stored.get(field.getName());
+            if (RequiredFieldValidation.isMissing(value)) missing.add(field);
+        }
+        if (missing.isEmpty()) return true;
+        onMain(() -> {
+            StringBuilder message = new StringBuilder(getString(R.string.form_required_fields_message));
+            for (Field field : missing) message.append("\n• ").append(
+                    mRequiredFieldCaptions.getOrDefault(field.getName(), field.getAlias()));
+            View target = RequiredFieldUi.fieldView(missing.get(0), mFields);
+            if (target == null) message.append("\n\n").append(
+                    getString(R.string.form_required_field_unavailable));
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.form_required_fields_title)
+                    .setMessage(message)
+                    .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                        if (target != null && !isFinishing() && !isDestroyed())
+                            RequiredFieldUi.reveal(findViewById(R.id.controls_list), target,
+                                    () -> RequiredFieldUi.focus(target));
+                    }).show();
+            return null;
+        });
+        return false;
     }
 
     protected Object putFieldValue(
