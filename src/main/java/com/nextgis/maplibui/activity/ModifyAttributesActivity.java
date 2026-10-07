@@ -572,8 +572,12 @@ public class ModifyAttributesActivity
                 ((IControl) controlLayout.getChildAt(i)).saveState(outState);
 
         for (Sign sign : getSignControls()) sign.saveState(outState);
+        saveAdditionalFormState(outState);
         super.onSaveInstanceState(outState);
     }
+
+    /** Extra state is also included in the durable checkpoint, not only Activity Bundle. */
+    protected void saveAdditionalFormState(Bundle state) { }
 
 
     @Override
@@ -667,6 +671,7 @@ public class ModifyAttributesActivity
             }
         }
         for (Sign sign : getSignControls()) sign.saveState(controlState);
+        saveAdditionalFormState(controlState);
         FeatureFormDraftStore.putControlStateFromBundle(snapshot, controlState);
         snapshot.photoPaths = new ArrayList<>();
         for (Map.Entry<String, IControl> field : mFields.entrySet()) {
@@ -971,6 +976,7 @@ public class ModifyAttributesActivity
                 mLayer.getPath().getName(), mFormOperationId);
         if (recoveredSave != NOT_FOUND) mFeatureId = recoveredSave;
         if (mProjectScripts != null && !mProjectScripts.beforeSave(values, mFeatureId)) return false;
+        if (!onMain(() -> validateFormValues(values))) return false;
         if (!validateRequiredFields(values)) return false;
         GeoGeometry geoGeometry = onMain(() -> putGeometry(values));
         IGISApplication app = (IGISApplication) getApplication();
@@ -1318,6 +1324,9 @@ public class ModifyAttributesActivity
         for (Field field : mLayer.getFields()) putFieldValue(values, field);
         return values;
     }
+
+    /** UI-thread validation after checkpoint, before any feature write. */
+    protected boolean validateFormValues(ContentValues values) { return true; }
 
     @Override protected void onDestroy() {
         if (mProjectScripts != null) mProjectScripts.close();

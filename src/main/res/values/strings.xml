@@ -22,6 +22,7 @@
   -->
 
 <resources>
+    <string name="layer_pending_changes">Unsynchronized changes</string>
     <!-- Overridden by app module flavors (resValue app_name in app/build.gradle). -->
     <string name="app_name" translatable="false">NextGIS Mobile</string>
     <string name="layer_fill_fgs_minimal" translatable="false">…</string>
@@ -600,4 +601,11 @@
     <string name="walk_gps_gap_message">GPS was lost. Recording is paused. Continue only if you want to connect the last point to your new GPS position.</string>
     <string name="walk_gps_resume">Continue and connect</string>
     <string name="walk_gps_wait">Wait for a fresh GPS position to continue.</string>
+    <string name="form_cascade_choose">Choose a value</string>
+    <string name="form_cascade_choose_parents">Complete the preceding fields first</string>
+    <string name="form_cascade_empty">No available options</string>
+    <string name="form_cascade_saved">%1$s (saved value)</string>
+    <string name="form_cascade_unavailable">Unable to prepare dependent lists. Update the project and reopen the form.</string>
+    <string name="form_cascade_invalid_title">Check your selection</string>
+    <string name="form_cascade_invalid">Select again: %1$s. The dictionary or related fields have changed.</string>
 </resources>

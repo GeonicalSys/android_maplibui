@@ -75,6 +75,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
     protected Map<String, AliasList>           mAliasSubListMap;
 
     protected boolean mFirstShow = true;
+    private com.nextgis.maplibui.util.CascadingFormController mCascades;
 
     public DoubleCombobox(Context context) {
         super(context);
@@ -102,6 +103,20 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         mSubFieldName = attributes.getString(JSON_FIELD_LEVEL2_KEY);
         mIsShowLast = ControlHelper.isSaveLastValue(attributes);
         setEnabled(ControlHelper.isEnabled(fields, mFieldName));
+
+        if (modifyAttributesActivity instanceof com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) {
+            com.nextgis.maplibui.util.CascadingFormController controller =
+                    ((com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) modifyAttributesActivity).getCascadingLists();
+            if (controller != null && (controller.manages(mFieldName) || controller.manages(mSubFieldName))) {
+                if (!controller.manages(mFieldName) || !controller.manages(mSubFieldName))
+                    throw new JSONException("Both double-combobox fields must be managed together");
+                mCascades = controller;
+                mIsShowLast = false;
+                controller.register(mFieldName, this);
+                controller.register(mSubFieldName, mSubCombobox);
+                return;
+            }
+        }
 
         String lastValue = null;
         String subLastValue = null;
@@ -264,6 +279,12 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
     @Override
     public Object getValue()
     {
+        if (mCascades != null) {
+            DoubleComboboxValue result = new DoubleComboboxValue();
+            result.mFieldName = mFieldName; result.mValue = mCascades.value(mFieldName);
+            result.mSubFieldName = mSubFieldName; result.mSubValue = mCascades.value(mSubFieldName);
+            return result;
+        }
         String valueAlias = (String) getSelectedItem();
         String subValueAlias = (String) mSubCombobox.getSelectedItem();
 

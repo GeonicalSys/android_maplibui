@@ -8,6 +8,17 @@ smoke registry. При standalone checkout сообщи, если central docs �
 reorder, sync UI, Collector registry/workspaces, backups и lifecycle services.
 Не импортируй `app`; используй interfaces из `maplib`.
 
+Большие таблицы NGFP не помещать в Activity Bundle. `lisa_cascade_pin` — SHA-256
+ссылка на атомарный snapshot внутри owning layer/form_dependencies; проверять
+хеш при восстановлении. Отсутствие/повреждение файла блокирует Save, сохраняя
+pin и прежние управляемые значения в durable draft. Не удалять старые snapshots
+при обновлении формы: они могут принадлежать незавершённому черновику.
+
+Индикаторы несинхронизированных изменений строк слоя получают общий фоновый
+снимок от app через `LayersListAdapter.setPendingChanges`. Не читать SQLite
+в row bind; сбрасывать отметку при переиспользовании строки. Снимать listener
+обновлений при уничтожении экрана и отбрасывать ответы другой карты.
+
 Любое destructive removal/schema rebuild проверяет backup gate. Изменение
 `LayerFillService`, `GISApplication`, `CollectorProjectRegistry` или
 `ReorderedLayerView` требует проверки layer order, project isolation и
@@ -29,6 +40,10 @@ Draft PR без отдельных подтверждений каждого ш�
 Merge Commit; связанный root PR обновляет submodule pointer после merge.
 
 ## Project scripts
+
+Зависимые списки: читать `../docs/architecture/cascading-form-lists.md`.
+Controller управляет обычными и сдвоенными Spinner, а не создаёт отдельные
+трёхуровневые элементы. Сохранять required, Back Save, draft pin и explicit NULL.
 
 Владеет единым import hook, form controller, pin версии в Bundle/draft, debounce/stale guards, warning/block и before-save gate. Native GIS/формат принадлежит maplib; не дублировать интерпретатор и host functions в UI.
 

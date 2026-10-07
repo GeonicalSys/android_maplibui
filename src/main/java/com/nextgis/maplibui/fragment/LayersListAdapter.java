@@ -79,6 +79,9 @@ import static com.nextgis.maplibui.util.ConstantsUI.CODE_SAVE_FILE;
 import static com.nextgis.maplibui.util.ExportGeoJSONTask.ZIP_EXT;
 
 import java.lang.ref.WeakReference;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 
 /**
@@ -92,6 +95,19 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
     protected DrawerLayout mDrawer;
     protected onEdit mEditListener;
     protected View.OnClickListener mOnPencilClickListener;
+    private Set<Integer> mPendingChanges = Collections.emptySet();
+    private Runnable mOnLayerDataChanged;
+
+    /** Apply a worker-produced snapshot. Row binding never reads SQLite. */
+    public void setPendingChanges(Set<Integer> layerIds) {
+        if (mPendingChanges.equals(layerIds)) return;
+        mPendingChanges = new HashSet<>(layerIds);
+        notifyDataSetChanged();
+    }
+
+    public void setOnLayerDataChangedListener(Runnable listener) {
+        mOnLayerDataChanged = listener;
+    }
 
     int nChoise =0;
 
@@ -191,6 +207,8 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
 
         TextView tvPaneName = v.findViewById(R.id.tvLayerName);
         tvPaneName.setText(layer.getName());
+        v.findViewById(R.id.layer_pending_badge).setVisibility(
+                mPendingChanges.contains(layer.getId()) ? View.VISIBLE : View.GONE);
         //final int id = layer.getId();
 
         final ImageButton btMore = v.findViewById(R.id.btMore);
@@ -524,6 +542,7 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
 
     @Override
     public void onLayerChangedFeatureId(long oldFeatureId, long newFeatureId, int layerId) {
+        notifyDataChanged(false, true);
     }
 
 
@@ -552,10 +571,13 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
 
 
     void notifyDataChanged(boolean reloadAllLayers, boolean skipMaplibre) {
-        mActivity.get().runOnUiThread(new Runnable() {
+        NGActivity activity = mActivity.get();
+        if (activity == null || activity.isDestroyed()) return;
+        activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 notifyDataSetChanged();
+                if (mOnLayerDataChanged != null) mOnLayerDataChanged.run();
                 if (reloadAllLayers && !skipMaplibre)
                     mMap.mapContext.get().loadLayersLite();
             }

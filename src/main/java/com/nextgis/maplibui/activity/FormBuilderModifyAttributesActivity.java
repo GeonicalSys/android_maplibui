@@ -143,6 +143,11 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     private int mRow = -1;
     private File mMeta;
     private String mColumn;
+    private com.nextgis.maplibui.util.CascadingFormController mCascades;
+    private boolean mCascadesLoaded, mCascadesInvalid;
+    private Bundle mCascadeRestoreState;
+
+    public com.nextgis.maplibui.util.CascadingFormController getCascadingLists() { return mCascades; }
 
     interface OnAskRowListener {
         void onRowChosen();
@@ -199,6 +204,19 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
             return;
         }
 
+        if (!mCascadesLoaded) {
+            mCascadesLoaded = true;
+            if (savedState != null) mCascadeRestoreState = new Bundle(savedState);
+            try {
+                mCascades = com.nextgis.maplibui.util.CascadingFormController.load(
+                        this, mMeta, mLayer, mFeatureId, savedState);
+            } catch (IOException | JSONException error) {
+                mCascadesInvalid = true;
+                Log.w("FormBuilder", "Cannot prepare cascading lists", error);
+                Toast.makeText(this, R.string.form_cascade_unavailable, Toast.LENGTH_LONG).show();
+            }
+        }
+
         try {
             File form = (File) extras.getSerializable(KEY_FORM_PATH);
 
@@ -244,7 +262,9 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                     }
                 }
             }
+            if (mCascades != null) mCascades.attach(mIsViewOnly);
         } catch (JSONException | IOException e) {
+            if (mCascades != null) mCascadesInvalid = true;
             e.printStackTrace();
             Toast.makeText(this, getString(R.string.error_form_create), Toast.LENGTH_SHORT).show();
         }
@@ -707,6 +727,11 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     }
 
     protected Object putFieldValue(ContentValues values, Field field) {
+        if (mCascades != null && mCascades.manages(field.getName())) {
+            String value = mCascades.value(field.getName());
+            values.put(field.getName(), value); // Explicit SQL NULL clears a previous selection.
+            return value;
+        }
         Object value = super.putFieldValue(values, field);
         IFormControl control = (IFormControl) mFields.get(field.getName());
         if (null == control)
@@ -721,6 +746,38 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
         }
 
         return value;
+    }
+
+    @Override protected void saveAdditionalFormState(Bundle state) {
+        if (mCascades != null) mCascades.saveState(state);
+        else if (mCascadesInvalid && mCascadeRestoreState != null) {
+            // A missing/corrupt pinned file must not replace a recoverable selection
+            // with the empty values produced by the legacy fallback controls.
+            com.nextgis.maplibui.util.CascadingFormController.retainPinnedState(mCascadeRestoreState, state, mLayer);
+        }
+        else if (mCascadesLoaded && !mCascadesInvalid)
+            state.putString(com.nextgis.maplibui.util.CascadingFormController.PIN, "");
+    }
+
+    @Override protected boolean validateFormValues(ContentValues values) {
+        if (mCascadesInvalid) {
+            new AlertDialog.Builder(this).setMessage(R.string.form_cascade_unavailable)
+                    .setPositiveButton(android.R.string.ok, null).show();
+            return false;
+        }
+        if (mCascades == null) return true;
+        List<String> invalid = mCascades.invalidFields();
+        if (invalid.isEmpty()) return true;
+        List<String> captions = new ArrayList<>();
+        for (String name : invalid) captions.add(mLayer.getFieldByName(name).getAlias());
+        View target = com.nextgis.maplibui.util.RequiredFieldUi.fieldView(
+                mLayer.getFieldByName(invalid.get(0)), mFields);
+        new AlertDialog.Builder(this).setTitle(R.string.form_cascade_invalid_title)
+                .setMessage(getString(R.string.form_cascade_invalid, android.text.TextUtils.join(", ", captions)))
+                .setPositiveButton(android.R.string.ok, (dialog, which) ->
+                        com.nextgis.maplibui.util.RequiredFieldUi.reveal(findViewById(R.id.controls_list),
+                                target, () -> com.nextgis.maplibui.util.RequiredFieldUi.focus(target))).show();
+        return false;
     }
 
     protected void saveLastValue(Field field) {
