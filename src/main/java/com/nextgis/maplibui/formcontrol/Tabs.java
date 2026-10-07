@@ -210,6 +210,21 @@ public class Tabs extends LinearLayout implements IFormControl
         });
     }
 
+    public boolean revealView(android.view.View target, Runnable onVisible) {
+        for (int i = 0; i < mTabs.size(); i++) {
+            android.view.View page = ((TabFragment) mTabs.get(i)).mLayout;
+            if (!com.nextgis.maplibui.util.RequiredFieldUi.containsView(page, target)) continue;
+            ((TabLayout) getChildAt(0)).getTabAt(i).select();
+            post(() -> {
+                if (mFragmentManager.isDestroyed() || mFragmentManager.isStateSaved()) return;
+                mFragmentManager.executePendingTransactions();
+                com.nextgis.maplibui.util.RequiredFieldUi.reveal(page, target, onVisible);
+            });
+            return true;
+        }
+        return false;
+    }
+
     protected void addToLayout(IFormControl control, JSONObject element, List<Field> fields, Bundle savedState, Cursor featureCursor,
                                LinearLayout layout, ModifyAttributesActivity modifyAttributesActivity)
             throws JSONException {

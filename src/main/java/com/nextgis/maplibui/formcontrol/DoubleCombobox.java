@@ -245,6 +245,13 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         return mFieldName;
     }
 
+    public View getFieldView(String fieldName) {
+        if (com.nextgis.maplibui.util.RequiredFieldUi.sameName(fieldName, mFieldName)) return this;
+        if (com.nextgis.maplibui.util.RequiredFieldUi.sameName(fieldName, mSubFieldName))
+            return mSubCombobox;
+        return null;
+    }
+
 
     @Override
     public void addToLayout(ViewGroup layout)

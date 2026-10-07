@@ -60,6 +60,7 @@ public interface ConstantsUI
     String VALUE_TRACK_FAILED        = "trackfailed";
     String VALUE_TRACK_SAVE_FAILED   = "tracksavefailed";
     String VALUE_TRACK_POINT          = "trackpoint";
+    String VALUE_TRACK_POWER          = "trackpower";
 
     String FILE_FORM = "form.json";
 

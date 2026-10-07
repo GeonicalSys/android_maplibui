@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="track_power_title">Battery Saver can interrupt your track</string>
+    <string name="track_power_message">The phone’s Battery Saver restricts GPS while the screen is off. Turn Battery Saver off for continuous track recording. Allowing this app to run in the background alone may not remove this restriction.</string>
+    <string name="track_power_notification">Battery Saver may interrupt GPS when the screen is off</string>
+    <string name="track_power_settings">Battery settings</string>
+    <string name="track_power_continue">Record anyway</string>
+    <string name="track_power_acknowledge">Understood</string>
+</resources>

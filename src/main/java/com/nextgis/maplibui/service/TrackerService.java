@@ -35,6 +35,8 @@ import android.app.Service;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -80,6 +82,7 @@ import com.nextgis.maplib.util.LocationRecordingSampler;
 import com.nextgis.maplibui.util.TrackRecordingMode;
 import com.nextgis.maplibui.util.TrackSpeedGate;
 import com.nextgis.maplib.util.LocationFixPolicy;
+import com.nextgis.maplib.location.LocationPowerPolicy;
 import com.nextgis.maplib.util.MapUtil;
 import com.nextgis.maplib.util.NetworkUtil;
 import com.nextgis.maplib.util.PermissionUtil;
@@ -136,6 +139,15 @@ public class TrackerService extends Service
     private volatile boolean mPersistenceFailing;
     private long mLastPersistenceWarningAt;
     private LocationManager mLocationManager;
+    private NotificationCompat.Builder mTrackNotification;
+    private boolean mPowerWarning;
+    private final BroadcastReceiver mPowerReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) { refreshPowerWarning(); }
+    };
+    private final SharedPreferences.OnSharedPreferenceChangeListener mPowerPreferenceListener =
+            (prefs, key) -> {
+                if (SettingsConstants.KEY_PREF_GNSS_INPUT.equals(key)) refreshPowerWarning();
+            };
 
     protected GnssStatus.Callback mGnssCallback;
 
@@ -210,6 +222,10 @@ public class TrackerService extends Service
         // TrackerService intentionally shares the default app process with its menu owner.
         // MODE_MULTI_PROCESS is deprecated and cannot make start/stop state atomic.
         mSharedPreferences = getSharedPreferences(name, MODE_PRIVATE);
+        mSharedPreferences.registerOnSharedPreferenceChangeListener(mPowerPreferenceListener);
+        ContextCompat.registerReceiver(this, mPowerReceiver,
+                new IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE);
         try {
             mRecordingMap = (MapContentProviderHelper) application.getMap();
@@ -937,12 +953,38 @@ public class TrackerService extends Service
         resource = R.drawable.ic_action_cancel_dark;
         builder.addAction(resource, getString(R.string.tracks_stop), stopService);
 
+        mTrackNotification = builder;
+        mPowerWarning = LocationPowerPolicy.shouldWarn(this);
+        applyPowerWarning();
+        HyperLog.i(Constants.TAG, "Track power warning=" + mPowerWarning + " "
+                + LocationPowerPolicy.diagnostics(this));
         mNotificationManager.notify(TRACK_NOTIFICATION_ID, builder.build());
         boolean started = startLocationForegroundSafely(builder.build(), "recording");
         if (started) {
             Toast.makeText(this, title, Toast.LENGTH_SHORT).show();
         }
         return started;
+    }
+
+    private void applyPowerWarning() {
+        String text = mPowerWarning ? getString(R.string.track_power_notification) : mTicker;
+        mTrackNotification.setContentText(text)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                .setOnlyAlertOnce(true);
+    }
+
+    private void refreshPowerWarning() {
+        if (!mIsRunning || mTrackId == null || mTrackNotification == null) return;
+        boolean warning = LocationPowerPolicy.shouldWarn(this);
+        if (warning == mPowerWarning) return;
+        mPowerWarning = warning;
+        applyPowerWarning();
+        mNotificationManager.notify(TRACK_NOTIFICATION_ID, mTrackNotification.build());
+        HyperLog.i(Constants.TAG, "Track power warning=" + warning + " "
+                + LocationPowerPolicy.diagnostics(this));
+        Intent message = new Intent(ConstantsUI.MESSAGE_INTENT_TRACK).setPackage(getPackageName());
+        message.putExtra(ConstantsUI.KEY_TRACK_ACTION, ConstantsUI.VALUE_TRACK_POWER);
+        sendBroadcast(message);
     }
 
 
@@ -1038,6 +1080,8 @@ public class TrackerService extends Service
     }
 
     public void onDestroy() {
+        unregisterReceiver(mPowerReceiver);
+        mSharedPreferences.unregisterOnSharedPreferenceChangeListener(mPowerPreferenceListener);
         HyperLog.v(Constants.TAG, "TrackerService.onDestroy running=" + mIsRunning + " trackId=" + mTrackId);
         stopTrack("onDestroy");
         if (sRecordingService == this) sRecordingService = null;

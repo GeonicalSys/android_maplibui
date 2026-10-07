@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="form_required_fields_title">Обязательные поля</string>
+    <string name="form_required_fields_message">Заполните обязательные поля:</string>
+    <string name="form_required_field_hint">%1$s (обязательное поле)</string>
+    <string name="form_required_field_unavailable">В форме отсутствует обязательное поле. Обратитесь к администратору.</string>
+</resources>
