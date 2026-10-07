@@ -436,8 +436,7 @@ public class ModifyAttributesActivity
 
                 LinearLayout layout = findViewById(R.id.controls_list);
                 fillControls(layout, controlsState);
-                if (!mIsViewOnly)
-                    mRequiredFieldCaptions = RequiredFieldUi.decorate(mLayer.getFields(), mFields);
+                if (!mIsViewOnly) refreshRequiredMarkers();
                 if (draft != null && draft.photoPaths != null && !draft.photoPaths.isEmpty()) {
                     applyDraftPhotos(draft.photoPaths);
                 }
@@ -1270,7 +1269,7 @@ public class ModifyAttributesActivity
 
     private boolean validateRequiredFields(ContentValues values) {
         List<Field> required = new ArrayList<>();
-        for (Field field : mLayer.getFields()) if (field.isRequired()) required.add(field);
+        for (Field field : onMain(() -> requiredFieldDefinitions(values))) if (field.isRequired()) required.add(field);
         if (required.isEmpty()) return true;
 
         // An existing value omitted by this form is preserved. An explicitly cleared control
@@ -1319,7 +1318,7 @@ public class ModifyAttributesActivity
         return false;
     }
 
-    private ContentValues captureScriptValues() {
+    protected ContentValues captureScriptValues() {
         ContentValues values = new ContentValues();
         for (Field field : mLayer.getFields()) putFieldValue(values, field);
         return values;
@@ -1327,6 +1326,12 @@ public class ModifyAttributesActivity
 
     /** UI-thread validation after checkpoint, before any feature write. */
     protected boolean validateFormValues(ContentValues values) { return true; }
+
+    protected List<Field> requiredFieldDefinitions(ContentValues values) { return mLayer.getFields(); }
+
+    protected void refreshRequiredMarkers() {
+        if (!mIsViewOnly) mRequiredFieldCaptions=RequiredFieldUi.decorate(requiredFieldDefinitions(captureScriptValues()),mFields);
+    }
 
     @Override protected void onDestroy() {
         if (mProjectScripts != null) mProjectScripts.close();

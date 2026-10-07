@@ -590,6 +590,7 @@
     <string name="form_cascade_empty">Нет доступных вариантов</string>
     <string name="form_cascade_saved">%1$s (сохранённое значение)</string>
     <string name="form_cascade_unavailable">Не удалось подготовить зависимые списки. Обновите проект и откройте форму снова.</string>
+    <string name="form_rules_unavailable">Не удалось проверить условия заполнения формы. Обновите проект и откройте форму снова.</string>
     <string name="form_cascade_invalid_title">Проверьте выбор</string>
     <string name="form_cascade_invalid">Выберите заново: %1$s. Данные справочника или связанные поля изменились.</string>
 </resources>

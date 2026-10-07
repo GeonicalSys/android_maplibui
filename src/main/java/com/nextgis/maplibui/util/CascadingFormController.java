@@ -2,7 +2,6 @@ package com.nextgis.maplibui.util;
 
 import android.database.Cursor;
 import android.os.Bundle;
-import android.util.AtomicFile;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -22,11 +21,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,13 +47,7 @@ public final class CascadingFormController {
         if (saved != null && saved.containsKey(PIN)) {
             definition = saved.getString(PIN, "");
             if (definition.startsWith("sha256:")) {
-                String hash = definition.substring(7);
-                if (!hash.matches("[0-9a-f]{64}")) throw new IOException("Invalid list snapshot reference");
-                File file = snapshotFile(layer, hash);
-                if (file.length() > 16 * 1024 * 1024) throw new IOException("List snapshot is too large");
-                byte[] bytes = new AtomicFile(file).readFully();
-                if (!hash.equals(sha256(bytes))) throw new IOException("List snapshot hash mismatch");
-                definition = new String(bytes, StandardCharsets.UTF_8);
+                definition = FormMetadataSnapshot.read(layer.getPath(), "form_dependencies", definition, 16 * 1024 * 1024);
             }
         }
         else {
@@ -76,7 +66,7 @@ public final class CascadingFormController {
     private CascadingFormController(ModifyAttributesActivity activity, VectorLayer layer,
             long featureId, Bundle saved, String definition) throws JSONException {
         this.activity = activity; this.definition = definition;
-        pin = "sha256:" + sha256(definition.getBytes(StandardCharsets.UTF_8));
+        pin = "sha256:" + FormMetadataSnapshot.hash(definition.getBytes(StandardCharsets.UTF_8));
         model = new CascadingLists(new JSONObject(definition));
         Map<String, String> initial = new LinkedHashMap<>(), original = new LinkedHashMap<>();
         Cursor cursor = featureId != Constants.NOT_FOUND ? layer.query(null,
@@ -195,40 +185,8 @@ public final class CascadingFormController {
         }
     }
 
-    private static File snapshotFile(VectorLayer layer, String hash) {
-        return new File(new File(layer.getPath(), "form_dependencies"), hash + ".json");
-    }
-
     private void persistSnapshot(VectorLayer layer) throws IOException {
-        byte[] bytes = definition.getBytes(StandardCharsets.UTF_8);
-        File file = snapshotFile(layer, pin.substring(7));
-        synchronized (CascadingFormController.class) {
-            AtomicFile atomic = new AtomicFile(file);
-            if (file.isFile() && file.length() <= 16 * 1024 * 1024
-                    && pin.substring(7).equals(sha256(atomic.readFully()))) return;
-            File directory = file.getParentFile();
-            if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create list snapshot directory");
-            FileOutputStream output = null;
-            try {
-                output = atomic.startWrite(); output.write(bytes); atomic.finishWrite(output);
-                output = null;
-                if (!pin.substring(7).equals(sha256(atomic.readFully())))
-                    throw new IOException("List snapshot write did not verify");
-            } catch (IOException error) {
-                if (output != null) atomic.failWrite(output);
-                throw error;
-            }
-        }
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
-            String digits = "0123456789abcdef";
-            StringBuilder result = new StringBuilder(64);
-            for (byte value : digest) result.append(digits.charAt((value >>> 4) & 15)).append(digits.charAt(value & 15));
-            return result.toString();
-        } catch (NoSuchAlgorithmException error) { throw new AssertionError(error); }
+        FormMetadataSnapshot.persist(layer.getPath(), "form_dependencies", definition, 16 * 1024 * 1024);
     }
 
     private static Map<String, String> decode(String text) throws JSONException {

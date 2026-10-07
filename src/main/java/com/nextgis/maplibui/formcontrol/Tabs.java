@@ -32,7 +32,9 @@ import androidx.fragment.app.FragmentTransaction;
 import androidx.core.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.ViewGroup;
+import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 
 import com.keenfin.easypicker.PhotoPicker;
 import com.nextgis.maplib.datasource.Field;
@@ -86,6 +88,8 @@ public class Tabs extends LinearLayout implements IFormControl
     protected FragmentManager mFragmentManager;
     protected int mTag;
     private Map<String, Map<String, String>> mTranslations;
+    private TabLayout mTabLayout;
+    private ScrollView mFormScroll;
 
     public Tabs(Context context) {
         super(context);
@@ -131,6 +135,7 @@ public class Tabs extends LinearLayout implements IFormControl
         mFields = new HashMap<>();
         mTabs = new ArrayList<>();
         TabLayout tabLayout = (TabLayout) getChildAt(0);
+        mTabLayout = tabLayout;
         JSONArray pages = tabs.getJSONArray(JSON_PAGES_KEY);
         for (int i = 0; i < pages.length(); i++) {
             JSONObject item = pages.getJSONObject(i);
@@ -174,6 +179,7 @@ public class Tabs extends LinearLayout implements IFormControl
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
+                if (mFormScroll != null) mFormScroll.scrollTo(0, 0);
                 replaceFragment(mTabs.get(tab.getPosition()));
             }
 
@@ -198,6 +204,24 @@ public class Tabs extends LinearLayout implements IFormControl
             replaceFragment(mTabs.get(0));
     }
 
+    /** Keep outer form navigation outside the scrolling fields; nested tabs stay inline. */
+    public void pinHeader(ViewGroup header, ScrollView formScroll) {
+        mFormScroll = formScroll;
+        if (mTabLayout.getParent() != header) {
+            ((ViewGroup) mTabLayout.getParent()).removeView(mTabLayout);
+            header.addView(mTabLayout, new LinearLayout.LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        }
+        header.setVisibility(View.VISIBLE);
+    }
+
+    public boolean selectAdjacentTab(boolean next) {
+        int position = mTabLayout.getSelectedTabPosition() + (next ? 1 : -1);
+        if (position < 0 || position >= mTabLayout.getTabCount()) return false;
+        mTabLayout.getTabAt(position).select();
+        return true;
+    }
+
     private void replaceFragment(final Fragment fragment) {
         post(new Runnable() {
             @Override
@@ -214,7 +238,7 @@ public class Tabs extends LinearLayout implements IFormControl
         for (int i = 0; i < mTabs.size(); i++) {
             android.view.View page = ((TabFragment) mTabs.get(i)).mLayout;
             if (!com.nextgis.maplibui.util.RequiredFieldUi.containsView(page, target)) continue;
-            ((TabLayout) getChildAt(0)).getTabAt(i).select();
+            mTabLayout.getTabAt(i).select();
             post(() -> {
                 if (mFragmentManager.isDestroyed() || mFragmentManager.isStateSaved()) return;
                 mFragmentManager.executePendingTransactions();
@@ -285,7 +309,7 @@ public class Tabs extends LinearLayout implements IFormControl
     @Override
     public Object getValue()
     {
-        return ((TabLayout) getChildAt(0)).getSelectedTabPosition();
+        return mTabLayout.getSelectedTabPosition();
     }
 
     @Override
