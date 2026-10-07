@@ -8,6 +8,12 @@ last_verified: 2026-10-07
 
 ## Назначение
 
+В строке слоя жёлтая точка означает наличие несинхронизированных изменений.
+`LayersListAdapter.setPendingChanges` получает фоновый снимок layer ID от app;
+row bind не читает SQLite и сбрасывает отметку при переиспользовании строки.
+Изменения карты вызывают общий фоновый refresh, listener снимается при уничтожении
+экрана. Точка на кнопке синхронизации использует тот же снимок.
+
 UI-библиотека и runtime orchestration: выбор NGW resources, создание/настройка
 слоёв, batch fill, layer list/reorder, edit overlays, sync/account UI,
 Collector workspaces и защитные backups. MapLibre Android `13.0.2` подключён
@@ -22,6 +28,14 @@ app и maplib; shared UI, account identities и OpenGL backend сохраняю�
 наличие свежего фикса; Pigo использует профиль UART `3A20` и BESTPOSB.
 
 ## Основные сценарии
+
+- NGFP `meta.json.lisa_form_dependencies` включает встроенную фильтрацию
+  combobox/double_combobox по нескольким родителям с общей таблицей и без
+  фиксированной глубины. Новый сеанс не выбирает первый вариант и не использует
+  last. Смена родителя очищает всех потомков, Save пишет SQL NULL и проверяет
+  принадлежность перед required. Определение/key/исходные значения закреплены
+  в Bundle и durable draft. Исторические значения не заменяются автоматически.
+  Подробнее: consuming root `docs/architecture/cascading-form-lists.md`.
 
 - Формы NGFP и стандартные формы проверяют Field.isRequired() в общем пути
   Save, включая сохранение через Back. Отсутствующее значение, пустота/пробелы

@@ -53,6 +53,17 @@
         android:maxLines="2"
         android:textAppearance="?android:attr/textAppearanceMedium"/>
 
+    <View
+        android:id="@+id/layer_pending_badge"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/layer_pending_badge"
+        android:contentDescription="@string/layer_pending_changes"
+        android:importantForAccessibility="yes"
+        android:visibility="gone" />
+
     <ImageButton
         android:id="@+id/btShow"
         android:layout_width="wrap_content"

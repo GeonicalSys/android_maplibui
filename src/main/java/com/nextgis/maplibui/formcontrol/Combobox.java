@@ -66,6 +66,7 @@ public class Combobox extends AppCompatSpinner implements IFormControl
     protected String              mFieldName;
     protected boolean             mIsShowLast;
     protected Map<String, String> mAliasValueMap;
+    private com.nextgis.maplibui.util.CascadingFormController mCascades;
 
     public Combobox(Context context) {
         super(context);
@@ -93,6 +94,17 @@ public class Combobox extends AppCompatSpinner implements IFormControl
         mFieldName = ControlHelper.getFieldName(attributes.getString(JSON_FIELD_NAME_KEY));
         mIsShowLast = ControlHelper.isSaveLastValue(attributes);
         setEnabled(ControlHelper.isEnabled(fields, mFieldName));
+
+        if (modifyAttributesActivity instanceof com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) {
+            com.nextgis.maplibui.util.CascadingFormController controller =
+                    ((com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) modifyAttributesActivity).getCascadingLists();
+            if (controller != null && controller.manages(mFieldName)) {
+                mCascades = controller;
+                mIsShowLast = false;
+                controller.register(mFieldName, this);
+                return;
+            }
+        }
 
         String lastValue = null;
         if (ControlHelper.hasKey(savedState, mFieldName))
@@ -197,6 +209,7 @@ public class Combobox extends AppCompatSpinner implements IFormControl
     @Override
     public Object getValue()
     {
+        if (mCascades != null) return mCascades.value(mFieldName);
         String valueAlias = (String) getSelectedItem();
         return mAliasValueMap.get(valueAlias);
     }

@@ -22,6 +22,7 @@
   -->
 
 <resources>
+    <string name="layer_pending_changes">Несинхронизированные изменения</string>
     <string name="layers_drawer_open">Открыть список слоёв</string>
     <string name="layers_drawer_close">Закрыть список слоёв</string>
     <string name="ok">OK</string>
@@ -584,4 +585,11 @@
     <string name="walk_gps_gap_message">Сигнал GPS потерян. Запись приостановлена. Продолжайте, только если нужно соединить последнюю точку с новой позицией GPS.</string>
     <string name="walk_gps_resume">Продолжить и соединить</string>
     <string name="walk_gps_wait">Для продолжения дождитесь свежей позиции GPS.</string>
+    <string name="form_cascade_choose">Выберите значение</string>
+    <string name="form_cascade_choose_parents">Сначала заполните предыдущие поля</string>
+    <string name="form_cascade_empty">Нет доступных вариантов</string>
+    <string name="form_cascade_saved">%1$s (сохранённое значение)</string>
+    <string name="form_cascade_unavailable">Не удалось подготовить зависимые списки. Обновите проект и откройте форму снова.</string>
+    <string name="form_cascade_invalid_title">Проверьте выбор</string>
+    <string name="form_cascade_invalid">Выберите заново: %1$s. Данные справочника или связанные поля изменились.</string>
 </resources>
