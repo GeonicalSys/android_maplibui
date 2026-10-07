@@ -11,7 +11,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/LayersListAdapter.java
     responsibility: Bind pending-change dots from an owning-map worker snapshot without SQLite reads in row rendering; reset recycled rows and notify the host on layer mutations.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CascadingFormController.java
-    responsibility: Apply native cascading choices to existing NGFP spinners, preserve historical values and pin definition plus option identities in Bundle and durable draft.
+    responsibility: Apply native cascading choices to existing NGFP spinners, preserve historical values and atomically pin verified definitions in the owning layer; Bundle/draft contains small SHA-256 references and option identities, with fail-closed recovery retaining selections.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptFormController.java
     responsibility: Pinned form hooks, stale-result guards and warning/block before Save.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java

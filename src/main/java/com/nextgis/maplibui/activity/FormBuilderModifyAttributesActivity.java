@@ -145,6 +145,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     private String mColumn;
     private com.nextgis.maplibui.util.CascadingFormController mCascades;
     private boolean mCascadesLoaded, mCascadesInvalid;
+    private Bundle mCascadeRestoreState;
 
     public com.nextgis.maplibui.util.CascadingFormController getCascadingLists() { return mCascades; }
 
@@ -205,6 +206,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
 
         if (!mCascadesLoaded) {
             mCascadesLoaded = true;
+            if (savedState != null) mCascadeRestoreState = new Bundle(savedState);
             try {
                 mCascades = com.nextgis.maplibui.util.CascadingFormController.load(
                         this, mMeta, mLayer, mFeatureId, savedState);
@@ -748,6 +750,11 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
 
     @Override protected void saveAdditionalFormState(Bundle state) {
         if (mCascades != null) mCascades.saveState(state);
+        else if (mCascadesInvalid && mCascadeRestoreState != null) {
+            // A missing/corrupt pinned file must not replace a recoverable selection
+            // with the empty values produced by the legacy fallback controls.
+            com.nextgis.maplibui.util.CascadingFormController.retainPinnedState(mCascadeRestoreState, state, mLayer);
+        }
         else if (mCascadesLoaded && !mCascadesInvalid)
             state.putString(com.nextgis.maplibui.util.CascadingFormController.PIN, "");
     }

@@ -8,6 +8,12 @@ smoke registry. При standalone checkout сообщи, если central docs �
 reorder, sync UI, Collector registry/workspaces, backups и lifecycle services.
 Не импортируй `app`; используй interfaces из `maplib`.
 
+Большие таблицы NGFP не помещать в Activity Bundle. `lisa_cascade_pin` — SHA-256
+ссылка на атомарный snapshot внутри owning layer/form_dependencies; проверять
+хеш при восстановлении. Отсутствие/повреждение файла блокирует Save, сохраняя
+pin и прежние управляемые значения в durable draft. Не удалять старые snapshots
+при обновлении формы: они могут принадлежать незавершённому черновику.
+
 Индикаторы несинхронизированных изменений строк слоя получают общий фоновый
 снимок от app через `LayersListAdapter.setPendingChanges`. Не читать SQLite
 в row bind; сбрасывать отметку при переиспользовании строки. Снимать listener

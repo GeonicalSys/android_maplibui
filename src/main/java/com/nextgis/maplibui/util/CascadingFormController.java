@@ -2,6 +2,7 @@ package com.nextgis.maplibui.util;
 
 import android.database.Cursor;
 import android.os.Bundle;
+import android.util.AtomicFile;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -17,10 +18,15 @@ import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.activity.ModifyAttributesActivity;
 
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,10 +36,11 @@ import java.util.Objects;
 /** One controller per open NGFP, with one pinned data snapshot for Bundle and durable drafts. */
 public final class CascadingFormController {
     public static final String PIN = "lisa_cascade_pin", KEYS = "lisa_cascade_keys",
-            ORIGINAL = "lisa_cascade_original";
+            ORIGINAL = "lisa_cascade_original", FIELDS = "lisa_cascade_fields";
     private final ModifyAttributesActivity activity;
     private final CascadingLists model;
     private final String definition;
+    private final String pin;
     private final Map<String, Spinner> spinners = new LinkedHashMap<>();
     private final Map<String, Boolean> enabled = new LinkedHashMap<>();
     private boolean attached;
@@ -41,7 +48,18 @@ public final class CascadingFormController {
     public static CascadingFormController load(ModifyAttributesActivity activity, File meta,
             VectorLayer layer, long featureId, Bundle saved) throws IOException, JSONException {
         String definition;
-        if (saved != null && saved.containsKey(PIN)) definition = saved.getString(PIN, "");
+        if (saved != null && saved.containsKey(PIN)) {
+            definition = saved.getString(PIN, "");
+            if (definition.startsWith("sha256:")) {
+                String hash = definition.substring(7);
+                if (!hash.matches("[0-9a-f]{64}")) throw new IOException("Invalid list snapshot reference");
+                File file = snapshotFile(layer, hash);
+                if (file.length() > 16 * 1024 * 1024) throw new IOException("List snapshot is too large");
+                byte[] bytes = new AtomicFile(file).readFully();
+                if (!hash.equals(sha256(bytes))) throw new IOException("List snapshot hash mismatch");
+                definition = new String(bytes, StandardCharsets.UTF_8);
+            }
+        }
         else {
             JSONObject json = meta != null && meta.isFile()
                     ? new JSONObject(FileUtil.readFromFile(meta)) : new JSONObject();
@@ -50,12 +68,15 @@ public final class CascadingFormController {
         }
         if (definition.isEmpty()) return null;
         if (definition.length() > 4 * 1024 * 1024) throw new JSONException("List metadata is too large");
-        return new CascadingFormController(activity, layer, featureId, saved, definition);
+        CascadingFormController controller = new CascadingFormController(activity, layer, featureId, saved, definition);
+        controller.persistSnapshot(layer);
+        return controller;
     }
 
     private CascadingFormController(ModifyAttributesActivity activity, VectorLayer layer,
             long featureId, Bundle saved, String definition) throws JSONException {
         this.activity = activity; this.definition = definition;
+        pin = "sha256:" + sha256(definition.getBytes(StandardCharsets.UTF_8));
         model = new CascadingLists(new JSONObject(definition));
         Map<String, String> initial = new LinkedHashMap<>(), original = new LinkedHashMap<>();
         Cursor cursor = featureId != Constants.NOT_FOUND ? layer.query(null,
@@ -145,10 +166,69 @@ public final class CascadingFormController {
     public List<String> invalidFields() { return model.invalidFields(); }
 
     public void saveState(Bundle state) {
-        state.putString(PIN, definition);
+        state.putString(PIN, pin);
         state.putString(KEYS, new JSONObject(model.selectionKeys()).toString());
         state.putString(ORIGINAL, new JSONObject(model.originalValues()).toString());
+        state.putString(FIELDS, new JSONArray(model.fields()).toString());
         for (String field : model.fields()) state.putString(ControlHelper.getSavedStateKey(field), model.value(field));
+    }
+
+    /** Retain pinned selections if the snapshot cannot be loaded; Save stays blocked. */
+    public static void retainPinnedState(Bundle saved, Bundle state, VectorLayer layer) {
+        for (String key : new String[]{PIN, KEYS, ORIGINAL, FIELDS})
+            if (saved.containsKey(key)) state.putString(key, saved.getString(key));
+        java.util.Set<String> fields = null;
+        if (saved.containsKey(FIELDS)) {
+            try {
+                JSONArray names = new JSONArray(saved.getString(FIELDS));
+                fields = new java.util.HashSet<>();
+                for (int i = 0; i < names.length(); i++) fields.add(names.getString(i));
+            } catch (JSONException | RuntimeException ignored) { fields = null; }
+        }
+        for (Field field : layer.getFields()) {
+            if (fields != null && !fields.contains(field.getName())) continue;
+            String key = ControlHelper.getSavedStateKey(field.getName());
+            if (saved.containsKey(key)) {
+                Object value = saved.get(key);
+                if (value == null || value instanceof String) state.putString(key, (String)value);
+            }
+        }
+    }
+
+    private static File snapshotFile(VectorLayer layer, String hash) {
+        return new File(new File(layer.getPath(), "form_dependencies"), hash + ".json");
+    }
+
+    private void persistSnapshot(VectorLayer layer) throws IOException {
+        byte[] bytes = definition.getBytes(StandardCharsets.UTF_8);
+        File file = snapshotFile(layer, pin.substring(7));
+        synchronized (CascadingFormController.class) {
+            AtomicFile atomic = new AtomicFile(file);
+            if (file.isFile() && file.length() <= 16 * 1024 * 1024
+                    && pin.substring(7).equals(sha256(atomic.readFully()))) return;
+            File directory = file.getParentFile();
+            if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create list snapshot directory");
+            FileOutputStream output = null;
+            try {
+                output = atomic.startWrite(); output.write(bytes); atomic.finishWrite(output);
+                output = null;
+                if (!pin.substring(7).equals(sha256(atomic.readFully())))
+                    throw new IOException("List snapshot write did not verify");
+            } catch (IOException error) {
+                if (output != null) atomic.failWrite(output);
+                throw error;
+            }
+        }
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+            String digits = "0123456789abcdef";
+            StringBuilder result = new StringBuilder(64);
+            for (byte value : digest) result.append(digits.charAt((value >>> 4) & 15)).append(digits.charAt(value & 15));
+            return result.toString();
+        } catch (NoSuchAlgorithmException error) { throw new AssertionError(error); }
     }
 
     private static Map<String, String> decode(String text) throws JSONException {
