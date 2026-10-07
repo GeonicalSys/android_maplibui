@@ -149,7 +149,8 @@ public class Tabs extends LinearLayout implements IFormControl
             JSONArray elements = item.getJSONArray(JSON_ELEMENTS_KEY);
             if (modifyAttributesActivity instanceof com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity)
                 elements = com.nextgis.maplibui.util.CascadingFormElements.expand(elements, fields,
-                        ((com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity)modifyAttributesActivity).getCascadingLists());
+                        ((com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity)modifyAttributesActivity).getCascadingLists(),
+                        ((com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity)modifyAttributesActivity).getFormAliases());
             for (int j = 0; j < elements.length(); j++) {
                 JSONObject element = elements.getJSONObject(j);
                 String type = element.optString(JSON_TYPE_KEY);

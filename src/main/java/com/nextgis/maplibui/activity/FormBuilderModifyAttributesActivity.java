@@ -142,6 +142,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     private Map<String, Map<String, String>> mTranslations;
     private int mRow = -1;
     private File mMeta;
+    private Map<String, String> mFormAliases = new java.util.LinkedHashMap<>();
     private String mColumn;
     private com.nextgis.maplibui.util.CascadingFormController mCascades;
     private boolean mCascadesLoaded, mCascadesInvalid;
@@ -150,6 +151,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     private Bundle mCascadeRestoreState;
 
     public com.nextgis.maplibui.util.CascadingFormController getCascadingLists() { return mCascades; }
+    public Map<String, String> getFormAliases() { return mFormAliases; }
 
     interface OnAskRowListener {
         void onRowChosen();
@@ -297,6 +299,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
             try {
                 String metaString = FileUtil.readFromFile(mMeta);
                 final JSONObject metaJson = new JSONObject(metaString);
+                mFormAliases = com.nextgis.maplibui.util.CascadingFormElements.aliases(metaJson);
                 if (metaJson.has(JSON_LISTS_KEY) && !metaJson.isNull(JSON_LISTS_KEY)) {
                     JSONObject lists = metaJson.getJSONObject(JSON_LISTS_KEY);
                     Iterator<String> i = lists.keys();
@@ -455,7 +458,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
 
         Cursor featureCursor = getFeatureCursor();
         List<Field> fields = mLayer.getFields();
-        elements = com.nextgis.maplibui.util.CascadingFormElements.expand(elements, fields, mCascades);
+        elements = com.nextgis.maplibui.util.CascadingFormElements.expand(elements, fields, mCascades, mFormAliases);
         for (int i = 0; i < elements.length(); i++) {
             IFormControl control;
             JSONObject element = elements.getJSONObject(i);

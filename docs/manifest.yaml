@@ -11,7 +11,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/control/FormScrollView.java
     responsibility: Observe horizontal swipes over selectors, checkboxes, short comments and blank space; cancel child taps before outer-tab navigation while preserving vertical scroll, text selection, signature and accessible navigation.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/CascadingFormElements.java
-    responsibility: Expand legacy pairs owned by the cascade graph into independent labelled combobox controls at root and nested Tabs without mutating source JSON or draft identities.
+    responsibility: Read NGFP keyname/display_name aliases with layer fallback and expand legacy pairs owned by the cascade graph into independent labelled combobox controls at root and nested Tabs without mutating source JSON or draft identities.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormFieldLayout.java
     responsibility: Give ordinary and legacy selectors full width, a 56dp minimum height and 12dp separation, including cascade initialization paths.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerUtil.java
@@ -93,7 +93,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
     responsibility: Browse and import NGW resources, warning before an active sync both at entry and immediately before workspace preparation; layer loading still shows a readable modal wait message.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectOperationCoordinator.java
-    responsibility: Hold one active workspace across sync/fill/rebuild stages, expose sync activity, generation cancellation and independently owned cancel registrations, and keep project switch/create/rename/delete plus Debug underlay migration mutually exclusive with database background work.
+    responsibility: Keep UI project identity stable across serial scoped project sync/fill/rebuild stages, expose sync activity, generation cancellation and independently owned cancel registrations, and keep project switch/create/rename/delete plus Debug underlay migration mutually exclusive with database background work.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectSyncInterruption.java
     responsibility: Warn before project, layer or underlay actions interrupt an active sync, distinguish a safely finishing outbound write from other project work, allow abandoning the requested action, and wait for every workspace lease before continuing.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SchemaRebuildRetryGuard.java
@@ -193,6 +193,7 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
 invariant_refs: [INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
 global_docs:
+  - docs/guides/project-synchronization-user-guide.md
   - docs/architecture/conditional-form-rules.md
   - docs/guides/form-behavior-user-guide.md
   - docs/architecture/project-scripts.md

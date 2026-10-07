@@ -5,13 +5,28 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 /** Read legacy NGFP pairs as independent controls when the declarative graph owns both fields. */
 public final class CascadingFormElements {
     private CascadingFormElements() { }
 
+    public static Map<String, String> aliases(JSONObject metadata) {
+        Map<String, String> result = new LinkedHashMap<>();
+        JSONArray fields = metadata.optJSONArray("fields");
+        if (fields != null) for (int i = 0; i < fields.length(); i++) {
+            JSONObject field = fields.optJSONObject(i);
+            if (field == null) continue;
+            String name = field.optString("keyname", ""), alias = field.optString("display_name", "");
+            if (!name.isEmpty() && !alias.trim().isEmpty()) result.put(name, alias);
+        }
+        return result;
+    }
+
     public static JSONArray expand(JSONArray elements, List<Field> fields,
-                                   CascadingFormController cascades) throws JSONException {
+                                   CascadingFormController cascades,
+                                   Map<String, String> aliases) throws JSONException {
         if (cascades == null) return elements;
         JSONArray result = new JSONArray();
         for (int i = 0; i < elements.length(); i++) {
@@ -29,6 +44,8 @@ public final class CascadingFormElements {
                     if (field.getAlias() != null && !field.getAlias().isEmpty()) caption = field.getAlias();
                     break;
                 }
+                for (Map.Entry<String, String> alias : aliases.entrySet())
+                    if (RequiredFieldUi.sameName(alias.getKey(), name)) { caption = alias.getValue(); break; }
                 result.put(new JSONObject().put("type", "text_label")
                         .put("attributes", new JSONObject().put("text", caption)));
                 JSONObject single = new JSONObject(attributes.toString());

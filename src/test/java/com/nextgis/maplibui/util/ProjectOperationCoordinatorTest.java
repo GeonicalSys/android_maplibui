@@ -13,6 +13,18 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ProjectOperationCoordinatorTest {
+    @Test public void scopedQueueRejectsUnrelatedFillWhileRetainingItsSyncLease() {
+        ProjectOperationCoordinator.Lease sync = ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.DATA_SYNC, "project-a");
+        assertNotNull(sync);
+        ProjectOperationCoordinator.requireScopedSyncDependents();
+        assertNull(ProjectOperationCoordinator.tryBegin(ProjectOperationCoordinator.Kind.LAYER_FILL, "project-a"));
+        assertNull(ProjectOperationCoordinator.tryBegin(ProjectOperationCoordinator.Kind.SCHEMA_REBUILD, "project-a"));
+        sync.close();
+        ProjectOperationCoordinator.Lease fill = ProjectOperationCoordinator.tryBegin(
+                ProjectOperationCoordinator.Kind.LAYER_FILL, "project-a");
+        assertNotNull(fill); fill.close();
+    }
     @After
     public void tearDown() {
         ProjectOperationCoordinator.resetForTests();

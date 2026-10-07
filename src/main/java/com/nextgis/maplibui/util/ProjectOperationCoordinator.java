@@ -207,6 +207,9 @@ public final class ProjectOperationCoordinator {
         final String workspaceKey;
         final long startedAt;
         final boolean logLifecycle;
+        final String syncOwner;
+        String allowedDependents;
+        boolean scopedDependentsOnly;
         long lastHeartbeatAt;
 
         ActiveOperation(Kind kind, String workspaceKey, long now, boolean logLifecycle) {
@@ -214,6 +217,8 @@ public final class ProjectOperationCoordinator {
             this.workspaceKey = workspaceKey;
             this.startedAt = now;
             this.logLifecycle = logLifecycle;
+            com.nextgis.maplib.util.SyncWorkspaceSession session = com.nextgis.maplib.util.SyncWorkspaceSession.current();
+            this.syncOwner = session == null ? null : session.getToken();
             this.lastHeartbeatAt = now;
         }
     }
@@ -226,6 +231,20 @@ public final class ProjectOperationCoordinator {
     private static long nextCancelHandlerId = 1L;
 
     private ProjectOperationCoordinator() {
+    }
+
+    /** Keep the batch exclusive while its own deferred fill/rebuild children finish. */
+    public static AutoCloseable allowSyncDependents(String token) {
+        synchronized (LOCK) {
+            ActiveOperation parent = null;
+            for (ActiveOperation operation : ACTIVE.values()) if (operation.kind == Kind.DATA_SYNC) parent = operation;
+            if (parent == null || token == null) throw new IllegalStateException("No sync batch owner");
+            ActiveOperation owner = parent;
+            String previous = owner.allowedDependents;
+            owner.allowedDependents = token;
+            LOCK.notifyAll();
+            return () -> { synchronized (LOCK) { owner.allowedDependents = previous; LOCK.notifyAll(); } };
+        }
     }
 
     public static Lease tryBegin(Context context, Kind kind) {
@@ -278,6 +297,15 @@ public final class ProjectOperationCoordinator {
                 }
             }
             return false;
+        }
+    }
+
+    /** Opt the serial project runner into stricter ownership without changing legacy lease clients. */
+    public static void requireScopedSyncDependents() {
+        synchronized (LOCK) {
+            for (ActiveOperation operation : ACTIVE.values()) {
+                if (operation.kind == Kind.DATA_SYNC) operation.scopedDependentsOnly = true;
+            }
         }
     }
 
@@ -365,6 +393,11 @@ public final class ProjectOperationCoordinator {
             if (kind == Kind.DATA_SYNC && operation.kind == Kind.DATA_SYNC) {
                 return false;
             }
+            if (operation.kind == Kind.DATA_SYNC && operation.scopedDependentsOnly
+                    && (kind == Kind.LAYER_FILL || kind == Kind.SCHEMA_REBUILD)
+                    && com.nextgis.maplib.util.SyncWorkspaceSession.current() == null) {
+                return false;
+            }
             if (kind == Kind.DATA_SYNC
                     && (operation.kind == Kind.LAYER_FILL
                             || operation.kind == Kind.SCHEMA_REBUILD)) {
@@ -390,7 +423,8 @@ public final class ProjectOperationCoordinator {
                     && !current.workspaceKey.equals(other.workspaceKey)) {
                 continue;
             }
-            if (other.kind == Kind.DATA_SYNC) {
+            if (other.kind == Kind.DATA_SYNC && !(current.syncOwner != null
+                    && current.syncOwner.equals(other.allowedDependents))) {
                 return true;
             }
             if (current.kind == Kind.SCHEMA_REBUILD && other.kind == Kind.LAYER_FILL) {
