@@ -30,7 +30,6 @@ import android.os.Bundle;
 import android.provider.SyncStateContract;
 import androidx.appcompat.widget.AppCompatSpinner;
 import android.util.AttributeSet;
-import android.util.TypedValue;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 
@@ -94,6 +93,7 @@ public class Combobox extends AppCompatSpinner implements IFormControl
         mFieldName = ControlHelper.getFieldName(attributes.getString(JSON_FIELD_NAME_KEY));
         mIsShowLast = ControlHelper.isSaveLastValue(attributes);
         setEnabled(ControlHelper.isEnabled(fields, mFieldName));
+        com.nextgis.maplibui.util.FormFieldLayout.prepareSelector(this);
 
         if (modifyAttributesActivity instanceof com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) {
             com.nextgis.maplibui.util.CascadingFormController controller =
@@ -174,10 +174,6 @@ public class Combobox extends AppCompatSpinner implements IFormControl
 
         // The drop down view
         spinnerArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        float minHeight = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 14, getResources().getDisplayMetrics());
-        setPadding(0, (int) minHeight, 0, (int) minHeight);
     }
 
 
@@ -202,7 +198,7 @@ public class Combobox extends AppCompatSpinner implements IFormControl
     @Override
     public void addToLayout(ViewGroup layout)
     {
-        layout.addView(this);
+        com.nextgis.maplibui.util.FormFieldLayout.addSelector(layout, this);
     }
 
 

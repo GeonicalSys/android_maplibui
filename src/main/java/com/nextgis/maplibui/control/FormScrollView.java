@@ -7,6 +7,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewConfiguration;
+import android.view.accessibility.AccessibilityManager;
 import android.webkit.WebView;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
@@ -25,22 +26,20 @@ public class FormScrollView extends ScrollView {
     private final float minDistance;
     private final int touchSlop;
     private Tabs gestureTabs;
+    private EditText gestureEditor;
+    private boolean swiping;
     private float startX, startY;
     private long started;
 
     public FormScrollView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        minDistance = 64 * getResources().getDisplayMetrics().density;
-        touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        minDistance = 48 * getResources().getDisplayMetrics().density;
+        touchSlop = Math.max(2 * ViewConfiguration.get(context).getScaledTouchSlop(),
+                Math.round(16 * getResources().getDisplayMetrics().density));
     }
 
     public void addFormTabs(Tabs tabs) {
         if (!formTabs.contains(tabs)) formTabs.add(tabs);
-    }
-
-    @Override public void requestDisallowInterceptTouchEvent(boolean disallow) {
-        if (disallow) gestureTabs = null;
-        super.requestDisallowInterceptTouchEvent(disallow);
     }
 
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
@@ -48,28 +47,48 @@ public class FormScrollView extends ScrollView {
         if (action == MotionEvent.ACTION_DOWN) {
             startX = event.getX(); startY = event.getY(); started = event.getEventTime();
             gestureTabs = null;
+            gestureEditor = null;
+            swiping = false;
+            AccessibilityManager accessibility = (AccessibilityManager)getContext()
+                    .getSystemService(Context.ACCESSIBILITY_SERVICE);
             for (Tabs tabs : formTabs) {
-                if (hits(tabs, event) && !hasOwnGesture(tabs, event)) {
+                // Short pages do not fill the scroll viewport; its empty area is navigable too.
+                if (tabs.isShown() && !hasOwnGesture(this, event)
+                        && (accessibility == null || !accessibility.isTouchExplorationEnabled())) {
                     gestureTabs = tabs;
+                    gestureEditor = findEditor(tabs, event);
                     break;
                 }
             }
         }
-        if (event.getPointerCount() != 1 || action == MotionEvent.ACTION_CANCEL) gestureTabs = null;
-        float dx = event.getX() - startX, dy = event.getY() - startY;
-        if (action == MotionEvent.ACTION_MOVE && Math.abs(dy) > touchSlop && Math.abs(dy) > Math.abs(dx))
+        if (event.getPointerCount() != 1 || action == MotionEvent.ACTION_CANCEL) {
             gestureTabs = null;
-        boolean changed = action == MotionEvent.ACTION_UP && gestureTabs != null
+            gestureEditor = null;
+        }
+        if (swiping) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) swiping = false;
+            return true;
+        }
+        float dx = event.getX() - startX, dy = event.getY() - startY;
+        if (action == MotionEvent.ACTION_MOVE && Math.abs(dy) > touchSlop && Math.abs(dy) > Math.abs(dx) * 1.25f)
+            gestureTabs = null;
+        if (gestureEditor != null && (gestureEditor.hasSelection()
+                || event.getEventTime() - started >= ViewConfiguration.getLongPressTimeout()))
+            gestureTabs = null;
+        boolean horizontal = (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_UP)
+                && gestureTabs != null
                 && event.getEventTime() - started <= 1500
-                && Math.abs(dx) >= minDistance && Math.abs(dx) >= Math.abs(dy) * 1.5f
-                && gestureTabs.selectAdjacentTab(dx < 0);
-        if (action == MotionEvent.ACTION_UP && changed) {
-            // The previous page must receive Cancel rather than a click after a fling.
+                && Math.abs(dx) >= minDistance && Math.abs(dx) >= Math.abs(dy) * 1.25f;
+        if (horizontal) {
+            // Cancel the old control before navigation, including at the first/last page.
+            // Observing dispatch also covers clickables that disallow parent interception.
             MotionEvent cancel = MotionEvent.obtain(event);
             cancel.setAction(MotionEvent.ACTION_CANCEL);
             super.dispatchTouchEvent(cancel);
             cancel.recycle();
+            gestureTabs.selectAdjacentTab(dx < 0);
             gestureTabs = null;
+            swiping = action != MotionEvent.ACTION_UP;
             return true;
         }
         boolean handled = super.dispatchTouchEvent(event);
@@ -89,7 +108,7 @@ public class FormScrollView extends ScrollView {
 
     private static boolean hasOwnGesture(View view, MotionEvent event) {
         if (!hits(view, event)) return false;
-        if (view instanceof Sign || view instanceof PhotoGallery || view instanceof EditText
+        if (view instanceof Sign || view instanceof PhotoGallery
                 || view instanceof SeekBar || view instanceof HorizontalScrollView || view instanceof WebView
                 || view.canScrollHorizontally(-1) || view.canScrollHorizontally(1)) return true;
         if (view instanceof ViewGroup) {
@@ -98,5 +117,18 @@ public class FormScrollView extends ScrollView {
                 if (hasOwnGesture(group.getChildAt(i), event)) return true;
         }
         return false;
+    }
+
+    private static EditText findEditor(View view, MotionEvent event) {
+        if (!hits(view, event)) return null;
+        if (view instanceof EditText) return (EditText)view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup)view;
+            for (int i=group.getChildCount()-1;i>=0;i--) {
+                EditText found=findEditor(group.getChildAt(i),event);
+                if (found!=null) return found;
+            }
+        }
+        return null;
     }
 }

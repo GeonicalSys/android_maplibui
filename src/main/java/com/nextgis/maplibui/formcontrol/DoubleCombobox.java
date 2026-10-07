@@ -29,7 +29,6 @@ import android.database.Cursor;
 import android.os.Bundle;
 import androidx.appcompat.widget.AppCompatSpinner;
 import android.util.AttributeSet;
-import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -103,6 +102,8 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         mSubFieldName = attributes.getString(JSON_FIELD_LEVEL2_KEY);
         mIsShowLast = ControlHelper.isSaveLastValue(attributes);
         setEnabled(ControlHelper.isEnabled(fields, mFieldName));
+        com.nextgis.maplibui.util.FormFieldLayout.prepareSelector(this);
+        com.nextgis.maplibui.util.FormFieldLayout.prepareSelector(mSubCombobox);
 
         if (modifyAttributesActivity instanceof com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) {
             com.nextgis.maplibui.util.CascadingFormController controller =
@@ -193,11 +194,6 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         // The drop down view
         comboboxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 
-        float minHeight = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 14, getResources().getDisplayMetrics());
-        setPadding(0, (int) minHeight, 0, (int) minHeight);
-        mSubCombobox.setPadding(0, (int) minHeight, 0, (int) minHeight);
-
         setOnItemSelectedListener(
                 new AdapterView.OnItemSelectedListener()
                 {
@@ -251,7 +247,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
     public void setEnabled(boolean enabled)
     {
         super.setEnabled(enabled);
-        mSubCombobox.setEnabled(enabled);
+        if (mSubCombobox != null) mSubCombobox.setEnabled(enabled);
     }
 
 
@@ -271,8 +267,8 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
     @Override
     public void addToLayout(ViewGroup layout)
     {
-        layout.addView(this);
-        layout.addView(mSubCombobox);
+        com.nextgis.maplibui.util.FormFieldLayout.addSelector(layout, this);
+        com.nextgis.maplibui.util.FormFieldLayout.addSelector(layout, mSubCombobox);
     }
 
 

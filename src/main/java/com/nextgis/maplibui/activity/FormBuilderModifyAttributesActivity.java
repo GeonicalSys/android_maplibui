@@ -455,6 +455,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
 
         Cursor featureCursor = getFeatureCursor();
         List<Field> fields = mLayer.getFields();
+        elements = com.nextgis.maplibui.util.CascadingFormElements.expand(elements, fields, mCascades);
         for (int i = 0; i < elements.length(); i++) {
             IFormControl control;
             JSONObject element = elements.getJSONObject(i);

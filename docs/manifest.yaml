@@ -9,7 +9,11 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/control/FormScrollView.java
-    responsibility: Scroll form fields vertically and navigate outer NGFP tabs with horizontal flings while preserving child gestures.
+    responsibility: Observe horizontal swipes over selectors, checkboxes, short comments and blank space; cancel child taps before outer-tab navigation while preserving vertical scroll, text selection, signature and accessible navigation.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/CascadingFormElements.java
+    responsibility: Expand legacy pairs owned by the cascade graph into independent labelled combobox controls at root and nested Tabs without mutating source JSON or draft identities.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormFieldLayout.java
+    responsibility: Give ordinary and legacy selectors full width, a 56dp minimum height and 12dp separation, including cascade initialization paths.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerUtil.java
     responsibility: Resolve matching numbered or legacy NGFP form and metadata files during ordinary launch and draft recovery.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ConditionalRequiredController.java

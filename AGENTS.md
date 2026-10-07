@@ -49,6 +49,12 @@ Merge Commit; связанный root PR обновляет submodule pointer п
 `LayerUtil` обязан передавать парные form/meta даже при default form.
 `FormScrollView` перелистывает только внешние Tabs, сохраняя самостоятельные
 жесты ввода, подписи, галереи и горизонтально прокручиваемых контролов.
+Проверять свайпы поверх enabled Spinner/checkbox/короткого комментария и пустой
+области, многократные переходы, vertical drag и выделение текста. Не отменять
+взмах лишь из-за requestDisallowIntercept или небольшого начального дрейфа.
+Каскадный legacy double_combobox разворачивать через CascadingFormElements в
+два обычных controls на каждом уровне, сохраняя field names/pins. Selector height
+и отступы применять до early return регистрации каскада через FormFieldLayout.
 
 Зависимые списки: читать `../docs/architecture/cascading-form-lists.md`.
 Controller управляет обычными и сдвоенными Spinner, а не создаёт отдельные
