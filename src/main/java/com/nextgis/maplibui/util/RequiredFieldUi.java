@@ -42,7 +42,6 @@ public final class RequiredFieldUi {
     public static Map<String, String> decorate(List<Field> fields, Map<String, IControl> controls) {
         Map<String, String> captions = new HashMap<>();
         for (Field field : fields) {
-            if (!field.isRequired()) continue;
             View view = fieldView(field, controls);
             if (view == null || !(view.getParent() instanceof ViewGroup)) continue;
             ViewGroup parent = (ViewGroup) view.getParent();
@@ -50,18 +49,26 @@ public final class RequiredFieldUi {
             View previous = index > 0 ? parent.getChildAt(index - 1) : null;
             TextView label;
             if (previous instanceof com.nextgis.maplibui.control.TextLabel
-                    || previous instanceof com.nextgis.maplibui.formcontrol.TextLabel) {
+                    || previous instanceof com.nextgis.maplibui.formcontrol.TextLabel
+                    || previous instanceof TextView && previous.getTag(R.id.form_required_caption) != null) {
                 label = (TextView) previous;
             } else {
+                if (!field.isRequired()) continue;
                 label = new androidx.appcompat.widget.AppCompatTextView(view.getContext());
                 label.setText(field.getAlias());
                 parent.addView(label, index);
             }
-            String caption = label.getText().toString();
+            Object savedCaption=label.getTag(R.id.form_required_caption);
+            if (!field.isRequired() && savedCaption==null) continue;
+            String caption = savedCaption==null?label.getText().toString():savedCaption.toString();
+            if (savedCaption==null) {
+                label.setTag(R.id.form_required_caption,caption);
+                view.setTag(R.id.form_required_original_description,view.getContentDescription());
+            }
             captions.put(field.getName(), caption);
-            label.append(" *");
-            view.setContentDescription(view.getContext().getString(
-                    R.string.form_required_field_hint, caption));
+            label.setText(caption+(field.isRequired()?" *":""));
+            view.setContentDescription(field.isRequired()?view.getContext().getString(
+                    R.string.form_required_field_hint, caption):(CharSequence)view.getTag(R.id.form_required_original_description));
         }
         return captions;
     }

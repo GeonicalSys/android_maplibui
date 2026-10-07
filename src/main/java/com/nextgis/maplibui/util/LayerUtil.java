@@ -138,12 +138,12 @@ public final class LayerUtil {
                 File metaCheck = new File(layer.getPath(), newDefForm + "_" + LayerFillService.NGFP_META);
                 if (metaCheck.exists()){
                     form = new File(layer.getPath(), newDefForm + "_" + ConstantsUI.FILE_FORM);
-                    formPrefix = newDefForm;
+                    formPrefix = newDefForm + "_";
                 }else {
                     File metaCheck2 = new File(layer.getPath(),  LayerFillService.NGFP_META);
                     if (metaCheck2.exists()){
                         form = new File(layer.getPath(),  ConstantsUI.FILE_FORM);
-                        formPrefix = newDefForm;
+                        formPrefix = "";
                     }
                 }
 

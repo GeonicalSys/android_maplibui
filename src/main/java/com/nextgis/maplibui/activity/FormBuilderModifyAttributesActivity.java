@@ -145,6 +145,8 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     private String mColumn;
     private com.nextgis.maplibui.util.CascadingFormController mCascades;
     private boolean mCascadesLoaded, mCascadesInvalid;
+    private com.nextgis.maplibui.util.ConditionalRequiredController mRequiredRules;
+    private boolean mRequiredRulesInvalid;
     private Bundle mCascadeRestoreState;
 
     public com.nextgis.maplibui.util.CascadingFormController getCascadingLists() { return mCascades; }
@@ -215,6 +217,13 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                 Log.w("FormBuilder", "Cannot prepare cascading lists", error);
                 Toast.makeText(this, R.string.form_cascade_unavailable, Toast.LENGTH_LONG).show();
             }
+            try {
+                mRequiredRules = com.nextgis.maplibui.util.ConditionalRequiredController.load(mMeta,mLayer,mFeatureId,savedState);
+            } catch (IOException | JSONException | RuntimeException error) {
+                mRequiredRulesInvalid = true;
+                Log.w("FormBuilder", "Cannot prepare conditional requirements", error);
+                Toast.makeText(this, R.string.form_rules_unavailable, Toast.LENGTH_LONG).show();
+            }
         }
 
         try {
@@ -263,6 +272,16 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                 }
             }
             if (mCascades != null) mCascades.attach(mIsViewOnly);
+            if (mRequiredRules != null && !mIsViewOnly) mRequiredRules.attach(layout,this::captureScriptValues,this::refreshRequiredMarkers);
+            android.view.ViewGroup header = findViewById(R.id.form_tabs_header);
+            com.nextgis.maplibui.control.FormScrollView scroll = findViewById(R.id.form_scroll);
+            for (int i = 0; i < layout.getChildCount(); i++) {
+                if (layout.getChildAt(i) instanceof Tabs) {
+                    Tabs tabs = (Tabs) layout.getChildAt(i);
+                    tabs.pinHeader(header, scroll);
+                    scroll.addFormTabs(tabs);
+                }
+            }
         } catch (JSONException | IOException e) {
             if (mCascades != null) mCascadesInvalid = true;
             e.printStackTrace();
@@ -749,6 +768,10 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     }
 
     @Override protected void saveAdditionalFormState(Bundle state) {
+        if (mRequiredRules != null) mRequiredRules.saveState(state);
+        else if (mRequiredRulesInvalid && mCascadeRestoreState != null && mCascadeRestoreState.containsKey(com.nextgis.maplibui.util.ConditionalRequiredController.PIN))
+            state.putString(com.nextgis.maplibui.util.ConditionalRequiredController.PIN,mCascadeRestoreState.getString(com.nextgis.maplibui.util.ConditionalRequiredController.PIN));
+        else if (mCascadesLoaded && !mRequiredRulesInvalid) state.putString(com.nextgis.maplibui.util.ConditionalRequiredController.PIN,"");
         if (mCascades != null) mCascades.saveState(state);
         else if (mCascadesInvalid && mCascadeRestoreState != null) {
             // A missing/corrupt pinned file must not replace a recoverable selection
@@ -760,6 +783,11 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     }
 
     @Override protected boolean validateFormValues(ContentValues values) {
+        if (mRequiredRulesInvalid) {
+            new AlertDialog.Builder(this).setMessage(R.string.form_rules_unavailable).setPositiveButton(android.R.string.ok,null).show();
+            return false;
+        }
+        refreshRequiredMarkers();
         if (mCascadesInvalid) {
             new AlertDialog.Builder(this).setMessage(R.string.form_cascade_unavailable)
                     .setPositiveButton(android.R.string.ok, null).show();
@@ -778,6 +806,15 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                         com.nextgis.maplibui.util.RequiredFieldUi.reveal(findViewById(R.id.controls_list),
                                 target, () -> com.nextgis.maplibui.util.RequiredFieldUi.focus(target))).show();
         return false;
+    }
+
+    @Override protected List<Field> requiredFieldDefinitions(ContentValues values) {
+        return mRequiredRules == null ? super.requiredFieldDefinitions(values) : mRequiredRules.effectiveFields(values);
+    }
+
+    @Override protected void onDestroy() {
+        if (mRequiredRules != null) mRequiredRules.close();
+        super.onDestroy();
     }
 
     protected void saveLastValue(Field field) {

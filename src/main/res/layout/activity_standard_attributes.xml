@@ -39,9 +39,18 @@
     <include
         layout="@layout/actionbar"/>
 
-    <ScrollView
-        android:layout_width="fill_parent"
+    <LinearLayout
+        android:id="@+id/form_tabs_header"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"/>
+
+    <com.nextgis.maplibui.control.FormScrollView
+        android:id="@+id/form_scroll"
+        android:layout_width="fill_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
         android:padding="5dp">
 
@@ -54,6 +63,6 @@
             <include
                 layout="@layout/fragment_location_panel"/>
         </LinearLayout>
-    </ScrollView>
+    </com.nextgis.maplibui.control.FormScrollView>
 </LinearLayout>
     </androidx.drawerlayout.widget.DrawerLayout>

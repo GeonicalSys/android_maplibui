@@ -41,6 +41,15 @@ Merge Commit; связанный root PR обновляет submodule pointer п
 
 ## Project scripts
 
+Зависимая обязательность: читать `../docs/architecture/conditional-form-rules.md`.
+`ConditionalRequiredController` использует общий `FormMetadataSnapshot`,
+не заменяет listeners контролов и не читает SQLite при отрисовке. Обновлять
+звёздочки идемпотентно; Save проверяет эффективный required после checkpoint.
+Не удалять снимки `form_rules` и не отключать проверку при ошибке pin.
+`LayerUtil` обязан передавать парные form/meta даже при default form.
+`FormScrollView` перелистывает только внешние Tabs, сохраняя самостоятельные
+жесты ввода, подписи, галереи и горизонтально прокручиваемых контролов.
+
 Зависимые списки: читать `../docs/architecture/cascading-form-lists.md`.
 Controller управляет обычными и сдвоенными Spinner, а не создаёт отдельные
 трёхуровневые элементы. Сохранять required, Back Save, draft pin и explicit NULL.

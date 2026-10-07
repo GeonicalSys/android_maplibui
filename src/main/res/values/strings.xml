@@ -606,6 +606,7 @@
     <string name="form_cascade_empty">No available options</string>
     <string name="form_cascade_saved">%1$s (saved value)</string>
     <string name="form_cascade_unavailable">Unable to prepare dependent lists. Update the project and reopen the form.</string>
+    <string name="form_rules_unavailable">Unable to check the form requirements. Update the project and reopen the form.</string>
     <string name="form_cascade_invalid_title">Check your selection</string>
     <string name="form_cascade_invalid">Select again: %1$s. The dictionary or related fields have changed.</string>
 </resources>
