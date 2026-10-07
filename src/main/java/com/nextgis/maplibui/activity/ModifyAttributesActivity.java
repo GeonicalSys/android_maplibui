@@ -185,6 +185,8 @@ public class ModifyAttributesActivity
     private volatile boolean mFormSaving;
     private long mLastCheckpointWarning;
     private String mFormOperationId = java.util.UUID.randomUUID().toString();
+    private String mScriptReferencePin;
+    private com.nextgis.maplibui.util.ProjectScriptFormController mProjectScripts;
     private final android.os.Handler mDraftHandler = new android.os.Handler(Looper.getMainLooper());
     private final Runnable mDraftCheckpoint = new Runnable() {
         @Override public void run() {
@@ -208,6 +210,7 @@ public class ModifyAttributesActivity
         });
         if (savedInstanceState != null)
             mFormOperationId = savedInstanceState.getString("form_save_operation", mFormOperationId);
+        if (savedInstanceState != null) mScriptReferencePin = savedInstanceState.getString("project_script_pin");
 
         setContentView(R.layout.activity_standard_attributes);
         setToolbar(R.id.main_toolbar);
@@ -217,6 +220,12 @@ public class ModifyAttributesActivity
 
         final IGISApplication app = (IGISApplication) getApplication();
         createView(app, savedInstanceState);
+        if (!mIsViewOnly && mLayer != null) {
+            mProjectScripts = new com.nextgis.maplibui.util.ProjectScriptFormController(this, mLayer, mFields,
+                    this::captureScriptValues, () -> mFeatureId, () -> mFormSaving, mScriptReferencePin);
+            mScriptReferencePin = mProjectScripts.pinnedReference;
+            mProjectScripts.start();
+        }
         if (WalkSessionStore.load(this) != null) {
             WalkRecordingPanel panel = new WalkRecordingPanel(this);
             panel.setCompact(true);
@@ -410,6 +419,8 @@ public class ModifyAttributesActivity
                     draft = FeatureFormDraftStore.load(this);
                     if (draft != null && draft.layerId == layerId && draft.featureId == mFeatureId) {
                         mFormOperationId = draft.operationId;
+                        if (draft.scriptReference != null || mScriptReferencePin == null)
+                            mScriptReferencePin = draft.scriptReference;
                         controlsState = FeatureFormDraftStore.controlStateToBundle(draft);
                         if (draft.geometryWkt != null) {
                             GeoGeometry fromDraft = FeatureFormDraftStore.geometryFromSnapshot(draft);
@@ -554,6 +565,7 @@ public class ModifyAttributesActivity
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putString("form_save_operation", mFormOperationId);
+        outState.putString("project_script_pin", mScriptReferencePin);
         LinearLayout controlLayout = findViewById(R.id.controls_list);
         for (int i = 0; i < controlLayout.getChildCount(); i++)
             if (controlLayout.getChildAt(i) instanceof IControl)
@@ -620,6 +632,7 @@ public class ModifyAttributesActivity
         snapshot.layerId = mLayer.getId();
         snapshot.featureId = mFeatureId;
         snapshot.operationId = mFormOperationId;
+        snapshot.scriptReference = mScriptReferencePin;
         snapshot.mapPath = com.nextgis.maplib.util.DatabaseContext.getMapForLayer(mLayer)
                 .getPath().getAbsolutePath();
         snapshot.geometryChanged = mIsGeometryChanged;
@@ -953,6 +966,11 @@ public class ModifyAttributesActivity
             return true;
         });
         if (!valid) return false;
+        long recoveredSave = com.nextgis.maplib.util.FeatureSaveJournal.find(
+                com.nextgis.maplib.util.DatabaseContext.getDatabaseForLayer(mLayer, false),
+                mLayer.getPath().getName(), mFormOperationId);
+        if (recoveredSave != NOT_FOUND) mFeatureId = recoveredSave;
+        if (mProjectScripts != null && !mProjectScripts.beforeSave(values, mFeatureId)) return false;
         if (!validateRequiredFields(values)) return false;
         GeoGeometry geoGeometry = onMain(() -> putGeometry(values));
         IGISApplication app = (IGISApplication) getApplication();
@@ -1293,6 +1311,17 @@ public class ModifyAttributesActivity
             return null;
         });
         return false;
+    }
+
+    private ContentValues captureScriptValues() {
+        ContentValues values = new ContentValues();
+        for (Field field : mLayer.getFields()) putFieldValue(values, field);
+        return values;
+    }
+
+    @Override protected void onDestroy() {
+        if (mProjectScripts != null) mProjectScripts.close();
+        super.onDestroy();
     }
 
     protected Object putFieldValue(

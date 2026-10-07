@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="project_scripts_notice_title">Project check</string>
+    <string name="project_scripts_continue">Continue saving</string>
+    <string name="project_scripts_return">Return to form</string>
+    <string name="project_scripts_unavailable">The project check could not be completed. The information may be incomplete.</string>
+    <string name="project_scripts_unavailable_block">The required project check could not be completed. Keep the draft and try again after updating the project.</string>
+    <string name="project_scripts_previous_version">Project rules could not be updated. The previous verified version is being used.</string>
+</resources>

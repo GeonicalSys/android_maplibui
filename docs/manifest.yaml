@@ -8,6 +8,12 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptFormController.java
+    responsibility: Pinned form hooks, stale-result guards and warning/block before Save.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java
+    responsibility: Worker-only isolated service binding and Binder execution.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
+    responsibility: Backward-compatible persistence of the complete script reference pin.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/RequiredFieldValidation.java
     responsibility: Reject missing or whitespace-only required values and the legacy Russian placeholder while accepting not-applicable, zero and false.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/RequiredFieldUi.java
@@ -123,6 +129,10 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
     responsibility: Recoverable stroke state and checked atomic signature output.
 public_contracts:
+  - id: project-script-form-hooks
+    symbol: ProjectScriptFormController beforeSave and pinnedReference
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptFormController.java
+    consumers: [app]
   - id: track-recording-mode
     symbol: TrackerService.selectRecordingMode and getRecordingMode
     path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
@@ -139,7 +149,7 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
+settings_refs: [scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
 storage_contracts:
   - id: tracks_temp
     path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
@@ -165,12 +175,15 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
   - id: geometry_edit_draft
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
-invariant_refs: [INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
+invariant_refs: [INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
 global_docs:
+  - docs/architecture/project-scripts.md
+  - docs/guides/project-scripts-user-guide.md
+  - docs/reference/project-scripts-verification.md
   - docs/architecture/location-pipeline.md
   - docs/architecture/map-rendering.md
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
+smoke_tests: [SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
 upstream_hotspots: [LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]

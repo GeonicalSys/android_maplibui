@@ -356,3 +356,10 @@ NextGIS ID просит почту или логин, приводит толь�
 строки. См. [хранение](../../docs/architecture/ngw-sync-and-storage.md),
 [восстановление](../../docs/architecture/crash-recovery.md) и
 [результаты аудита](../../docs/reference/mobile-reliability-audit.md).
+
+## Project scripts
+
+Владеет единым import hook, form controller, pin версии в Bundle/draft, debounce/stale guards, warning/block и before-save gate. Native GIS/формат принадлежит maplib; не дублировать интерпретатор и host functions в UI.
+
+[Архитектура](../../docs/architecture/project-scripts.md),
+[руководство](../../docs/guides/project-scripts-user-guide.md).

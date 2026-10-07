@@ -88,6 +88,9 @@ public final class CollectorProjectImportHelper {
         }
 
         long[] fullProjectOrder = new long[items.size()];
+        for (int i = 0; i < items.size(); i++) fullProjectOrder[i] = items.get(i).getRemoteId();
+        com.nextgis.maplib.scripts.ProjectScriptSync.update(
+                context, group, collector.getMobileJsonConfig(), fullProjectOrder);
         ArrayList<IndexedItem> vectors = new ArrayList<>();
         ArrayList<IndexedItem> rasterStyles = new ArrayList<>();
         for (int i = 0; i < items.size(); i++) {
