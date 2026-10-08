@@ -26,6 +26,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.widget.Toast;
 
 import com.hypertrack.hyperlog.HyperLog;
@@ -107,9 +108,21 @@ public final class LayerUtil {
         return showEditForm(layer, context, featureId, geometry, -1, false, null, walkSessionId);
     }
 
+    public static boolean showSessionEditForm(VectorLayer layer, Context context, long featureId,
+            GeoGeometry geometry, String walkSessionId, Bundle initialValues) {
+        return showEditForm(layer, context, featureId, geometry, -1, false, null, walkSessionId, initialValues);
+    }
+
     private static boolean showEditForm(VectorLayer layer, Context context, long featureId,
                                         GeoGeometry geometry, long mFormId, boolean applyFormDraft,
                                         Boolean geometryChangedOverride, String walkSessionId) {
+        return showEditForm(layer, context, featureId, geometry, mFormId, applyFormDraft,
+                geometryChangedOverride, walkSessionId, null);
+    }
+
+    private static boolean showEditForm(VectorLayer layer, Context context, long featureId,
+            GeoGeometry geometry, long mFormId, boolean applyFormDraft,
+            Boolean geometryChangedOverride, String walkSessionId, Bundle initialValues) {
         if (!layer.isFieldsInitialized()) {
             Toast.makeText(context, context.getString(R.string.error_layer_not_inited), Toast.LENGTH_SHORT).show();
             return false;
@@ -124,49 +137,19 @@ public final class LayerUtil {
 
         Intent intent;
         //check custom form
-        String formPrefix = mFormId + "_";
-        File form = new File(layer.getPath(), formPrefix+ ConstantsUI.FILE_FORM);
-
-        try {
-        CollectorFormFileTransaction.recover(layer.getPath());
-
-        if (!form.exists()){ //try to find file
-            // try to search
-            String newDefForm = findFormJsonPrefix(layer.getPath().toString());
-            if (newDefForm != null) {
-
-                File metaCheck = new File(layer.getPath(), newDefForm + "_" + LayerFillService.NGFP_META);
-                if (metaCheck.exists()){
-                    form = new File(layer.getPath(), newDefForm + "_" + ConstantsUI.FILE_FORM);
-                    formPrefix = newDefForm + "_";
-                }else {
-                    File metaCheck2 = new File(layer.getPath(),  LayerFillService.NGFP_META);
-                    if (metaCheck2.exists()){
-                        form = new File(layer.getPath(),  ConstantsUI.FILE_FORM);
-                        formPrefix = "";
-                    }
-                }
-
-            } else {
-                // nothing
-            }
-
-        }
-        } catch (Exception exception){
-            HyperLog.exception(Constants.TAG, exception);
-        }
+        File[] files = formFiles(layer, mFormId);
+        File form = files[0];
 
         if (form.exists()) {
-            //show custom form
             intent = new Intent(context, FormBuilderModifyAttributesActivity.class);
             intent.putExtra(KEY_FORM_PATH, form);
-            File meta = new File(layer.getPath(), formPrefix + LayerFillService.NGFP_META);
-            if (meta.exists())
-                intent.putExtra(KEY_META_PATH, meta);
+            if (files[1].exists()) intent.putExtra(KEY_META_PATH, files[1]);
         } else {
-            //if not exist show standard form
             intent = new Intent(context, ModifyAttributesActivity.class);
         }
+
+        Bundle initial = featureId == Constants.NOT_FOUND && !applyFormDraft ? initialValues : null;
+        if (initial != null) intent.putExtra(FeatureTypeDefaults.INITIAL_VALUES, initial);
 
         intent.putExtra(KEY_LAYER_ID, layer.getId());
         intent.putExtra(KEY_FEATURE_ID, featureId);
@@ -193,7 +176,7 @@ public final class LayerUtil {
                     || session.layerId != layer.getId() || session.featureId != featureId) return false;
             intent.putExtra(WalkSessionStore.KEY_SESSION, walkSessionId);
         }
-        if ((pointId != null || walkSessionId != null) && !applyFormDraft) {
+        if ((pointId != null || walkSessionId != null || initial != null) && !applyFormDraft) {
             // The geometry-to-form handoff is durable before the Activity starts. A process
             // death in that gap retains the point lock and the complete walk independently.
             FeatureFormDraftStore.Snapshot draft = new FeatureFormDraftStore.Snapshot();
@@ -201,6 +184,8 @@ public final class LayerUtil {
             draft.geometryChanged = isGeometryChanged;
             draft.geometryWkt = geometry == null ? null : geometry.toWKT(true);
             draft.pointSessionId = pointId; draft.walkSessionId = walkSessionId;
+            draft.mapPath = ((IGISApplication)((Activity)context).getApplication()).getMap().getPath().getAbsolutePath();
+            if (initial != null) FeatureFormDraftStore.putControlStateFromBundle(draft, initial);
             if (intent.hasExtra(KEY_FORM_PATH)) draft.formPath = ((File) intent.getSerializableExtra(KEY_FORM_PATH)).getAbsolutePath();
             if (intent.hasExtra(KEY_META_PATH)) draft.metaPath = ((File) intent.getSerializableExtra(KEY_META_PATH)).getAbsolutePath();
             if (!FeatureFormDraftStore.save(context, draft)) {
@@ -220,9 +205,24 @@ public final class LayerUtil {
         }
     }
 
-    /**
-     * Open the attribute form and apply a previously saved crash draft.
-     */
+    /** Same form/meta pair for type selection, normal launch and recovery. */
+    public static File[] formFiles(VectorLayer layer, long formId) {
+        String prefix = formId + "_";
+        File form = new File(layer.getPath(), prefix + ConstantsUI.FILE_FORM);
+        try {
+            CollectorFormFileTransaction.recover(layer.getPath());
+            if (!form.exists()) {
+                String found = findFormJsonPrefix(layer.getPath().toString());
+                if (found != null && new File(layer.getPath(), found + "_" + LayerFillService.NGFP_META).exists())
+                    prefix = found + "_";
+                else if (new File(layer.getPath(), LayerFillService.NGFP_META).exists()) prefix = "";
+                form = new File(layer.getPath(), prefix + ConstantsUI.FILE_FORM);
+            }
+        } catch (Exception error) { HyperLog.exception(Constants.TAG, error); }
+        return new File[]{form, new File(layer.getPath(), prefix + LayerFillService.NGFP_META)};
+    }
+
+    /** Open the attribute form and apply a previously saved crash draft. */
     public static void showEditFormFromDraft(Context context, FeatureFormDraftStore.Snapshot draft) {
         if (!isEditFormDraftRecoverable(context, draft)) {
             FeatureFormDraftStore.clear(context);

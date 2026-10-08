@@ -8,6 +8,14 @@ last_verified: 2026-10-08
 
 ## Назначение
 
+ChooseFeatureTypeDialog асинхронно загружает категории FieldStyleRule и возвращает
+явное начальное состояние. FeatureTypeDefaults подбирает имена legacy пары
+и стабильные keys всей цепочки lisa_form_dependencies; несколько допустимых
+родителей показываются раздельно. FeatureTypePreview рисует копию символа.
+LayerUtil использует общую пару form/meta и сохраняет checkpoint до запуска
+формы; GeometryEditDraftStore v1 сохраняет typed initial_values. Контракт:
+consuming root docs/architecture/feature-type-creation.md.
+
 Внешние NGFP-вкладки закреплены под toolbar; взмах по полям переключает соседнюю
 вкладку без потери данных, включая взмах над обычным списком, флажком,
 комментарием и пустой областью короткой страницы. FormScrollView оставляет

@@ -22,6 +22,8 @@
   -->
 
 <resources>
+    <string name="choose_feature_type">Choose object type</string>
+    <string name="feature_type_unavailable">This object type could not be prepared. Update the project settings and try again.</string>
     <string name="layer_pending_changes">Unsynchronized changes</string>
     <!-- Overridden by app module flavors (resValue app_name in app/build.gradle). -->
     <string name="app_name" translatable="false">NextGIS Mobile</string>

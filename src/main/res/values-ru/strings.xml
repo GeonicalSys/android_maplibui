@@ -22,6 +22,8 @@
   -->
 
 <resources>
+    <string name="choose_feature_type">Выберите тип объекта</string>
+    <string name="feature_type_unavailable">Не удалось подготовить этот тип объекта. Обновите настройки проекта и попробуйте снова.</string>
     <string name="layer_pending_changes">Несинхронизированные изменения</string>
     <string name="layers_drawer_open">Открыть список слоёв</string>
     <string name="layers_drawer_close">Закрыть список слоёв</string>
