@@ -24,6 +24,9 @@ LayerUtil передаёт matching metadata и при автоматическ�
 FormFieldLayout оформляет обычные и NGFP-поля: подпись 14sp сверху, значение
 17sp в рамке, высота от 56dp и отступ 20dp; длинные названия в списке переносятся.
 Нижний Save закреплён и использует общий gate. Обе темы сохраняют контраст.
+Bundle и durable draft сохраняют зарегистрированные controls независимо от
+FieldContainer; прямая группа Tabs дополнительно сохраняет активную страницу.
+
 ConditionalRequiredController читает независимый `lisa_form_rules` v1/v2. V2
 visible управляет field-контейнером или element/lisa_id, включая inactive/nested
 Tabs и pinned header. Скрытые поля не блокируют required/cascade Save, но их

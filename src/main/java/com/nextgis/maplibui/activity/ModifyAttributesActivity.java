@@ -572,14 +572,20 @@ public class ModifyAttributesActivity
     protected void onSaveInstanceState(Bundle outState) {
         outState.putString("form_save_operation", mFormOperationId);
         outState.putString("project_script_pin", mScriptReferencePin);
-        LinearLayout controlLayout = findViewById(R.id.controls_list);
-        for (int i = 0; i < controlLayout.getChildCount(); i++)
-            if (controlLayout.getChildAt(i) instanceof IControl)
-                ((IControl) controlLayout.getChildAt(i)).saveState(outState);
-
-        for (Sign sign : getSignControls()) sign.saveState(outState);
+        saveControlState(outState);
         saveAdditionalFormState(outState);
         super.onSaveInstanceState(outState);
+    }
+
+    /** Presentation containers must not affect rotation or durable draft capture. */
+    private void saveControlState(Bundle state) {
+        java.util.Set<IControl> controls = new java.util.LinkedHashSet<>();
+        if (mFields != null) controls.addAll(mFields.values());
+        LinearLayout layout = findViewById(R.id.controls_list);
+        if (layout != null) for (int i=0; i<layout.getChildCount(); i++)
+            if (layout.getChildAt(i) instanceof IControl) controls.add((IControl)layout.getChildAt(i));
+        controls.addAll(getSignControls());
+        for (IControl control : controls) control.saveState(state);
     }
 
     /** Extra state is also included in the durable checkpoint, not only Activity Bundle. */
@@ -668,15 +674,7 @@ public class ModifyAttributesActivity
             }
         }
         Bundle controlState = new Bundle();
-        LinearLayout controlLayout = findViewById(R.id.controls_list);
-        if (controlLayout != null) {
-            for (int i = 0; i < controlLayout.getChildCount(); i++) {
-                if (controlLayout.getChildAt(i) instanceof IControl) {
-                    ((IControl) controlLayout.getChildAt(i)).saveState(controlState);
-                }
-            }
-        }
-        for (Sign sign : getSignControls()) sign.saveState(controlState);
+        saveControlState(controlState);
         saveAdditionalFormState(controlState);
         FeatureFormDraftStore.putControlStateFromBundle(snapshot, controlState);
         snapshot.photoPaths = new ArrayList<>();
