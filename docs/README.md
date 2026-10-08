@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-07
+last_verified: 2026-10-08
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -19,10 +19,16 @@ LayerUtil передаёт matching metadata и при автоматическ�
 `double_combobox` в два отдельных обычных поля с подписями из alias слоя.
 Это преобразование отображения в корне и внутри Tabs: исходный JSON,
 имена полей и pin черновика сохраняются. `FormFieldLayout` задаёт спискам
-минимальную высоту 56 dp и нижний отступ 12 dp до раннего выхода cascade init.
+минимальную высоту 56 dp и контейнер с отступом 20 dp до раннего выхода cascade init.
 
-ConditionalRequiredController читает независимый `lisa_form_rules`, динамически
-обновляет маркеры и усиливает штатный required в общем Save/Back Save gate.
+FormFieldLayout оформляет обычные и NGFP-поля: подпись 14sp сверху, значение
+17sp в рамке, высота от 56dp и отступ 20dp; длинные названия в списке переносятся.
+Нижний Save закреплён и использует общий gate. Обе темы сохраняют контраст.
+ConditionalRequiredController читает независимый `lisa_form_rules` v1/v2. V2
+visible управляет field-контейнером или element/lisa_id, включая inactive/nested
+Tabs и pinned header. Скрытые поля не блокируют required/cascade Save, но их
+значения/черновик сохраняются. Видимые поля усиливают штатный required.
+Ошибки идентификатора/цели блокируют Save; view-only тоже применяет visibility.
 Условия закреплены атомарным SHA-256 снимком; observer не заменяет listeners и
 не читает SQLite на кадрах. Подробнее: consuming root
 `docs/architecture/conditional-form-rules.md` и пользовательское руководство.

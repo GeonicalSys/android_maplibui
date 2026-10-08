@@ -144,9 +144,8 @@ public final class CascadingFormController {
                         model.value(field)), true));
                 selected = choices.size() - 1;
             }
-            ArrayAdapter<Choice> adapter = new ArrayAdapter<>(activity,
-                    R.layout.formtemplate_double_spinner, choices);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            ArrayAdapter<Choice> adapter = new FormChoiceAdapter<>(activity, choices,
+                    choice -> choice.key == null && !choice.historical);
             spinner.setAdapter(adapter);
             spinner.setSelection(selected);
             spinner.setEnabled(Boolean.TRUE.equals(enabled.get(field)) && model.ready(field) && !options.isEmpty());

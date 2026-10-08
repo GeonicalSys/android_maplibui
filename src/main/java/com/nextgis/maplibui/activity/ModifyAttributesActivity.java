@@ -220,6 +220,10 @@ public class ModifyAttributesActivity
 
         final IGISApplication app = (IGISApplication) getApplication();
         createView(app, savedInstanceState);
+        android.widget.Button saveButton = findViewById(R.id.form_save);
+        com.nextgis.maplibui.util.FormFieldLayout.styleSaveButton(saveButton);
+        findViewById(R.id.form_footer).setVisibility(mIsViewOnly ? View.GONE : View.VISIBLE);
+        saveButton.setOnClickListener(view -> runSaveAndFinish());
         if (!mIsViewOnly && mLayer != null) {
             mProjectScripts = new com.nextgis.maplibui.util.ProjectScriptFormController(this, mLayer, mFields,
                     this::captureScriptValues, () -> mFeatureId, () -> mFormSaving, mScriptReferencePin);
@@ -516,7 +520,10 @@ public class ModifyAttributesActivity
 
             if (null != control) {
                 control.init(field, savedState, featureCursor);
-                control.addToLayout(layout);
+                try {
+                    com.nextgis.maplibui.util.FormFieldLayout.addControl(layout, control, null, fields,
+                            name -> mLayer.getFieldByName(name).getAlias());
+                } catch (JSONException impossible) { throw new IllegalStateException(impossible); }
                 String fieldName = control.getFieldName();
 
                 if (null != fieldName) {
@@ -896,6 +903,7 @@ public class ModifyAttributesActivity
     private void runSaveAndFinish() {
         if (mFormSaving || mFormDraftFinalized) return;
         mFormSaving = true;
+        findViewById(R.id.form_save).setEnabled(false);
         ProgressDialog dialog = ProgressDialog.show(this, null,
                 getString(R.string.form_save_processing), true, false);
         new Thread(() -> {
@@ -909,6 +917,7 @@ public class ModifyAttributesActivity
             final boolean saved = success;
             runOnUiThread(() -> {
                 mFormSaving = false;
+                if (!isDestroyed()) findViewById(R.id.form_save).setEnabled(true);
                 if (!isDestroyed() && dialog.isShowing()) dialog.dismiss();
                 if (saved && !isDestroyed()) finish();
             });
@@ -1303,6 +1312,8 @@ public class ModifyAttributesActivity
             for (Field field : missing) message.append("\n• ").append(
                     mRequiredFieldCaptions.getOrDefault(field.getName(), field.getAlias()));
             View target = RequiredFieldUi.fieldView(missing.get(0), mFields);
+            for (Field field : missing) com.nextgis.maplibui.util.FormFieldLayout.showError(
+                    RequiredFieldUi.fieldView(field, mFields), getString(R.string.form_fill_required));
             if (target == null) message.append("\n\n").append(
                     getString(R.string.form_required_field_unavailable));
             new AlertDialog.Builder(this)

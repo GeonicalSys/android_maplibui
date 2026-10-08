@@ -32,7 +32,7 @@ public final class CascadingFormElements {
         for (int i = 0; i < elements.length(); i++) {
             JSONObject element = elements.getJSONObject(i);
             JSONObject attributes = element.optJSONObject("attributes");
-            if (!"double_combobox".equals(element.optString("type")) || attributes == null
+            if (!"double_combobox".equals(element.optString("type")) || attributes == null || element.has("lisa_id")
                     || !cascades.manages(attributes.optString("field_level1"))
                     || !cascades.manages(attributes.optString("field_level2"))) {
                 result.put(element);

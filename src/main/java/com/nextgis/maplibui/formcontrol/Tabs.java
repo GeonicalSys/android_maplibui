@@ -90,6 +90,7 @@ public class Tabs extends LinearLayout implements IFormControl
     private Map<String, Map<String, String>> mTranslations;
     private TabLayout mTabLayout;
     private ScrollView mFormScroll;
+    private boolean mRuleVisible = true;
 
     public Tabs(Context context) {
         super(context);
@@ -154,13 +155,22 @@ public class Tabs extends LinearLayout implements IFormControl
             for (int j = 0; j < elements.length(); j++) {
                 JSONObject element = elements.getJSONObject(j);
                 String type = element.optString(JSON_TYPE_KEY);
+                LinearLayout elementLayout = layout;
                 if (type.equals(JSON_COORDINATES_VALUE)) {
+                    if (element.has("lisa_id")) {
+                        elementLayout = new LinearLayout(getContext());
+                        elementLayout.setOrientation(VERTICAL);
+                        com.nextgis.maplibui.util.FormFieldLayout.tagElement(elementLayout, element);
+                        layout.addView(elementLayout);
+                        element = new JSONObject(element.toString());
+                        element.remove("lisa_id");
+                    }
                     JSONObject attributes = element.getJSONObject(JSON_ATTRIBUTES_KEY);
                     String fieldY = attributes.optString(JSON_FIELD_NAME_KEY + "_lat");
                     attributes.put(JSON_FIELD_NAME_KEY, fieldY);
                     element.put(JSON_TYPE_KEY, type + "_lat");
                     IFormControl control = getControl(getContext(), element, mLayer, mFeatureId, mGeometry, mIsViewOnly, modifyAttributesActivity);
-                    addToLayout(control, element, fields, savedState, featureCursor, layout,modifyAttributesActivity);
+                    addToLayout(control, element, fields, savedState, featureCursor, elementLayout,modifyAttributesActivity);
 
                     attributes = element.getJSONObject(JSON_ATTRIBUTES_KEY);
                     String fieldX = attributes.optString(JSON_FIELD_NAME_KEY + "_long");
@@ -171,7 +181,7 @@ public class Tabs extends LinearLayout implements IFormControl
                 if (control instanceof Tabs) {
                     ((Tabs) control).init(mLayer, mFeatureId, mGeometry, mTable, mRow, mSharedPreferences, mPreferences, mFragmentManager, mIsViewOnly);
                 }
-                addToLayout(control, element, fields, savedState, featureCursor, layout, modifyAttributesActivity);
+                addToLayout(control, element, fields, savedState, featureCursor, elementLayout, modifyAttributesActivity);
             }
 
             TabFragment fragment = new TabFragment();
@@ -216,7 +226,14 @@ public class Tabs extends LinearLayout implements IFormControl
             header.addView(mTabLayout, new LinearLayout.LayoutParams(
                     LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         }
+        mTabLayout.setVisibility(mRuleVisible ? View.VISIBLE : View.GONE);
         header.setVisibility(View.VISIBLE);
+    }
+
+    /** A condition on the Tabs element also controls its detached pinned header. */
+    public void setRuleVisible(boolean visible) {
+        mRuleVisible = visible;
+        if (mTabLayout != null) mTabLayout.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
     public boolean selectAdjacentTab(boolean next) {
@@ -266,7 +283,10 @@ public class Tabs extends LinearLayout implements IFormControl
             control.init(element, fields, savedState, featureCursor, mSharedPreferences, mTranslations, modifyAttributesActivity);
             if (control instanceof PhotoPicker)
                 ((PhotoGallery)control).setUserAgent( getUserAgent(Constants.MAPLIB_USER_AGENT_PART));
-            control.addToLayout(layout);
+            com.nextgis.maplibui.util.FormFieldLayout.addControl(layout, control, element, fields,
+                    name -> modifyAttributesActivity instanceof com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity
+                            ? ((com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) modifyAttributesActivity).getFormFieldCaption(name)
+                            : mLayer.getFieldByName(name).getAlias());
             if (mIsViewOnly)
                 control.setEnabled(false);
 
@@ -306,7 +326,6 @@ public class Tabs extends LinearLayout implements IFormControl
     public void addToLayout(ViewGroup layout)
     {
         layout.addView(this);
-        GreyLine.addToLayout(layout);
     }
 
 

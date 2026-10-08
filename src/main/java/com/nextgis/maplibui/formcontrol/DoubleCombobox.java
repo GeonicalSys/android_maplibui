@@ -96,7 +96,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
                      Cursor featureCursor, SharedPreferences preferences,
                      Map<String, Map<String, String>> translations
     ,final ModifyAttributesActivity modifyAttributesActivity) throws JSONException {
-        mSubCombobox = new Spinner(getContext());
+        mSubCombobox = new Spinner(getContext(), Spinner.MODE_DIALOG);
         JSONObject attributes = element.getJSONObject(JSON_ATTRIBUTES_KEY);
         mFieldName = attributes.getString(JSON_FIELD_LEVEL1_KEY);
         mSubFieldName = attributes.getString(JSON_FIELD_LEVEL2_KEY);
@@ -144,7 +144,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         mSubAliasValueMaps = new HashMap<>();
         mAliasSubListMap = new HashMap<>();
 
-        final ArrayAdapter<String> comboboxAdapter = new ArrayAdapter<>(getContext(), R.layout.formtemplate_double_spinner);
+        final ArrayAdapter<String> comboboxAdapter = new com.nextgis.maplibui.util.FormChoiceAdapter<>(getContext());
         setAdapter(comboboxAdapter);
 
         if (values != null) {
@@ -192,7 +192,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         final int subLastValuePositionFinal = subLastValuePosition;
 
         // The drop down view
-        comboboxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        comboboxAdapter.setDropDownViewResource(R.layout.formtemplate_spinner_choice);
 
         setOnItemSelectedListener(
                 new AdapterView.OnItemSelectedListener()
@@ -206,11 +206,10 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
                         String selectedValueAlias = comboboxAdapter.getItem(position);
                         AliasList subAliasList = mAliasSubListMap.get(selectedValueAlias);
 
-                        ArrayAdapter<String> subComboboxAdapter = new ArrayAdapter<>(
-                                view.getContext(), R.layout.formtemplate_double_spinner,
-                                subAliasList.aliasList);
+                        ArrayAdapter<String> subComboboxAdapter = new com.nextgis.maplibui.util.FormChoiceAdapter<>(
+                                getContext(), subAliasList.aliasList, com.nextgis.maplib.forms.CascadingLists::isMissing);
                         subComboboxAdapter.setDropDownViewResource(
-                                android.R.layout.simple_spinner_dropdown_item);
+                                R.layout.formtemplate_spinner_choice);
 
                         mSubCombobox.setAdapter(subComboboxAdapter);
                         mSubCombobox.setSelection(

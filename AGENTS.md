@@ -44,7 +44,12 @@ Merge Commit; связанный root PR обновляет submodule pointer п
 Зависимая обязательность: читать `../docs/architecture/conditional-form-rules.md`.
 `ConditionalRequiredController` использует общий `FormMetadataSnapshot`,
 не заменяет listeners контролов и не читает SQLite при отрисовке. Обновлять
-звёздочки идемпотентно; Save проверяет эффективный required после checkpoint.
+звёздочки идемпотентно; v2 visible управляет контейнером field или
+element/lisa_id, включая подпись/ошибку/отступ и pinned header Tabs. Hidden
+поля/потомки не блокируют required/cascade UI gate, значения и draft сохраняются.
+Обычная inactive вкладка не hidden. Unknown/duplicate target блокирует Save.
+FormFieldLayout — общий caption/value UI, FormChoiceAdapter переносит длинные
+названия без потери значения/поиска. Нижняя кнопка использует общий Save gate.
 Не удалять снимки `form_rules` и не отключать проверку при ошибке pin.
 `LayerUtil` обязан передавать парные form/meta даже при default form.
 `FormScrollView` перелистывает только внешние Tabs, сохраняя самостоятельные

@@ -120,7 +120,7 @@ public class Combobox extends AppCompatSpinner implements IFormControl
         int lastValuePosition = -1;
         mAliasValueMap = new HashMap<>();
 
-        ArrayAdapter<String> spinnerArrayAdapter = new ArrayAdapter<>(getContext(), R.layout.formtemplate_spinner);
+        ArrayAdapter<String> spinnerArrayAdapter = new com.nextgis.maplibui.util.FormChoiceAdapter<>(getContext());
         setAdapter(spinnerArrayAdapter);
 
         if (attributes.has(ConstantsUI.JSON_NGW_ID_KEY) && attributes.getLong(ConstantsUI.JSON_NGW_ID_KEY) != -1) {
@@ -173,7 +173,7 @@ public class Combobox extends AppCompatSpinner implements IFormControl
         setSelection(lastValuePosition >= 0 ? lastValuePosition : defaultPosition);
 
         // The drop down view
-        spinnerArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerArrayAdapter.setDropDownViewResource(R.layout.formtemplate_spinner_choice);
     }
 
 
