@@ -14,6 +14,9 @@ ChooseFeatureTypeDialog асинхронно загружает категори
 родителей показываются раздельно. При обходе смешанной формы нормализуются только
 непустые привязки combobox/double_combobox: подписи, вкладки и отсутствие второго
 поля у обычного списка не прерывают загрузку категорий. FeatureTypePreview рисует копию символа.
+Индикатор загрузки и сообщение об ошибке живут в шапке списка, без отдельной
+custom panel AlertDialog: длинный список прокручивается, «Отменить» остаётся
+на экране. Header не превращается в выбранную категорию.
 LayerUtil использует общую пару form/meta и сохраняет checkpoint до запуска
 формы; GeometryEditDraftStore v1 сохраняет typed initial_values. Контракт:
 consuming root docs/architecture/feature-type-creation.md.

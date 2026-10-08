@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
@@ -55,12 +56,16 @@ public final class ChooseFeatureTypeDialog extends DialogFragment {
         };
         builder.setAdapter(adapter, null);
         android.widget.ProgressBar progress = new android.widget.ProgressBar(requireContext());
-        builder.setView(progress);
         AlertDialog dialog = builder.create();
         dialog.setCanceledOnTouchOutside(false);
         dialog.setOnShowListener(ignored -> {
-            dialog.getListView().setOnItemClickListener((parent, view, index, id) -> {
-                Bundle state = choices.get(index).state;
+            ListView list = dialog.getListView();
+            // Keep one dialog content panel so long lists cannot push Cancel off screen.
+            list.addHeaderView(progress, null, false);
+            list.setOnItemClickListener((parent, view, index, id) -> {
+                Object item = parent.getItemAtPosition(index);
+                if (!(item instanceof FeatureTypeDefaults.Choice)) return;
+                Bundle state = ((FeatureTypeDefaults.Choice)item).state;
                 if (state == null) {
                     Toast.makeText(requireContext(), R.string.feature_type_unavailable, Toast.LENGTH_LONG).show(); return;
                 }
@@ -76,13 +81,20 @@ public final class ChooseFeatureTypeDialog extends DialogFragment {
                         if (!app.getMap().getPath().getAbsolutePath().equals(requireArguments().getString("map"))) {
                             result(null); dismiss(); return;
                         }
-                        choices.addAll(loaded); adapter.notifyDataSetChanged(); progress.setVisibility(View.GONE);
+                        list.removeHeaderView(progress);
+                        choices.addAll(loaded); adapter.notifyDataSetChanged();
                     });
                 } catch (Exception error) {
                     com.hypertrack.hyperlog.HyperLog.w(com.nextgis.maplib.util.Constants.TAG, "Cannot prepare feature types", error);
                     main.post(() -> {
                         if (!isAdded() || completed || !dialog.isShowing()) return;
-                        progress.setVisibility(View.GONE); dialog.setMessage(getString(R.string.feature_type_unavailable));
+                        list.removeHeaderView(progress);
+                        TextView message = new TextView(requireContext());
+                        message.setText(R.string.feature_type_unavailable);
+                        message.setTextSize(17);
+                        int padding = Math.round(20 * getResources().getDisplayMetrics().density);
+                        message.setPadding(padding, padding, padding, padding);
+                        list.addHeaderView(message, null, false);
                     });
                 }
             });
