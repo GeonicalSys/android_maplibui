@@ -19,6 +19,7 @@ public class GeometryEditDraftStoreTest {
         source.geometryWkt = "LINESTRING (1 2, 3 4)";
         source.mapPath = "C:/collector/project-a/map";
         source.updatedAtMs = 123_456_789L;
+        source.initialValues = new JSONObject().put("type", "chosen");
 
         GeometryEditDraftStore.Snapshot restored = GeometryEditDraftStore.decode(
                 new JSONObject(GeometryEditDraftStore.encode(source).toString()));
@@ -30,6 +31,7 @@ public class GeometryEditDraftStoreTest {
         assertEquals(source.geometryWkt, restored.geometryWkt);
         assertEquals(source.mapPath, restored.mapPath);
         assertEquals(source.updatedAtMs, restored.updatedAtMs);
+        assertEquals("chosen", restored.initialValues.getString("type"));
         assertTrue(restored.isValid());
     }
 

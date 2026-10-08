@@ -417,6 +417,8 @@ public class ModifyAttributesActivity
                 mGeometry = (GeoGeometry) extras.getSerializable(KEY_GEOMETRY);
 
                 Bundle controlsState = savedState;
+                if (controlsState == null && mFeatureId == NOT_FOUND && !mIsViewOnly)
+                    controlsState = extras.getBundle(com.nextgis.maplibui.util.FeatureTypeDefaults.INITIAL_VALUES);
                 boolean applyDraft = extras.getBoolean(FeatureFormDraftStore.KEY_APPLY_FORM_DRAFT, false);
                 FeatureFormDraftStore.Snapshot draft = null;
                 if (applyDraft) {

@@ -8,6 +8,12 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/ChooseFeatureTypeDialog.java
+    responsibility: Load project style categories off the UI thread and return one explicit typed creation selection through a recreation-safe fragment result.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypeDefaults.java
+    responsibility: Resolve style categories to canonical legacy values or pinned cascading keys plus all required parents; encode initial values for geometry and form drafts.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypePreview.java
+    responsibility: Render a private effective category symbol with project marker assets and polygon fill patterns.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormChoiceAdapter.java
     responsibility: Wrap long selected values and native dialog choices with theme-aware placeholder contrast while preserving selection keys and existing cascade listeners.
   - path: maplibui/src/main/java/com/nextgis/maplibui/control/FormScrollView.java

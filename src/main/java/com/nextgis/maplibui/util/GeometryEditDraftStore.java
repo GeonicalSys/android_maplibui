@@ -39,6 +39,8 @@ public final class GeometryEditDraftStore {
         public String geometryWkt;
         /** Absolute active map path. Prevents layer-id collisions between Collector projects. */
         public String mapPath;
+        /** Typed initial form state, including small cascade pins and stable option keys. */
+        public JSONObject initialValues;
         public long updatedAtMs;
 
         public boolean isValid() {
@@ -150,6 +152,7 @@ public final class GeometryEditDraftStore {
                 .put("edit_mode", snapshot.editMode)
                 .put("geometry_wkt", snapshot.geometryWkt)
                 .put("map_path", snapshot.mapPath)
+                .put("initial_values", snapshot.initialValues)
                 .put("updated_at", snapshot.updatedAtMs);
     }
 
@@ -166,6 +169,7 @@ public final class GeometryEditDraftStore {
         }
         snapshot.geometryWkt = json.optString("geometry_wkt", null);
         snapshot.mapPath = json.optString("map_path", null);
+        snapshot.initialValues = json.optJSONObject("initial_values");
         snapshot.updatedAtMs = json.optLong("updated_at", 0L);
         return snapshot;
     }
