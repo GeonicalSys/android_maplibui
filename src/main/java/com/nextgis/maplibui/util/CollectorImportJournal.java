@@ -148,7 +148,52 @@ public final class CollectorImportJournal {
     }
 
     private static SharedPreferences preferences(Context context) {
-        return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String path = workspacePath(context);
+        if (isEmpty(path)) return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String suffix;
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(path.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder encoded = new StringBuilder();
+            for (byte value : digest) encoded.append(String.format(java.util.Locale.ROOT, "%02x", value & 255));
+            suffix = encoded.toString();
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+        SharedPreferences scoped = context.getApplicationContext().getSharedPreferences(
+                PREFS + "_" + suffix, Context.MODE_PRIVATE);
+        // Migrate the former single-project journal only to its actual owner. A foreign journal
+        // stays intact until that project is opened/synchronized.
+        synchronized (CollectorImportJournal.class) {
+            SharedPreferences legacy = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            String value = legacy.getString(KEY_STATE, null);
+            if (value != null && !scoped.contains(KEY_STATE)) {
+                try {
+                    String uid = new JSONObject(value).optString("project_uid", "");
+                    com.nextgis.maplib.util.SyncWorkspaceSession session = com.nextgis.maplib.util.SyncWorkspaceSession.current();
+                    String ownerUid = session != null ? session.getProjectUid()
+                            : android.preference.PreferenceManager.getDefaultSharedPreferences(context).getString(
+                                    com.nextgis.maplib.util.SettingsConstants.KEY_PREF_ACTIVE_COLLECTOR_PROJECT_UID, "");
+                    if (!isEmpty(uid) && uid.equals(ownerUid)
+                            && scoped.edit().putString(KEY_STATE, value).commit()) {
+                        legacy.edit().remove(KEY_STATE).commit();
+                    }
+                } catch (JSONException error) {
+                    Log.e(TAG, "Cannot migrate legacy Collector journal", error);
+                }
+            }
+        }
+        return scoped;
+    }
+
+    /** Does not initialize the UI map: this is also called during Application.onCreate. */
+    public static String workspacePath(Context context) {
+        com.nextgis.maplib.map.MapBase map = com.nextgis.maplib.util.SyncWorkspaceSession.currentMap();
+        String path = map != null ? map.getPath().getAbsolutePath()
+                : android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                        .getString(com.nextgis.maplib.util.SettingsConstants.KEY_PREF_MAP_PATH, "");
+        try { return isEmpty(path) ? "" : new java.io.File(path).getCanonicalPath(); }
+        catch (java.io.IOException error) { throw new IllegalStateException("Invalid workspace path", error); }
     }
 
     private static boolean isEmpty(String value) {

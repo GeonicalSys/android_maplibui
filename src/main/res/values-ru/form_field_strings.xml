@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="form_enter_value">Введите значение</string>
+    <string name="form_fill_required">Заполните это поле</string>
+</resources>

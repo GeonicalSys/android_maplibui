@@ -43,6 +43,12 @@ public final class RequiredFieldUi {
         Map<String, String> captions = new HashMap<>();
         for (Field field : fields) {
             View view = fieldView(field, controls);
+            FormFieldLayout.FieldContainer container = FormFieldLayout.container(view);
+            if (container != null) {
+                container.setRequired(field.isRequired());
+                captions.put(field.getName(), container.caption());
+                continue;
+            }
             if (view == null || !(view.getParent() instanceof ViewGroup)) continue;
             ViewGroup parent = (ViewGroup) view.getParent();
             int index = parent.indexOfChild(view);

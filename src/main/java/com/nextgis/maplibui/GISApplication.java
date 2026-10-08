@@ -186,6 +186,7 @@ public abstract class GISApplication extends Application
     private String mCollectorAccount;
     /** Collector architecture foundation: preserve project ownership through verify/repair waves. */
     private String mCollectorProjectUid;
+    private String mCollectorWorkspacePath;
     private long[] mCollectorRemoteIds;
     private String[] mCollectorNames;
     private String[] mCollectorConfigJsons;
@@ -386,6 +387,9 @@ public abstract class GISApplication extends Application
     @Override
     public synchronized MapBase getMap()
     {
+        MapBase syncMap = com.nextgis.maplib.util.SyncWorkspaceSession.currentMap();
+        if (syncMap != null) return syncMap;
+
         Log.d("MMAAPP", "getMap" );
         if (null != mMap) {
             Log.d("MMAAPP", "getMap null != mMap" );
@@ -708,6 +712,10 @@ public abstract class GISApplication extends Application
         return errorCode;
     }
 
+    private boolean postWorkspaceTask(Runnable action) {
+        return com.nextgis.maplib.util.SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), action);
+    }
+
     @Override
     public boolean isLayerFillBatchDeferringHeavyMapReload() {
         return mLayerFillDeferHeavyMapReload;
@@ -720,6 +728,9 @@ public abstract class GISApplication extends Application
 
     @Override
     public void requestMapReloadAfterLayerFillBatch() {
+        if (com.nextgis.maplib.util.SyncWorkspaceSession.currentMap() != null
+                && com.nextgis.maplib.util.SyncWorkspaceSession.currentMap() != mMap) return;
+
         // A full MapLibre rebuild is asynchronous. Keep this process flag set until the map host
         // reports that the style actually finished and all visible layer sources exist.
         mPendingMapReloadAfterLayerFill = true;
@@ -728,7 +739,7 @@ public abstract class GISApplication extends Application
         }
         // Always resolve fragment on main: LayerFillService calls this from a worker thread; reading
         // the weak ref off-main often yields null so the map never refreshes after collector import.
-        new Handler(Looper.getMainLooper()).post(() -> {
+        postWorkspaceTask(() -> {
             MaplibreMapInteraction host = mMap != null ? mMap.mapContext.get() : null;
             if (host == null) {
                 HyperLog.d(Constants.TAG, "requestMapReloadAfterLayerFillBatch: map fragment null on main, pending");
@@ -841,7 +852,7 @@ public abstract class GISApplication extends Application
 
         final boolean[] saved = {false};
         CountDownLatch repairLatch = new CountDownLatch(1);
-        new Handler(Looper.getMainLooper()).post(() -> {
+        postWorkspaceTask(() -> {
             List<LayerGroup> parents = new ArrayList<>();
             List<Integer> indexes = new ArrayList<>();
             try {
@@ -1007,11 +1018,11 @@ public abstract class GISApplication extends Application
                 ? Arrays.copyOf(fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length)
                 : null;
 
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (mMap == null) {
+        postWorkspaceTask(() -> {
+            if (getMap() == null) {
                 return;
             }
-            ILayer groupLayer = mMap.getLayerById(groupId);
+            ILayer groupLayer = getMap().getLayerById(groupId);
             if (!(groupLayer instanceof LayerGroup)) {
                 HyperLog.w(Constants.TAG, "Collector composition sync: fill group missing id="
                         + groupId);
@@ -1081,7 +1092,7 @@ public abstract class GISApplication extends Application
         final LayerOriginMetadata originSnapshot = layer.getLayerOriginMetadata();
         final long oldFormId = originSnapshot != null ? originSnapshot.getFormId() : 0L;
 
-        Thread worker = new Thread(() -> {
+        com.nextgis.maplib.util.SyncWorkspaceSession.start("CollectorFormSync", () -> {
             String appliedHash = "";
             File tempDir = null;
             try {
@@ -1089,6 +1100,7 @@ public abstract class GISApplication extends Application
                 if (formId > 0L) {
                     Account acc = getAccount(accountName);
                     if (acc == null) {
+                        com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                         HyperLog.w(Constants.TAG, "Collector form sync: account missing layer=\""
                                 + layer.getName() + "\" account=" + accountName);
                         return;
@@ -1096,12 +1108,14 @@ public abstract class GISApplication extends Application
                     tempDir = new File(layerPath, ".collector_form_sync_"
                             + formId + "_" + System.currentTimeMillis());
                     if (!tempDir.mkdirs() && !tempDir.exists()) {
+                        com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                         HyperLog.w(Constants.TAG, "Collector form sync: cannot create temp dir "
                                 + tempDir);
                         return;
                     }
                     byte[] payload = downloadCollectorFormPayload(acc, formId);
                     if (payload == null || payload.length == 0) {
+                        com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                         HyperLog.w(Constants.TAG, "Collector form sync: empty NGFP payload layer=\""
                                 + layer.getName() + "\" formId=" + formId);
                         return;
@@ -1129,6 +1143,7 @@ public abstract class GISApplication extends Application
                     fillMissingLookupTablesForCollectorForm(layer, formId);
                 }
             } catch (Exception e) {
+                com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                 HyperLog.w(Constants.TAG, "Collector form sync failed layer=\""
                         + layer.getName() + "\" formId=" + formId + ": " + e.getMessage(), e);
                 return;
@@ -1139,7 +1154,7 @@ public abstract class GISApplication extends Application
             }
 
             final String finalAppliedHash = appliedHash;
-            new Handler(Looper.getMainLooper()).post(() -> {
+            postWorkspaceTask(() -> {
                 LayerOriginMetadata current = layer.getLayerOriginMetadata();
                 if (current != null && current.isManagedByProject()
                         && !TextUtils.isEmpty(current.getProjectUid())) {
@@ -1160,7 +1175,7 @@ public abstract class GISApplication extends Application
                 boolean saved = false;
                 try {
                     saved = layer.save();
-                    if (mMap != null && !mMap.save()) {
+                    if (getMap() != null && !getMap().save()) {
                         saved = false;
                     }
                 } catch (Exception e) {
@@ -1168,6 +1183,7 @@ public abstract class GISApplication extends Application
                             + layer.getName() + "\": " + e.getMessage(), e);
                 }
                 if (!saved) {
+                    com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                     HyperLog.w(Constants.TAG, "Collector form sync: keeping previous sidecars because"
                             + " layer metadata was not saved layer=\"" + layer.getName() + "\"");
                     return;
@@ -1182,8 +1198,7 @@ public abstract class GISApplication extends Application
                         + " hash=" + (TextUtils.isEmpty(finalAppliedHash)
                         ? "<empty>" : finalAppliedHash));
             });
-        }, "CollectorFormSync");
-        worker.start();
+        });
     }
 
     private byte[] downloadCollectorFormPayload(Account account, long formId) throws IOException {
@@ -1334,8 +1349,8 @@ public abstract class GISApplication extends Application
             }
             if (added) {
                 parentGroup.save();
-                if (mMap != null) {
-                    mMap.save();
+                if (getMap() != null) {
+                    getMap().save();
                 }
             }
         } catch (Exception e) {
@@ -1366,7 +1381,7 @@ public abstract class GISApplication extends Application
             final long[] fullCollectorProjectRemoteIds,
             final boolean collectorEditable,
             final String layerConfigJson) {
-        if (layer == null || mMap == null) {
+        if (layer == null || getMap() == null) {
             return;
         }
 
@@ -1410,8 +1425,8 @@ public abstract class GISApplication extends Application
                 ? Arrays.copyOf(fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length)
                 : null;
 
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (layer == null || mMap == null) {
+        postWorkspaceTask(() -> {
+            if (layer == null || getMap() == null) {
                 return;
             }
             LayerGroup parentGroup = resolveLayerParentGroup(layer);
@@ -1486,8 +1501,8 @@ public abstract class GISApplication extends Application
         final long[] fullOrder = fullCollectorProjectRemoteIds != null
                 ? Arrays.copyOf(fullCollectorProjectRemoteIds, fullCollectorProjectRemoteIds.length)
                 : null;
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (layer == null || mMap == null) {
+        postWorkspaceTask(() -> {
+            if (layer == null || getMap() == null) {
                 return;
             }
             LayerOriginMetadata origin = layer.getLayerOriginMetadata();
@@ -1537,7 +1552,7 @@ public abstract class GISApplication extends Application
                 try {
                     layer.save();
                     parentGroup.save();
-                    mMap.save();
+                    getMap().save();
                 } catch (Exception e) {
                     HyperLog.w(Constants.TAG, "Collector composition sync: state save failed for \""
                             + layer.getName() + "\": " + e.getMessage(), e);
@@ -1578,11 +1593,11 @@ public abstract class GISApplication extends Application
                         fullCollectorProjectRemoteIds.length)
                 : null;
 
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (mMap == null) {
+        postWorkspaceTask(() -> {
+            if (getMap() == null) {
                 return;
             }
-            ILayer groupLayer = mMap.getLayerById(groupId);
+            ILayer groupLayer = getMap().getLayerById(groupId);
             if (!(groupLayer instanceof LayerGroup)) {
                 HyperLog.w(Constants.TAG, "Collector composition sync: raster group missing id="
                         + groupId);
@@ -1614,7 +1629,7 @@ public abstract class GISApplication extends Application
                 return;
             }
             try {
-                if (!group.save() || !mMap.save()) {
+                if (!group.save() || !getMap().save()) {
                     throw new IllegalStateException("map save returned false");
                 }
             } catch (RuntimeException e) {
@@ -1626,7 +1641,7 @@ public abstract class GISApplication extends Application
                 }
                 try {
                     group.save();
-                    mMap.save();
+                    getMap().save();
                 } catch (RuntimeException ignored) {
                 }
                 return;
@@ -1651,8 +1666,8 @@ public abstract class GISApplication extends Application
                         fullCollectorProjectRemoteIds,
                         fullCollectorProjectRemoteIds.length)
                 : null;
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (mMap == null) {
+        postWorkspaceTask(() -> {
+            if (getMap() == null) {
                 return;
             }
             LayerGroup parentGroup = resolveLayerParentGroup(layer);
@@ -1668,7 +1683,7 @@ public abstract class GISApplication extends Application
             try {
                 layer.save();
                 parentGroup.save();
-                mMap.save();
+                getMap().save();
             } catch (RuntimeException e) {
                 HyperLog.w(Constants.TAG, "Collector composition sync: raster state save failed for "
                         + layer.getName() + ": " + e.getMessage(), e);
@@ -1679,11 +1694,11 @@ public abstract class GISApplication extends Application
 
     @Override
     public void removeCollectorRasterStyleLayer(final NGWRasterLayer layer) {
-        if (layer == null || mMap == null) {
+        if (layer == null || getMap() == null) {
             return;
         }
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (mMap == null) {
+        postWorkspaceTask(() -> {
+            if (getMap() == null) {
                 return;
             }
             LayerOriginMetadata origin = layer.getLayerOriginMetadata();
@@ -1701,7 +1716,7 @@ public abstract class GISApplication extends Application
             layer.delete(true);
             try {
                 parentGroup.save();
-                mMap.save();
+                getMap().save();
             } catch (RuntimeException e) {
                 HyperLog.w(Constants.TAG, "Collector composition sync: raster removal save failed for "
                         + layerName + ": " + e.getMessage(), e);
@@ -1720,10 +1735,15 @@ public abstract class GISApplication extends Application
             }
             p = p.getParent();
         }
-        return mMap instanceof LayerGroup ? (LayerGroup) mMap : null;
+        return getMap() instanceof LayerGroup ? (LayerGroup) getMap() : null;
     }
 
     private void clearCollectorImportFieldsLocked() {
+        CollectorImportJournal.clear(this);
+        clearCollectorRuntimeLocked();
+    }
+
+    private void clearCollectorRuntimeLocked() {
         mCollectorRemoteIds = null;
         mCollectorNames = null;
         mCollectorConfigJsons = null;
@@ -1733,7 +1753,19 @@ public abstract class GISApplication extends Application
         mCollectorProjectUid = null;
         mCollectorOutcomes.clear();
         mCollectorRepairPassesRemaining = 0;
-        CollectorImportJournal.clear(this);
+        mCollectorWorkspacePath = null;
+    }
+
+    /** Called on the main thread at a serialized project boundary; durable journals are kept. */
+    public void prepareProjectSyncState() {
+        synchronized (mCollectorImportLock) { clearCollectorRuntimeLocked(); }
+        clearStandaloneFillVerifyLocked();
+        restoreCollectorImportJournal();
+    }
+
+    private boolean ownsCollectorRuntimeLocked() {
+        return mCollectorWorkspacePath != null
+                && mCollectorWorkspacePath.equals(CollectorImportJournal.workspacePath(this));
     }
 
     private boolean persistCollectorImportLocked() {
@@ -1768,6 +1800,7 @@ public abstract class GISApplication extends Application
             return;
         }
         synchronized (mCollectorImportLock) {
+            mCollectorWorkspacePath = CollectorImportJournal.workspacePath(this);
             mCollectorGroupId = snapshot.groupId;
             mCollectorAccount = snapshot.accountName;
             mCollectorProjectUid = snapshot.projectUid;
@@ -1778,7 +1811,9 @@ public abstract class GISApplication extends Application
             mCollectorEditables = Arrays.copyOf(snapshot.editables, snapshot.editables.length);
             mCollectorFullProjectRemoteIds = Arrays.copyOf(
                     snapshot.fullProjectRemoteIds, snapshot.fullProjectRemoteIds.length);
-            mCollectorRepairPassesRemaining = snapshot.repairPassesRemaining;
+            mCollectorRepairPassesRemaining = snapshot.repairPassesRemaining == 0
+                    && com.nextgis.maplib.util.SyncWorkspaceSession.current() != null
+                    ? COLLECTOR_MAX_REPAIR_PASSES : snapshot.repairPassesRemaining;
             mCollectorOutcomes.clear();
         }
         mLayerFillDeferHeavyMapReload = true;
@@ -1821,6 +1856,11 @@ public abstract class GISApplication extends Application
             long[] fullCollectorProjectRemoteIds) {
         clearStandaloneFillVerifyLocked();
         synchronized (mCollectorImportLock) {
+            if (mCollectorRemoteIds != null && mCollectorRemoteIds.length > 0) {
+                HyperLog.w(Constants.TAG, "Unfinished Collector batch must be recovered before replacement");
+                com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
+                return false;
+            }
             if (remoteIds == null || names == null || configJsons == null || formIds == null
                     || remoteIds.length != names.length
                     || remoteIds.length != configJsons.length
@@ -1844,6 +1884,7 @@ public abstract class GISApplication extends Application
                     return false;
                 }
             }
+            mCollectorWorkspacePath = CollectorImportJournal.workspacePath(this);
             mCollectorGroupId = groupId;
             mCollectorAccount = accountName;
             mCollectorProjectUid = collectorProjectUid;
@@ -1870,7 +1911,7 @@ public abstract class GISApplication extends Application
     @Override
     public void notifyCollectorLayerFillResult(long remoteId, boolean success) {
         synchronized (mCollectorImportLock) {
-            if (mCollectorRemoteIds == null) {
+            if (!ownsCollectorRuntimeLocked() || mCollectorRemoteIds == null) {
                 return;
             }
             mCollectorOutcomes.put(remoteId, success);
@@ -1879,8 +1920,9 @@ public abstract class GISApplication extends Application
 
     @Override
     public void clearCollectorImportBatch() {
-        clearStandaloneFillVerifyLocked();
         synchronized (mCollectorImportLock) {
+            if (mCollectorRemoteIds != null && !ownsCollectorRuntimeLocked()) return;
+            clearStandaloneFillVerifyLocked();
             clearCollectorImportFieldsLocked();
         }
     }
@@ -1888,7 +1930,7 @@ public abstract class GISApplication extends Application
     @Override
     public boolean hasCollectorImportBatchRegistered() {
         synchronized (mCollectorImportLock) {
-            return mCollectorRemoteIds != null && mCollectorRemoteIds.length > 0;
+            return ownsCollectorRuntimeLocked() && mCollectorRemoteIds != null && mCollectorRemoteIds.length > 0;
         }
     }
 
@@ -1914,6 +1956,8 @@ public abstract class GISApplication extends Application
 
     @Override
     public void finalizeStandaloneLayerFillVerifyIfNeeded() {
+        if (com.nextgis.maplib.util.SyncWorkspaceSession.current() != null
+                && com.nextgis.maplib.util.SyncWorkspaceSession.current().isCancelled()) return;
         ArrayList<Bundle> pendingCopy;
         synchronized (mStandaloneVerifyLock) {
             if (mStandaloneFillVerifyQueue.isEmpty()) {
@@ -1925,7 +1969,7 @@ public abstract class GISApplication extends Application
             }
         }
 
-        MapDrawable map = mMap;
+        MapBase map = getMap();
         if (map == null) {
             return;
         }
@@ -2044,7 +2088,7 @@ public abstract class GISApplication extends Application
         return "remoteId=" + b.getLong(LayerFillService.KEY_REMOTE_ID, -1L);
     }
 
-    private static boolean isStandaloneFillVerifyBundleOk(MapDrawable map, LayerGroup group, Bundle b) {
+    private static boolean isStandaloneFillVerifyBundleOk(MapBase map, LayerGroup group, Bundle b) {
         int localId = b.getInt(LayerFillService.KEY_STANDALONE_VERIFY_LAYER_ID, Constants.NOT_FOUND);
         if (localId != Constants.NOT_FOUND) {
             ILayer layer = map.getLayerById(localId);
@@ -2081,6 +2125,8 @@ public abstract class GISApplication extends Application
 
     @Override
     public void finalizeCollectorImportVerifyAndRepairIfNeeded() {
+        if (com.nextgis.maplib.util.SyncWorkspaceSession.current() != null
+                && com.nextgis.maplib.util.SyncWorkspaceSession.current().isCancelled()) return;
         int groupId;
         String account;
         long[] remoteIds;
@@ -2092,7 +2138,7 @@ public abstract class GISApplication extends Application
         Map<Long, Boolean> outcomes;
         long[] fullProjectOrderSnapshot;
         synchronized (mCollectorImportLock) {
-            if (mCollectorRemoteIds == null || mCollectorRemoteIds.length == 0) {
+            if (!ownsCollectorRuntimeLocked() || mCollectorRemoteIds == null || mCollectorRemoteIds.length == 0) {
                 return;
             }
             groupId = mCollectorGroupId;
@@ -2169,7 +2215,9 @@ public abstract class GISApplication extends Application
         synchronized (mCollectorImportLock) {
             if (mCollectorRepairPassesRemaining <= 0) {
                 abandon = true;
-                clearCollectorImportFieldsLocked();
+                if (com.nextgis.maplib.util.SyncWorkspaceSession.current() != null) {
+                    com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
+                } else clearCollectorImportFieldsLocked();
             } else {
                 abandon = false;
                 mCollectorRepairPassesRemaining--;
@@ -2272,13 +2320,15 @@ public abstract class GISApplication extends Application
     public void scheduleNgwLayerRebuildAfterSchemaMismatch(
             final NGWVectorLayer layer,
             final String mismatchSignature) {
-        if (layer == null || mMap == null) {
+        if (layer == null || getMap() == null) {
             return;
         }
         if (isLayerReservedForWalk(layer.getId())) return;
         final String rebuildAccountName = layer.getAccountName();
         final long rebuildRemoteId = layer.getRemoteId();
-        final String workspaceKey = ProjectOperationCoordinator.activeWorkspaceKey(this);
+        final com.nextgis.maplib.util.SyncWorkspaceSession syncOwner = com.nextgis.maplib.util.SyncWorkspaceSession.current();
+        final String workspaceKey = syncOwner != null ? syncOwner.getWorkspaceKey()
+                : ProjectOperationCoordinator.activeWorkspaceKey(this);
         final SchemaRebuildRetryGuard.Decision retryDecision =
                 SchemaRebuildRetryGuard.tryRecordAttempt(
                         this,
@@ -2302,7 +2352,7 @@ public abstract class GISApplication extends Application
         }
         final String changeTable = layer.getChangeTableName();
         try {
-            mSchemaRebuildExecutor.execute(() -> prepareNgwLayerRebuild(
+            com.nextgis.maplib.util.SyncWorkspaceSession.execute(mSchemaRebuildExecutor, () -> prepareNgwLayerRebuild(
                     layer,
                     changeTable,
                     rebuildAccountName,
@@ -2358,7 +2408,7 @@ public abstract class GISApplication extends Application
 
             long formId = resolveNgwLayerRebuildFormId(layer, accountName, remoteId);
             LayerOriginMetadata origin = layer.getLayerOriginMetadata();
-            handedToMainThread = new Handler(Looper.getMainLooper()).post(() -> {
+            handedToMainThread = postWorkspaceTask(() -> {
                 try {
                     enqueueNgwLayerRebuild(layer, formId, origin);
                 } catch (RuntimeException e) {
@@ -2382,7 +2432,7 @@ public abstract class GISApplication extends Application
             NGWVectorLayer layer,
             long rebuildFormId,
             LayerOriginMetadata rebuildOrigin) {
-        if (layer == null || mMap == null) {
+        if (layer == null || getMap() == null) {
             return;
         }
         if (isLayerReservedForWalk(layer.getId())) return;
@@ -2399,8 +2449,8 @@ public abstract class GISApplication extends Application
             }
             parent = parent.getParent();
         }
-        if (parentGroup == null && mMap instanceof LayerGroup) {
-            parentGroup = (LayerGroup) mMap;
+        if (parentGroup == null && getMap() instanceof LayerGroup) {
+            parentGroup = (LayerGroup) getMap();
         }
         if (parentGroup == null) {
             HyperLog.w(Constants.TAG, "NGW schema rebuild: no parent LayerGroup for " + layerName);
@@ -2490,7 +2540,7 @@ public abstract class GISApplication extends Application
      */
     @Override
     public void scheduleCollectorLayerRemovalWithBackup(final NGWVectorLayer layer) {
-        if (layer == null || mMap == null) {
+        if (layer == null || getMap() == null) {
             return;
         }
 
@@ -2500,8 +2550,8 @@ public abstract class GISApplication extends Application
             return;
         }
 
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (layer == null || mMap == null) {
+        postWorkspaceTask(() -> {
+            if (layer == null || getMap() == null) {
                 return;
             }
             if (isLayerReservedForWalk(layer.getId())) return;
@@ -2520,8 +2570,8 @@ public abstract class GISApplication extends Application
                 }
                 p = p.getParent();
             }
-            if (parentGroup == null && mMap instanceof LayerGroup) {
-                parentGroup = (LayerGroup) mMap;
+            if (parentGroup == null && getMap() instanceof LayerGroup) {
+                parentGroup = (LayerGroup) getMap();
             }
             if (parentGroup == null) {
                 HyperLog.w(Constants.TAG, "Collector layer removal: no parent LayerGroup for "
@@ -2531,7 +2581,7 @@ public abstract class GISApplication extends Application
 
             parentGroup.removeLayer(layer);
             layer.delete(true);
-            mMap.save();
+            getMap().save();
             requestMapReloadAfterLayerFillBatch();
             HyperLog.v(Constants.TAG, "Collector layer removal: \"" + layerName
                     + "\" removed after backup");
@@ -2599,7 +2649,7 @@ public abstract class GISApplication extends Application
     }
 
     private void postLayerBackupAlert(String title, String message) {
-        new Handler(Looper.getMainLooper()).post(() -> {
+        postWorkspaceTask(() -> {
             Intent alert = new Intent(MESSAGE_ALERT_INTENT);
             alert.putExtra(MESSAGE_EXTRA, message);
             alert.putExtra(MESSAGE_TITLE_EXTRA, title);
@@ -2660,6 +2710,8 @@ public abstract class GISApplication extends Application
 
     @Override
     public void reloadLayerByID(int id){
+        if (com.nextgis.maplib.util.SyncWorkspaceSession.currentMap() != null
+                && com.nextgis.maplib.util.SyncWorkspaceSession.currentMap() != mMap) return;
         if (mLayerFillDeferHeavyMapReload) {
             mPendingMapReloadAfterLayerFill = true;
             return;
@@ -2677,11 +2729,13 @@ public abstract class GISApplication extends Application
 
     @Override
     public boolean isLayerReservedForWalk(int id) {
+        MapBase owner = getMap();
+        if (owner == null) return false;
         com.nextgis.maplibui.util.FeatureFormDraftStore.Snapshot draft =
                 com.nextgis.maplibui.util.FeatureFormDraftStore.load(this);
-        if (draft != null && mMap != null && (draft.mapPath == null
-                || draft.mapPath.equals(mMap.getPath().getAbsolutePath()))) {
-            ILayer draftLayer = mMap.getLayerById(draft.layerId);
+        if (draft != null && (draft.mapPath == null ? owner == mMap
+                : draft.mapPath.equals(owner.getPath().getAbsolutePath()))) {
+            ILayer draftLayer = owner.getLayerById(draft.layerId);
             while (draftLayer != null) {
                 if (draftLayer.getId() == id) return true;
                 draftLayer = draftLayer.getParent();
@@ -2689,10 +2743,10 @@ public abstract class GISApplication extends Application
         }
         com.nextgis.maplibui.util.WalkSessionStore.Snapshot session =
                 com.nextgis.maplibui.util.WalkSessionStore.load(this);
-        if (!com.nextgis.maplibui.util.WalkSessionStore.isCurrentMap(this, session)) return false;
+        if (session == null || !owner.getPath().getAbsolutePath().equals(session.mapPath)) return false;
         for (int reserved : new int[]{session.layerId, session.pointLayer}) {
             if (reserved == Constants.NOT_FOUND) continue;
-            ILayer layer = mMap.getLayerById(reserved);
+            ILayer layer = owner.getLayerById(reserved);
             while (layer != null) {
                 if (layer.getId() == id) return true;
                 layer = layer.getParent();

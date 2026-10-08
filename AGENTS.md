@@ -44,11 +44,22 @@ Merge Commit; связанный root PR обновляет submodule pointer п
 Зависимая обязательность: читать `../docs/architecture/conditional-form-rules.md`.
 `ConditionalRequiredController` использует общий `FormMetadataSnapshot`,
 не заменяет listeners контролов и не читает SQLite при отрисовке. Обновлять
-звёздочки идемпотентно; Save проверяет эффективный required после checkpoint.
+звёздочки идемпотентно; v2 visible управляет контейнером field или
+element/lisa_id, включая подпись/ошибку/отступ и pinned header Tabs. Hidden
+поля/потомки не блокируют required/cascade UI gate, значения и draft сохраняются.
+Обычная inactive вкладка не hidden. Unknown/duplicate target блокирует Save.
+FormFieldLayout — общий caption/value UI, FormChoiceAdapter переносит длинные
+названия без потери значения/поиска. Нижняя кнопка использует общий Save gate.
 Не удалять снимки `form_rules` и не отключать проверку при ошибке pin.
 `LayerUtil` обязан передавать парные form/meta даже при default form.
 `FormScrollView` перелистывает только внешние Tabs, сохраняя самостоятельные
 жесты ввода, подписи, галереи и горизонтально прокручиваемых контролов.
+Проверять свайпы поверх enabled Spinner/checkbox/короткого комментария и пустой
+области, многократные переходы, vertical drag и выделение текста. Не отменять
+взмах лишь из-за requestDisallowIntercept или небольшого начального дрейфа.
+Каскадный legacy double_combobox разворачивать через CascadingFormElements в
+два обычных controls на каждом уровне, сохраняя field names/pins. Selector height
+и отступы применять до early return регистрации каскада через FormFieldLayout.
 
 Зависимые списки: читать `../docs/architecture/cascading-form-lists.md`.
 Controller управляет обычными и сдвоенными Spinner, а не создаёт отдельные
@@ -61,3 +72,18 @@ Controller управляет обычными и сдвоенными Spinner, 
 сначала в APK. Не поставлять arbitrary SQL, Java reflection, сеть или GIS-движок
 внешним JS. Старые пакеты сохранять для pin черновиков. Cross-repo schema/API
 обновлять одновременно с stand_project и central registries.
+
+## Общая синхронизация проектов
+
+Читать consuming root docs/architecture/ngw-sync-and-storage.md и
+docs/guides/project-synchronization-user-guide.md. sync_all_projects по умолчанию true;
+ручной и scheduled account запуск используют ProjectSyncRunner. Не переключать
+mMap/active prefs ради фонового проекта. Владельца переносить через
+SyncWorkspaceSession во все async callbacks, service tickets и provider URI;
+untagged UI URI всегда относится к активной карте, expired token не имеет fallback.
+Очередь держит глобальный lease до завершения дочерних работ и mutating HTTP.
+Полный pending project/account план сохраняется до первого прохода; Collector
+journals разделены по canonical map path. Проверять cancellation, equal layer/group
+IDs, сохранность draft и реальный fill на изолированном эмуляторе.
+Подписи разделённых double_combobox брать из meta.fields keyname/display_name,
+затем layer alias; field key используется только при отсутствии обоих.

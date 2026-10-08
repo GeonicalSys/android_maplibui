@@ -282,6 +282,8 @@ public class LayerFillService extends Service implements IProgressor {
     private ExecutorService mWorkerExecutor;
     private ProjectOperationCoordinator.Lease mProjectOperationLease;
     private volatile boolean mDrainRunning;
+    private com.nextgis.maplib.util.SyncWorkspaceSession mSyncWorkspace;
+    private final java.util.List<String> mWorkspaceTickets = new java.util.ArrayList<>();
     private int mLastStartId;
     /** System timeout must leave the collector journal intact so the next app start can resume it. */
     private volatile boolean mPreserveImportJournalOnStop;
@@ -458,10 +460,18 @@ public class LayerFillService extends Service implements IProgressor {
         String reservation = UUID.randomUUID().toString();
         PENDING_OPERATION_LEASES.put(reservation, lease);
         intent.putExtra(KEY_OPERATION_RESERVATION, reservation);
+        com.nextgis.maplib.util.SyncWorkspaceSession workspace = com.nextgis.maplib.util.SyncWorkspaceSession.current();
+        String ticket = workspace == null ? null : workspace.reserveExternal(() -> {
+            ProjectOperationCoordinator.Lease undelivered = PENDING_OPERATION_LEASES.remove(reservation);
+            if (undelivered != null) undelivered.close();
+        });
+        if (workspace != null) intent.putExtra(com.nextgis.maplib.util.SyncWorkspaceSession.EXTRA_TOKEN, workspace.getToken())
+                .putExtra(com.nextgis.maplib.util.SyncWorkspaceSession.EXTRA_TICKET, ticket);
         try {
             ContextCompat.startForegroundService(context, intent);
             return true;
         } catch (RuntimeException e) {
+            if (workspace != null) workspace.releaseExternal(ticket);
             ProjectOperationCoordinator.Lease pending =
                     PENDING_OPERATION_LEASES.remove(reservation);
             if (pending != null) {
@@ -480,6 +490,7 @@ public class LayerFillService extends Service implements IProgressor {
         MapBase mapBase = MapBase.getInstance();
         ILayer groupLayer = mapBase != null ? mapBase.getLayerById(layerGroupId) : null;
         if (!(groupLayer instanceof LayerGroup)) {
+            com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
             // Layer group gone (map reset / corrupt config). Skip this task instead of letting the
             // worker NPE on a null mLayerGroup and stall the whole drain.
             HyperLog.w(Constants.TAG, "LayerFillService: layer group not found id=" + layerGroupId
@@ -505,6 +516,7 @@ public class LayerFillService extends Service implements IProgressor {
                     enqueueToQueue(new UnzipForm(work));
                     return true;
                 } catch (Exception ex) {
+                    com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                     ex.printStackTrace();
                     Intent msg = new Intent(MESSAGE_ALERT_INTENT);
                     msg.putExtra(MESSAGE_EXTRA, getString(R.string.error_load_parent));
@@ -521,6 +533,7 @@ public class LayerFillService extends Service implements IProgressor {
                 enqueueToQueue(new NGWVectorLayerFillTask(work));
                 return true;
             default:
+                com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                 HyperLog.w(Constants.TAG, "LayerFillService: unknown KEY_INPUT_TYPE=" + layerType);
                 return true;
         }
@@ -565,6 +578,7 @@ public class LayerFillService extends Service implements IProgressor {
             if (mProjectOperationLease == null) {
                 HyperLog.w(Constants.TAG,
                         "LayerFillService: queue rejected while project mutation is active");
+                com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
                 mQueue.clear();
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     stopForeground(true);
@@ -575,10 +589,36 @@ public class LayerFillService extends Service implements IProgressor {
             mDrainRunning = true;
             ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(true);
         }
-        mWorkerExecutor.execute(this::drainLoop);
+        com.nextgis.maplib.util.SyncWorkspaceSession.execute(mWorkerExecutor, this::drainLoop);
     }
 
     private void drainLoop() {
+        try { drainWorkspace(); }
+        catch (RuntimeException error) {
+            com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
+            synchronized (mQueueLock) {
+                mDrainRunning = false;
+                mQueue.clear();
+                mPreserveImportJournalOnStop = true;
+                releaseProjectOperationLease();
+                ((IGISApplication)getApplicationContext()).setLayerFillServiceBusy(false);
+            }
+            HyperLog.e(Constants.TAG, "Layer fill worker failed; recovery journal retained", error);
+        }
+        finally {
+            synchronized (mQueueLock) { if (!mDrainRunning) releaseWorkspaceTickets(); }
+        }
+    }
+
+    private void releaseWorkspaceTickets() {
+        if (mSyncWorkspace != null) {
+            for (String ticket : mWorkspaceTickets) mSyncWorkspace.releaseExternal(ticket);
+            mWorkspaceTickets.clear();
+            mSyncWorkspace = null;
+        }
+    }
+
+    private void drainWorkspace() {
         acquireFillWakeLock();
         try {
             ProjectOperationCoordinator.Lease databaseLease = mProjectOperationLease;
@@ -594,6 +634,10 @@ public class LayerFillService extends Service implements IProgressor {
             while (true) {
                 final LayerFillTask task;
                 synchronized (mQueueLock) {
+                    if (mSyncWorkspace != null && mSyncWorkspace.isCancelled()) {
+                        mIsCanceled = true;
+                        mPreserveImportJournalOnStop = true;
+                    }
                     if (mIsCanceled) {
                         mQueue.clear();
                     }
@@ -610,8 +654,9 @@ public class LayerFillService extends Service implements IProgressor {
             }
         } finally {
             synchronized (mQueueLock) {
+                if (mIsCanceled) mQueue.clear();
                 if (!mQueue.isEmpty()) {
-                    mWorkerExecutor.execute(this::drainLoop);
+                    com.nextgis.maplib.util.SyncWorkspaceSession.execute(mWorkerExecutor, this::drainLoop);
                     return;
                 }
             }
@@ -644,7 +689,7 @@ public class LayerFillService extends Service implements IProgressor {
             final boolean hadCollectorBatchBeforeFinalize = app.hasCollectorImportBatchRegistered();
 
             final CountDownLatch finalizeLatch = new CountDownLatch(1);
-            new Handler(Looper.getMainLooper()).post(() -> {
+            com.nextgis.maplib.util.SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), () -> {
                 try {
                     app.finalizeCollectorImportVerifyAndRepairIfNeeded();
                     app.finalizeStandaloneLayerFillVerifyIfNeeded();
@@ -666,7 +711,7 @@ public class LayerFillService extends Service implements IProgressor {
             synchronized (mQueueLock) {
                 if (!mQueue.isEmpty()) {
                     mDrainRunning = true;
-                    mWorkerExecutor.execute(this::drainLoop);
+                    com.nextgis.maplib.util.SyncWorkspaceSession.execute(mWorkerExecutor, this::drainLoop);
                     return;
                 }
             }
@@ -683,7 +728,7 @@ public class LayerFillService extends Service implements IProgressor {
             int completedStartId;
             synchronized (mQueueLock) {
                 if (!mQueue.isEmpty()) {
-                    mWorkerExecutor.execute(this::drainLoop);
+                    com.nextgis.maplib.util.SyncWorkspaceSession.execute(mWorkerExecutor, this::drainLoop);
                     return;
                 }
                 releaseFillWakeLock();
@@ -709,7 +754,7 @@ public class LayerFillService extends Service implements IProgressor {
                 final Context appContext = getApplicationContext();
                 final String pkg = getPackageName();
                 sessionDone.setPackage(pkg);
-                new Handler(Looper.getMainLooper()).post(() -> appContext.sendBroadcast(sessionDone));
+                com.nextgis.maplib.util.SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), () -> appContext.sendBroadcast(sessionDone));
             }
 
             stopSelf(completedStartId);
@@ -747,6 +792,7 @@ public class LayerFillService extends Service implements IProgressor {
             result = task.execute(progressor);
         }
         if (!result && !mIsCanceled) {
+            com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
             HyperLog.w(Constants.TAG, "LayerFillService: fill task failed "
                     + task.getClass().getSimpleName() + " — " + mProgressMessage);
         }
@@ -873,7 +919,7 @@ public class LayerFillService extends Service implements IProgressor {
         final boolean[] published = {false};
         final CountDownLatch swapLatch = new CountDownLatch(1);
 
-        new Handler(Looper.getMainLooper()).post(() -> {
+        com.nextgis.maplib.util.SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), () -> {
             List<LayerGroup> retiredParents = new ArrayList<>();
             List<Integer> retiredIndexes = new ArrayList<>();
             boolean replacementInserted = false;
@@ -980,7 +1026,7 @@ public class LayerFillService extends Service implements IProgressor {
 
     private void discardUnpublishedLayer(LayerFillTask task, ILayer filled) {
         CountDownLatch discardLatch = new CountDownLatch(1);
-        new Handler(Looper.getMainLooper()).post(() -> {
+        com.nextgis.maplib.util.SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), () -> {
             try {
                 if (task.mLayerGroup.getChildLayerIndex(filled) >= 0) {
                     task.mLayerGroup.removeLayer(filled);
@@ -1162,10 +1208,27 @@ public class LayerFillService extends Service implements IProgressor {
         releaseFillWakeLock();
         ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
         releaseProjectOperationLease();
-        if (mWorkerExecutor != null) {
-            mWorkerExecutor.shutdownNow();
-        }
+        stopWorkspaceWorkers();
         super.onDestroy();
+    }
+
+    private void stopWorkspaceWorkers() {
+        synchronized (mQueueLock) {
+            if (mSyncWorkspace != null && mDrainRunning) {
+                // A forced stop must cancel the owning queue, including already posted finalizers.
+                com.nextgis.maplib.util.NgwSyncIo.requestCancellation();
+                mPreserveImportJournalOnStop = true;
+            }
+            mIsCanceled = true;
+            mQueue.clear();
+            mDrainRunning = false;
+            releaseWorkspaceTickets();
+        }
+        if (mWorkerExecutor != null) {
+            for (Runnable abandoned : mWorkerExecutor.shutdownNow()) {
+                com.nextgis.maplib.util.SyncWorkspaceSession.discard(abandoned);
+            }
+        }
     }
 
     @Override
@@ -1177,9 +1240,7 @@ public class LayerFillService extends Service implements IProgressor {
             mIsCanceled = true;
             mQueue.clear();
         }
-        if (mWorkerExecutor != null) {
-            mWorkerExecutor.shutdownNow();
-        }
+        stopWorkspaceWorkers();
         ((IGISApplication) getApplicationContext()).setLayerFillServiceBusy(false);
         ((IGISApplication) getApplicationContext()).setLayerFillBatchDeferringHeavyMapReload(false);
         releaseFillWakeLock();
@@ -1198,6 +1259,49 @@ public class LayerFillService extends Service implements IProgressor {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        String token = intent == null ? null : intent.getStringExtra(com.nextgis.maplib.util.SyncWorkspaceSession.EXTRA_TOKEN);
+        com.nextgis.maplib.util.SyncWorkspaceSession workspace = token == null ? mSyncWorkspace
+                : com.nextgis.maplib.util.SyncWorkspaceSession.resolve(token);
+        if (token != null) {
+            String ticket = intent.getStringExtra(com.nextgis.maplib.util.SyncWorkspaceSession.EXTRA_TICKET);
+            if (workspace == null || workspace.isCancelled() || !workspace.claimExternal(ticket)) {
+                if (workspace != null) workspace.releaseExternal(ticket);
+                rejectReservation(intent);
+                stopSelf(startId);
+                return START_NOT_STICKY;
+            }
+            synchronized (mQueueLock) {
+                if (mSyncWorkspace != null && mSyncWorkspace != workspace) {
+                    try (com.nextgis.maplib.util.SyncWorkspaceSession.Scope ignored = workspace.enter()) {
+                        com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
+                    }
+                    workspace.releaseExternal(ticket);
+                    rejectReservation(intent);
+                    return START_NOT_STICKY;
+                }
+                mSyncWorkspace = workspace;
+                mWorkspaceTickets.add(ticket);
+            }
+        } else if (workspace != null && intent != null && (ACTION_ADD_TASK.equals(intent.getAction())
+                || ACTION_ADD_BATCH.equals(intent.getAction()) || ACTION_ADD_REPAIR_BATCH.equals(intent.getAction()))) {
+            // An unrelated import must not borrow the background project's map.
+            rejectReservation(intent);
+            return START_NOT_STICKY;
+        }
+        try (com.nextgis.maplib.util.SyncWorkspaceSession.Scope ignored = com.nextgis.maplib.util.SyncWorkspaceSession.enter(workspace)) {
+            int result = onStartWorkspace(intent, flags, startId);
+            synchronized (mQueueLock) { if (!mDrainRunning) releaseWorkspaceTickets(); }
+            return result;
+        }
+    }
+
+    private static void rejectReservation(Intent intent) {
+        String reservation = intent == null ? null : intent.getStringExtra(KEY_OPERATION_RESERVATION);
+        ProjectOperationCoordinator.Lease rejected = reservation == null ? null : PENDING_OPERATION_LEASES.remove(reservation);
+        if (rejected != null) rejected.close();
+    }
+
+    private int onStartWorkspace(Intent intent, int flags, int startId) {
         HyperLog.v(Constants.TAG, "LayerFillService.onStartCommand startId=" + startId);
         synchronized (mQueueLock) {
             mLastStartId = Math.max(mLastStartId, startId);

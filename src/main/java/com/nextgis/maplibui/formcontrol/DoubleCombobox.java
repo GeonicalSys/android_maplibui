@@ -29,7 +29,6 @@ import android.database.Cursor;
 import android.os.Bundle;
 import androidx.appcompat.widget.AppCompatSpinner;
 import android.util.AttributeSet;
-import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -97,12 +96,14 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
                      Cursor featureCursor, SharedPreferences preferences,
                      Map<String, Map<String, String>> translations
     ,final ModifyAttributesActivity modifyAttributesActivity) throws JSONException {
-        mSubCombobox = new Spinner(getContext());
+        mSubCombobox = new Spinner(getContext(), Spinner.MODE_DIALOG);
         JSONObject attributes = element.getJSONObject(JSON_ATTRIBUTES_KEY);
         mFieldName = attributes.getString(JSON_FIELD_LEVEL1_KEY);
         mSubFieldName = attributes.getString(JSON_FIELD_LEVEL2_KEY);
         mIsShowLast = ControlHelper.isSaveLastValue(attributes);
         setEnabled(ControlHelper.isEnabled(fields, mFieldName));
+        com.nextgis.maplibui.util.FormFieldLayout.prepareSelector(this);
+        com.nextgis.maplibui.util.FormFieldLayout.prepareSelector(mSubCombobox);
 
         if (modifyAttributesActivity instanceof com.nextgis.maplibui.activity.FormBuilderModifyAttributesActivity) {
             com.nextgis.maplibui.util.CascadingFormController controller =
@@ -143,7 +144,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         mSubAliasValueMaps = new HashMap<>();
         mAliasSubListMap = new HashMap<>();
 
-        final ArrayAdapter<String> comboboxAdapter = new ArrayAdapter<>(getContext(), R.layout.formtemplate_double_spinner);
+        final ArrayAdapter<String> comboboxAdapter = new com.nextgis.maplibui.util.FormChoiceAdapter<>(getContext());
         setAdapter(comboboxAdapter);
 
         if (values != null) {
@@ -191,12 +192,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
         final int subLastValuePositionFinal = subLastValuePosition;
 
         // The drop down view
-        comboboxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        float minHeight = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 14, getResources().getDisplayMetrics());
-        setPadding(0, (int) minHeight, 0, (int) minHeight);
-        mSubCombobox.setPadding(0, (int) minHeight, 0, (int) minHeight);
+        comboboxAdapter.setDropDownViewResource(R.layout.formtemplate_spinner_choice);
 
         setOnItemSelectedListener(
                 new AdapterView.OnItemSelectedListener()
@@ -210,11 +206,10 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
                         String selectedValueAlias = comboboxAdapter.getItem(position);
                         AliasList subAliasList = mAliasSubListMap.get(selectedValueAlias);
 
-                        ArrayAdapter<String> subComboboxAdapter = new ArrayAdapter<>(
-                                view.getContext(), R.layout.formtemplate_double_spinner,
-                                subAliasList.aliasList);
+                        ArrayAdapter<String> subComboboxAdapter = new com.nextgis.maplibui.util.FormChoiceAdapter<>(
+                                getContext(), subAliasList.aliasList, com.nextgis.maplib.forms.CascadingLists::isMissing);
                         subComboboxAdapter.setDropDownViewResource(
-                                android.R.layout.simple_spinner_dropdown_item);
+                                R.layout.formtemplate_spinner_choice);
 
                         mSubCombobox.setAdapter(subComboboxAdapter);
                         mSubCombobox.setSelection(
@@ -251,7 +246,7 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
     public void setEnabled(boolean enabled)
     {
         super.setEnabled(enabled);
-        mSubCombobox.setEnabled(enabled);
+        if (mSubCombobox != null) mSubCombobox.setEnabled(enabled);
     }
 
 
@@ -271,8 +266,8 @@ public class DoubleCombobox extends AppCompatSpinner implements IFormControl
     @Override
     public void addToLayout(ViewGroup layout)
     {
-        layout.addView(this);
-        layout.addView(mSubCombobox);
+        com.nextgis.maplibui.util.FormFieldLayout.addSelector(layout, this);
+        com.nextgis.maplibui.util.FormFieldLayout.addSelector(layout, mSubCombobox);
     }
 
 

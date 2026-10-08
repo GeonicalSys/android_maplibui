@@ -142,6 +142,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     private Map<String, Map<String, String>> mTranslations;
     private int mRow = -1;
     private File mMeta;
+    private Map<String, String> mFormAliases = new java.util.LinkedHashMap<>();
     private String mColumn;
     private com.nextgis.maplibui.util.CascadingFormController mCascades;
     private boolean mCascadesLoaded, mCascadesInvalid;
@@ -150,6 +151,12 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
     private Bundle mCascadeRestoreState;
 
     public com.nextgis.maplibui.util.CascadingFormController getCascadingLists() { return mCascades; }
+    public Map<String, String> getFormAliases() { return mFormAliases; }
+    public String getFormFieldCaption(String name) {
+        Field field = mLayer.getFieldByName(name);
+        String fallback = mFormAliases.getOrDefault(name, field == null ? name : field.getAlias());
+        return mRequiredRules == null ? fallback : mRequiredRules.label(name, fallback);
+    }
 
     interface OnAskRowListener {
         void onRowChosen();
@@ -272,7 +279,6 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                 }
             }
             if (mCascades != null) mCascades.attach(mIsViewOnly);
-            if (mRequiredRules != null && !mIsViewOnly) mRequiredRules.attach(layout,this::captureScriptValues,this::refreshRequiredMarkers);
             android.view.ViewGroup header = findViewById(R.id.form_tabs_header);
             com.nextgis.maplibui.control.FormScrollView scroll = findViewById(R.id.form_scroll);
             for (int i = 0; i < layout.getChildCount(); i++) {
@@ -282,8 +288,17 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                     scroll.addFormTabs(tabs);
                 }
             }
+            if (mRequiredRules != null) {
+                try { mRequiredRules.attach(layout,mFields,this::captureScriptValues,this::refreshFormRules); }
+                catch (JSONException | RuntimeException error) {
+                    mRequiredRulesInvalid = true;
+                    Log.w("FormBuilder", "Cannot bind form rules", error);
+                    Toast.makeText(this, R.string.form_rules_unavailable, Toast.LENGTH_LONG).show();
+                }
+            }
         } catch (JSONException | IOException e) {
             if (mCascades != null) mCascadesInvalid = true;
+            if (mRequiredRules != null) mRequiredRulesInvalid = true;
             e.printStackTrace();
             Toast.makeText(this, getString(R.string.error_form_create), Toast.LENGTH_SHORT).show();
         }
@@ -297,6 +312,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
             try {
                 String metaString = FileUtil.readFromFile(mMeta);
                 final JSONObject metaJson = new JSONObject(metaString);
+                mFormAliases = com.nextgis.maplibui.util.CascadingFormElements.aliases(metaJson);
                 if (metaJson.has(JSON_LISTS_KEY) && !metaJson.isNull(JSON_LISTS_KEY)) {
                     JSONObject lists = metaJson.getJSONObject(JSON_LISTS_KEY);
                     Iterator<String> i = lists.keys();
@@ -455,17 +471,28 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
 
         Cursor featureCursor = getFeatureCursor();
         List<Field> fields = mLayer.getFields();
+        elements = com.nextgis.maplibui.util.CascadingFormElements.expand(elements, fields, mCascades, mFormAliases);
         for (int i = 0; i < elements.length(); i++) {
             IFormControl control;
             JSONObject element = elements.getJSONObject(i);
             String type = element.optString(JSON_TYPE_KEY);
+            LinearLayout elementLayout = layout;
             if (type.equals(JSON_COORDINATES_VALUE)) {
+                // A coordinates element owns both controls and therefore one visibility id.
+                if (element.has("lisa_id")) {
+                    elementLayout = new LinearLayout(this);
+                    elementLayout.setOrientation(LinearLayout.VERTICAL);
+                    com.nextgis.maplibui.util.FormFieldLayout.tagElement(elementLayout, element);
+                    layout.addView(elementLayout);
+                    element = new JSONObject(element.toString());
+                    element.remove("lisa_id");
+                }
                 JSONObject attributes = element.getJSONObject(JSON_ATTRIBUTES_KEY);
                 String fieldY = attributes.optString(JSON_FIELD_NAME_KEY + "_lat");
                 attributes.put(JSON_FIELD_NAME_KEY, fieldY);
                 element.put(JSON_TYPE_KEY, type + "_lat");
                 control = getControl(this, element, mLayer, mFeatureId, mGeometry, mIsViewOnly, this);
-                addToLayout(control, element, fields, savedState, featureCursor, layout, this);
+                addToLayout(control, element, fields, savedState, featureCursor, elementLayout, this);
 
                 attributes = element.getJSONObject(JSON_ATTRIBUTES_KEY);
                 String fieldX = attributes.optString(JSON_FIELD_NAME_KEY + "_long");
@@ -478,7 +505,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                 ((Tabs) control).init(mLayer, mFeatureId, mGeometry, mTable, mRow, mSharedPreferences,
                                       mPreferences, getSupportFragmentManager(), mIsViewOnly);
 
-            addToLayout(control, element, fields, savedState, featureCursor, layout, this);
+            addToLayout(control, element, fields, savedState, featureCursor, elementLayout, this);
         }
 
         if (null != featureCursor) {
@@ -686,7 +713,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
             control.init(element, fields, savedState, featureCursor, mSharedPreferences, mTranslations, modifyAttributesActivity);
             if (control instanceof PhotoPicker)
                 ((PhotoPicker)control).setUserAgent( getUserAgent(Constants.MAPLIB_USER_AGENT_PART));
-            control.addToLayout(layout);
+            com.nextgis.maplibui.util.FormFieldLayout.addControl(layout, control, element, fields, this::getFormFieldCaption);
             if (mIsViewOnly)
                 control.setEnabled(false);
 
@@ -795,6 +822,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
         }
         if (mCascades == null) return true;
         List<String> invalid = mCascades.invalidFields();
+        if (mRequiredRules != null) invalid.removeIf(name -> mRequiredRules.isHidden(name, values));
         if (invalid.isEmpty()) return true;
         List<String> captions = new ArrayList<>();
         for (String name : invalid) captions.add(mLayer.getFieldByName(name).getAlias());
@@ -810,6 +838,10 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
 
     @Override protected List<Field> requiredFieldDefinitions(ContentValues values) {
         return mRequiredRules == null ? super.requiredFieldDefinitions(values) : mRequiredRules.effectiveFields(values);
+    }
+    private void refreshFormRules() {
+        if (mIsViewOnly) mRequiredRules.effectiveFields(captureScriptValues());
+        else refreshRequiredMarkers();
     }
 
     @Override protected void onDestroy() {

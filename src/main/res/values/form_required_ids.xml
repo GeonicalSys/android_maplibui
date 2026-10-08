@@ -2,4 +2,6 @@
 <resources>
     <item name="form_required_caption" type="id"/>
     <item name="form_required_original_description" type="id"/>
+    <item name="form_field_container" type="id"/>
+    <item name="form_element_id" type="id"/>
 </resources>

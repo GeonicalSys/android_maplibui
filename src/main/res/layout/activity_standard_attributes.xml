@@ -52,7 +52,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:padding="5dp">
+        android:padding="16dp">
 
         <LinearLayout
             android:id="@+id/controls_list"
@@ -64,5 +64,17 @@
                 layout="@layout/fragment_location_panel"/>
         </LinearLayout>
     </com.nextgis.maplibui.control.FormScrollView>
+    <LinearLayout
+        android:id="@+id/form_footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp">
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/form_save"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="56dp"
+            android:text="@string/save"/>
+    </LinearLayout>
 </LinearLayout>
     </androidx.drawerlayout.widget.DrawerLayout>

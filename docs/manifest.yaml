@@ -2,18 +2,24 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-07
+last_verified: 2026-10-08
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormChoiceAdapter.java
+    responsibility: Wrap long selected values and native dialog choices with theme-aware placeholder contrast while preserving selection keys and existing cascade listeners.
   - path: maplibui/src/main/java/com/nextgis/maplibui/control/FormScrollView.java
-    responsibility: Scroll form fields vertically and navigate outer NGFP tabs with horizontal flings while preserving child gestures.
+    responsibility: Observe horizontal swipes over selectors, checkboxes, short comments and blank space; cancel child taps before outer-tab navigation while preserving vertical scroll, text selection, signature and accessible navigation.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/CascadingFormElements.java
+    responsibility: Read NGFP keyname/display_name aliases with layer fallback and expand legacy pairs owned by the cascade graph into independent labelled combobox controls at root and nested Tabs without mutating source JSON or draft identities.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormFieldLayout.java
+    responsibility: Build shared caption/value containers with 14sp labels, 17sp outlined inputs, 56dp touch targets, 20dp spacing, themed errors and retained field identities; own complete visibility units.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerUtil.java
     responsibility: Resolve matching numbered or legacy NGFP form and metadata files during ordinary launch and draft recovery.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ConditionalRequiredController.java
-    responsibility: Pin conditional rules, read current scalar and omitted existing values, and refresh dynamic markers without replacing control listeners.
+    responsibility: Pin v1/v2 rules; bind field/element visibility across inactive/nested Tabs, retain hidden values, and compute visible-only required/cascade eligibility without replacing listeners or frame-time SQLite.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormMetadataSnapshot.java
     responsibility: Atomically persist and hash-verify immutable cascading and conditional metadata referenced by small draft pins.
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/LayersListAdapter.java
@@ -89,7 +95,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
     responsibility: Browse and import NGW resources, warning before an active sync both at entry and immediately before workspace preparation; layer loading still shows a readable modal wait message.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectOperationCoordinator.java
-    responsibility: Hold one active workspace across sync/fill/rebuild stages, expose sync activity, generation cancellation and independently owned cancel registrations, and keep project switch/create/rename/delete plus Debug underlay migration mutually exclusive with database background work.
+    responsibility: Keep UI project identity stable across serial scoped project sync/fill/rebuild stages, expose sync activity, generation cancellation and independently owned cancel registrations, and keep project switch/create/rename/delete plus Debug underlay migration mutually exclusive with database background work.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectSyncInterruption.java
     responsibility: Warn before project, layer or underlay actions interrupt an active sync, distinguish a safely finishing outbound write from other project work, allow abandoning the requested action, and wait for every workspace lease before continuing.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SchemaRebuildRetryGuard.java
@@ -189,6 +195,7 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
 invariant_refs: [INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
 global_docs:
+  - docs/guides/project-synchronization-user-guide.md
   - docs/architecture/conditional-form-rules.md
   - docs/guides/form-behavior-user-guide.md
   - docs/architecture/project-scripts.md
@@ -199,5 +206,5 @@ global_docs:
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
+smoke_tests: [SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
 upstream_hotspots: [LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]

@@ -26,8 +26,11 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/editTextBackground"
-    android:ellipsize="marquee"
-    android:singleLine="true"
+    android:minHeight="40dp"
+    android:gravity="center_vertical"
+    android:drawableEnd="@drawable/form_chevron"
+    android:drawablePadding="8dp"
+    android:singleLine="false"
     android:textAlignment="inherit"
-    android:textColor="?attr/control_disabled"/>
+    android:textSize="17sp"
+    android:textColor="?android:attr/textColorPrimary"/>

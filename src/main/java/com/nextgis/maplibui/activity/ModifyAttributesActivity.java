@@ -220,6 +220,10 @@ public class ModifyAttributesActivity
 
         final IGISApplication app = (IGISApplication) getApplication();
         createView(app, savedInstanceState);
+        android.widget.Button saveButton = findViewById(R.id.form_save);
+        com.nextgis.maplibui.util.FormFieldLayout.styleSaveButton(saveButton);
+        findViewById(R.id.form_footer).setVisibility(mIsViewOnly ? View.GONE : View.VISIBLE);
+        saveButton.setOnClickListener(view -> runSaveAndFinish());
         if (!mIsViewOnly && mLayer != null) {
             mProjectScripts = new com.nextgis.maplibui.util.ProjectScriptFormController(this, mLayer, mFields,
                     this::captureScriptValues, () -> mFeatureId, () -> mFormSaving, mScriptReferencePin);
@@ -516,7 +520,10 @@ public class ModifyAttributesActivity
 
             if (null != control) {
                 control.init(field, savedState, featureCursor);
-                control.addToLayout(layout);
+                try {
+                    com.nextgis.maplibui.util.FormFieldLayout.addControl(layout, control, null, fields,
+                            name -> mLayer.getFieldByName(name).getAlias());
+                } catch (JSONException impossible) { throw new IllegalStateException(impossible); }
                 String fieldName = control.getFieldName();
 
                 if (null != fieldName) {
@@ -565,14 +572,20 @@ public class ModifyAttributesActivity
     protected void onSaveInstanceState(Bundle outState) {
         outState.putString("form_save_operation", mFormOperationId);
         outState.putString("project_script_pin", mScriptReferencePin);
-        LinearLayout controlLayout = findViewById(R.id.controls_list);
-        for (int i = 0; i < controlLayout.getChildCount(); i++)
-            if (controlLayout.getChildAt(i) instanceof IControl)
-                ((IControl) controlLayout.getChildAt(i)).saveState(outState);
-
-        for (Sign sign : getSignControls()) sign.saveState(outState);
+        saveControlState(outState);
         saveAdditionalFormState(outState);
         super.onSaveInstanceState(outState);
+    }
+
+    /** Presentation containers must not affect rotation or durable draft capture. */
+    private void saveControlState(Bundle state) {
+        java.util.Set<IControl> controls = new java.util.LinkedHashSet<>();
+        if (mFields != null) controls.addAll(mFields.values());
+        LinearLayout layout = findViewById(R.id.controls_list);
+        if (layout != null) for (int i=0; i<layout.getChildCount(); i++)
+            if (layout.getChildAt(i) instanceof IControl) controls.add((IControl)layout.getChildAt(i));
+        controls.addAll(getSignControls());
+        for (IControl control : controls) control.saveState(state);
     }
 
     /** Extra state is also included in the durable checkpoint, not only Activity Bundle. */
@@ -661,15 +674,7 @@ public class ModifyAttributesActivity
             }
         }
         Bundle controlState = new Bundle();
-        LinearLayout controlLayout = findViewById(R.id.controls_list);
-        if (controlLayout != null) {
-            for (int i = 0; i < controlLayout.getChildCount(); i++) {
-                if (controlLayout.getChildAt(i) instanceof IControl) {
-                    ((IControl) controlLayout.getChildAt(i)).saveState(controlState);
-                }
-            }
-        }
-        for (Sign sign : getSignControls()) sign.saveState(controlState);
+        saveControlState(controlState);
         saveAdditionalFormState(controlState);
         FeatureFormDraftStore.putControlStateFromBundle(snapshot, controlState);
         snapshot.photoPaths = new ArrayList<>();
@@ -896,6 +901,7 @@ public class ModifyAttributesActivity
     private void runSaveAndFinish() {
         if (mFormSaving || mFormDraftFinalized) return;
         mFormSaving = true;
+        findViewById(R.id.form_save).setEnabled(false);
         ProgressDialog dialog = ProgressDialog.show(this, null,
                 getString(R.string.form_save_processing), true, false);
         new Thread(() -> {
@@ -909,6 +915,7 @@ public class ModifyAttributesActivity
             final boolean saved = success;
             runOnUiThread(() -> {
                 mFormSaving = false;
+                if (!isDestroyed()) findViewById(R.id.form_save).setEnabled(true);
                 if (!isDestroyed() && dialog.isShowing()) dialog.dismiss();
                 if (saved && !isDestroyed()) finish();
             });
@@ -1303,6 +1310,8 @@ public class ModifyAttributesActivity
             for (Field field : missing) message.append("\n• ").append(
                     mRequiredFieldCaptions.getOrDefault(field.getName(), field.getAlias()));
             View target = RequiredFieldUi.fieldView(missing.get(0), mFields);
+            for (Field field : missing) com.nextgis.maplibui.util.FormFieldLayout.showError(
+                    RequiredFieldUi.fieldView(field, mFields), getString(R.string.form_fill_required));
             if (target == null) message.append("\n\n").append(
                     getString(R.string.form_required_field_unavailable));
             new AlertDialog.Builder(this)

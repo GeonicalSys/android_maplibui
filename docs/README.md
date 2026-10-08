@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-07
+last_verified: 2026-10-08
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -9,12 +9,29 @@ last_verified: 2026-10-07
 ## Назначение
 
 Внешние NGFP-вкладки закреплены под toolbar; взмах по полям переключает соседнюю
-вкладку без потери данных. FormScrollView оставляет вертикальную прокрутку,
-подпись, фото, текстовый ввод и горизонтальные элементы их владельцам.
+вкладку без потери данных, включая взмах над обычным списком, флажком,
+комментарием и пустой областью короткой страницы. FormScrollView оставляет
+вертикальную прокрутку, выделение текста, подпись, фото и собственные
+горизонтальные жесты их владельцам. При TalkBack работают штатные вкладки.
 LayerUtil передаёт matching metadata и при автоматическом выборе default form.
 
-ConditionalRequiredController читает независимый `lisa_form_rules`, динамически
-обновляет маркеры и усиливает штатный required в общем Save/Back Save gate.
+`CascadingFormElements` разворачивает управляемые каскадом legacy
+`double_combobox` в два отдельных обычных поля с подписями из alias слоя.
+Это преобразование отображения в корне и внутри Tabs: исходный JSON,
+имена полей и pin черновика сохраняются. `FormFieldLayout` задаёт спискам
+минимальную высоту 56 dp и контейнер с отступом 20 dp до раннего выхода cascade init.
+
+FormFieldLayout оформляет обычные и NGFP-поля: подпись 14sp сверху, значение
+17sp в рамке, высота от 56dp и отступ 20dp; длинные названия в списке переносятся.
+Нижний Save закреплён и использует общий gate. Обе темы сохраняют контраст.
+Bundle и durable draft сохраняют зарегистрированные controls независимо от
+FieldContainer; прямая группа Tabs дополнительно сохраняет активную страницу.
+
+ConditionalRequiredController читает независимый `lisa_form_rules` v1/v2. V2
+visible управляет field-контейнером или element/lisa_id, включая inactive/nested
+Tabs и pinned header. Скрытые поля не блокируют required/cascade Save, но их
+значения/черновик сохраняются. Видимые поля усиливают штатный required.
+Ошибки идентификатора/цели блокируют Save; view-only тоже применяет visibility.
 Условия закреплены атомарным SHA-256 снимком; observer не заменяет listeners и
 не читает SQLite на кадрах. Подробнее: consuming root
 `docs/architecture/conditional-form-rules.md` и пользовательское руководство.
@@ -115,7 +132,7 @@ app и maplib; shared UI, account identities и OpenGL backend сохраняю�
   rename/delete и project-wide operation leases; до первого открытия карты
   создаётся начальный local workspace, а прежняя штатная standalone-карта один
   раз копируется в него без удаления оригинала; fill заранее резервирует
-  workspace, но ждёт завершения sync перед доступом к SQLite;
+  workspace; scoped зависимый fill ждёт разрешения своей сессии перед доступом к SQLite;
 - попытка импортировать новый Collector-проект, слой или подложку во время sync
   показывает предупреждение с возможностью прервать sync; действие продолжится
   после освобождения lease. Gate повторяется перед фактической подготовкой
@@ -393,3 +410,14 @@ NextGIS ID просит почту или логин, приводит толь�
 
 [Архитектура](../../docs/architecture/project-scripts.md),
 [руководство](../../docs/guides/project-scripts-user-guide.md).
+
+## Изоляция общей синхронизации
+
+Настройка sync_all_projects включена по умолчанию. ProjectSyncRunner сериализует
+project/account passes, а SyncWorkspaceSession связывает owning map с каждым
+callback, provider URI и service ticket до фактического завершения. Закрытая карта
+не активируется; открытая форма/черновик и preferences остаются прежними.
+Полный контракт: consuming root docs/architecture/ngw-sync-and-storage.md;
+пользовательская инструкция: docs/guides/project-synchronization-user-guide.md.
+Перед изменениями читать оба документа. Нельзя заменить изоляцию временным
+переключением глобальной карты или prefs, либо закрыть БД по timeout при живом child.
