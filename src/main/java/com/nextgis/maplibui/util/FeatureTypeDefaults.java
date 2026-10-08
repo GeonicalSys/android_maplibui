@@ -108,9 +108,13 @@ public final class FeatureTypeDefaults {
             if (attributes == null) continue;
             String type = element.optString("type");
             boolean pair = "double_combobox".equals(type);
-            String parent = ControlHelper.getFieldName(attributes.optString(pair ? "field_level1" : "field"));
-            String child = ControlHelper.getFieldName(attributes.optString("field_level2"));
-            if ((!pair && !"combobox".equals(type)) || (!field.equals(parent) && !field.equals(child))) continue;
+            if (!pair && !"combobox".equals(type)) continue;
+            String parentName = attributes.optString(pair ? "field_level1" : "field");
+            String childName = pair ? attributes.optString("field_level2") : "";
+            if (parentName.isEmpty() || (pair && childName.isEmpty())) continue;
+            String parent = ControlHelper.getFieldName(parentName);
+            String child = pair ? ControlHelper.getFieldName(childName) : null;
+            if (!field.equals(parent) && !field.equals(child)) continue;
             List<Choice> matches = new ArrayList<>();
             if (!pair && attributes.optLong("ngw_id", -1) != -1) {
                 com.nextgis.maplib.map.MapBase map = com.nextgis.maplib.map.MapBase.getInstance();

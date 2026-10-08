@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-08
+last_verified: 2026-10-09
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
@@ -11,7 +11,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/ChooseFeatureTypeDialog.java
     responsibility: Load project style categories off the UI thread and return one explicit typed creation selection through a recreation-safe fragment result.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypeDefaults.java
-    responsibility: Resolve style categories to canonical legacy values or pinned cascading keys plus all required parents; encode initial values for geometry and form drafts.
+    responsibility: Resolve style categories to canonical legacy values or pinned cascading keys plus all required parents; inspect only nonempty selector bindings in mixed forms and encode initial values for geometry and form drafts.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypePreview.java
     responsibility: Render a private effective category symbol with project marker assets and polygon fill patterns.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormChoiceAdapter.java

@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-08
+last_verified: 2026-10-09
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -11,7 +11,9 @@ last_verified: 2026-10-08
 ChooseFeatureTypeDialog асинхронно загружает категории FieldStyleRule и возвращает
 явное начальное состояние. FeatureTypeDefaults подбирает имена legacy пары
 и стабильные keys всей цепочки lisa_form_dependencies; несколько допустимых
-родителей показываются раздельно. FeatureTypePreview рисует копию символа.
+родителей показываются раздельно. При обходе смешанной формы нормализуются только
+непустые привязки combobox/double_combobox: подписи, вкладки и отсутствие второго
+поля у обычного списка не прерывают загрузку категорий. FeatureTypePreview рисует копию символа.
 LayerUtil использует общую пару form/meta и сохраняет checkpoint до запуска
 формы; GeometryEditDraftStore v1 сохраняет typed initial_values. Контракт:
 consuming root docs/architecture/feature-type-creation.md.
