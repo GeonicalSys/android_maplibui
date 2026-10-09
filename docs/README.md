@@ -11,6 +11,9 @@ last_verified: 2026-10-09
 TrackUploader обслуживает живой recorder и WorkManager через захваченный TrackLayer;
 ошибка регистрации/сервера оставляет SQLite outbox для повтора. TrackWorker
 владеет отдельными заданиями каждого workspace, не переключая активную карту.
+TrackRegistrationState сохраняет подтверждение регистрации для точной пары
+сервер/UID. До первого подтверждения или после registered=false отметки трека
+скрыты; сетевой сбой не снимает прежнее подтверждение. Intent остаётся независимым.
 Конфигурация, миграция default и ACK: consuming root
 контракт доставки docs/architecture/ngw-sync-and-storage.md.
 

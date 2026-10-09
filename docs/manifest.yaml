@@ -8,6 +8,8 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
+    responsibility: Scope persisted positive registration to the exact server and UID, hide pending track badges before confirmation or after explicit revocation and retain known registration across transport failures without changing upload intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackUploader.java
     responsibility: Check registration at delivery without disabling intent, upload captured-layer packets under a shared lock and acknowledge only accepted rowids after success.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackWorker.java
@@ -159,6 +161,10 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
     responsibility: Recoverable stroke state and checked atomic signature output.
 public_contracts:
+  - id: track-registration-indication
+    symbol: TrackRegistrationState.canShowPending and registration preference keys
+    path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
+    consumers: [app]
   - id: project-script-form-hooks
     symbol: ProjectScriptFormController beforeSave and pinnedReference
     path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptFormController.java
@@ -179,8 +185,10 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [track_send, track_send_default_enabled_v1, scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
+settings_refs: [track_registered_device, track_send, track_send_default_enabled_v1, scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
 storage_contracts:
+  - id: track_registered_device
+    path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
   - id: tracks_temp
     path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
   - id: ngw-resource-selection-state
