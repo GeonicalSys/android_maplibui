@@ -8,6 +8,12 @@ last_verified: 2026-10-09
 
 ## Назначение
 
+TrackUploader обслуживает живой recorder и WorkManager через захваченный TrackLayer;
+ошибка регистрации/сервера оставляет SQLite outbox для повтора. TrackWorker
+владеет отдельными заданиями каждого workspace, не переключая активную карту.
+Конфигурация, миграция default и ACK: consuming root
+контракт доставки docs/architecture/ngw-sync-and-storage.md.
+
 ChooseFeatureTypeDialog асинхронно загружает категории FieldStyleRule и возвращает
 явное начальное состояние вместе с исходным способом создания (карандаш,
 местоположение или обход); arguments/result сохраняют маршрут при пересоздании.

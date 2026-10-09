@@ -231,6 +231,7 @@ public class TrackerService extends Service
             mRecordingMap = (MapContentProviderHelper) application.getMap();
             mTrackLayer = (TrackLayer) MapContentProviderHelper.getVectorLayerByPath(
                     mRecordingMap, TrackLayer.TABLE_TRACKS);
+            com.nextgis.maplibui.mapui.TrackWorker.schedule(this, mRecordingMap);
             if (mTrackLayer == null) throw new IOException("Track layer is unavailable");
             mPendingPoints = new PendingTrackPoints(mRecordingMap.getPath());
         } catch (IOException | RuntimeException error) {
@@ -885,6 +886,7 @@ public class TrackerService extends Service
         if (stopped) {
             if (sRecordingService == this) sRecordingService = null;
             ((GISApplication) getApplication()).setIsTrackInProgress(false);
+            com.nextgis.maplibui.mapui.TrackWorker.schedule(this, mRecordingMap);
             removeNotification();
             stopSelf();
         } else {
@@ -1385,97 +1387,12 @@ public class TrackerService extends Service
     }
 
     private void sync() throws SQLiteException {
-//        Log.d(Constants.TAG, "Syncing trackpoints");
-        if (mSharedPreferences.getBoolean(SettingsConstants.KEY_PREF_TRACK_SEND, false)) {
-            ContentResolver resolver = getContentResolver();
-            String selection = TrackLayer.FIELD_SENT + " = 0";
-            String sort = TrackLayer.FIELD_TIMESTAMP + " ASC";
-            Cursor points = null;
-            try {
-                points = resolver.query(mContentUriTrackPoints, null, selection, null, sort);
-            } catch (Exception ignored) {
-
-            }
-            if (points != null) {
-//                int crashes  = 0;
-                List<String> ids = new ArrayList<>();
-                if (points.moveToFirst()) {
-                    GeoPoint point = new GeoPoint();
-                    int lon = points.getColumnIndex(TrackLayer.FIELD_LON);
-                    int lat = points.getColumnIndex(TrackLayer.FIELD_LAT);
-                    int ele = points.getColumnIndex(TrackLayer.FIELD_ELE);
-                    int fix = points.getColumnIndex(TrackLayer.FIELD_FIX);
-                    int sat = points.getColumnIndex(TrackLayer.FIELD_SAT);
-                    int acc = points.getColumnIndex(TrackLayer.FIELD_ACCURACY);
-                    int bearing = points.getColumnIndex(TrackLayer.FIELD_BEARING);
-                    int speed = points.getColumnIndex(TrackLayer.FIELD_SPEED);
-                    int time = points.getColumnIndex(TrackLayer.FIELD_TIMESTAMP);
-                    JSONArray payload = new JSONArray();
-
-                    int counter = 0;
-                    do {
-                        JSONObject item = new JSONObject();
-                        try {
-                            point.setCoordinates(points.getDouble(lon), points.getDouble(lat));
-                            point.setCRS(GeoConstants.CRS_WEB_MERCATOR);
-                            point.project(GeoConstants.CRS_WGS84);
-                            item.put("lt", point.getY());
-                            item.put("ln", point.getX());
-                            item.put("ts", points.getLong(time)/1000);
-                            item.put("a", points.getDouble(ele));
-                            item.put("s", points.getInt(sat));
-                            item.put("ft", points.getString(fix).equals("3d") ? 3 : 2);
-                            item.put("sp", points.getDouble(speed) * 18 / 5);
-                            item.put("ha", points.getDouble(acc));
-                            item.put("c", points.getDouble(bearing));
-                            payload.put(item);
-                            ids.add(points.getString(time));
-                            counter++;
-
-                            if (counter >= 100) {
-                                post(payload.toString(), this, ids);
-                                payload = new JSONArray();
-                                ids.clear();
-                                counter = 0;
-                            }
-                        } catch (Exception ignored) {
-//                            crashes++;
-
-                        }
-                    } while (points.moveToNext() );
-
-                    if (counter > 0) {
-                        try {
-                            post(payload.toString(), this, ids);
-                        } catch (Exception ignored) {
-
-                        }
-                    }
-                }
-                points.close();
-            }
-        }
-    }
-
-    private boolean post(String payload, Context context, List<String> ids) throws IOException {
-        String base = mSharedPreferences.getString("tracker_hub_url", HOST);
-        String url = String.format("%s/%s/packet", base + URL, getUid(context));
-//        Log.d(Constants.TAG, "Post to " + url);
-        HttpResponse response = NetworkUtil.post(url, payload, null, null, false);
-//        Log.d(Constants.TAG, "Response is " + response.getResponseCode());
-        if (!response.isOk())
-            return  false;
-
-        ContentValues cv = new ContentValues();
-        cv.put(TrackLayer.FIELD_SENT, 1);
-        String where = TrackLayer.FIELD_TIMESTAMP + " in (" + MapUtil.makePlaceholders(ids.size()) + ")";
-        String[] timestamps = ids.toArray(new String[0]);
+        if (mTrackLayer == null) return;
         try {
-            context.getContentResolver().update(mContentUriTrackPoints, cv, where, timestamps);
-        } catch (SQLiteException ignored) {
-
+            com.nextgis.maplibui.mapui.TrackUploader.upload(this, mTrackLayer);
+        } catch (Exception error) {
+            HyperLog.w(Constants.TAG, "Live track upload deferred; unsent points retained", error);
         }
-        return true;
     }
 
     @SuppressLint("HardwareIds")
