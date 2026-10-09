@@ -1,11 +1,13 @@
 <resources>
     <string name="walk_panel_title">Walking: %1$s</string>
-    <string name="walk_recording_accuracy">Recording · GPS ±%1$d m</string>
+    <string name="walk_recording">Recording</string>
+    <string name="walk_insufficient_points">Not enough points collected. Exiting without saving.</string>
+    <string name="walk_cancel">Cancel</string>
     <string name="walk_controls_point_locked">Finish creating the point to manage the walking session.</string>
     <string name="walk_finish">Finish</string>
     <string name="walk_finishing">Finishing the walking session…</string>
     <string name="walk_finished_pending">Walking finished. Save the object.</string>
-    <string name="walk_complete_object">Save object</string>
+    <string name="walk_complete_object">Save</string>
     <string name="walk_actions">Walking actions</string>
     <string name="walk_more_symbol" translatable="false">⋮</string>
     <string name="walk_show">Show on map</string>

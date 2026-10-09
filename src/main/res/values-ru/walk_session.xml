@@ -1,11 +1,13 @@
 <resources>
     <string name="walk_panel_title">Обход: %1$s</string>
-    <string name="walk_recording_accuracy">Идёт запись · GPS ±%1$d м</string>
+    <string name="walk_recording">Идёт запись</string>
+    <string name="walk_insufficient_points">Собрано недостаточно точек, выхожу без сохранения</string>
+    <string name="walk_cancel">Отменить</string>
     <string name="walk_controls_point_locked">Управление обходом доступно после завершения создания точки.</string>
     <string name="walk_finish">Завершить</string>
     <string name="walk_finishing">Завершение обхода…</string>
     <string name="walk_finished_pending">Обход завершён. Сохраните объект.</string>
-    <string name="walk_complete_object">Оформить</string>
+    <string name="walk_complete_object">Сохранить</string>
     <string name="walk_actions">Действия обхода</string>
     <string name="walk_show">Показать на карте</string>
     <string name="walk_discard">Отменить обход</string>
