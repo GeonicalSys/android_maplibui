@@ -28,13 +28,20 @@ import java.util.concurrent.Future;
 /** Fragment-owned result survives rotation; a choice never starts drawing before it is accepted. */
 public final class ChooseFeatureTypeDialog extends DialogFragment {
     public static final String TAG = "choose_feature_type", RESULT = "feature_type_choice";
+    public static final String KEY_TOOL = "creation_tool";
     private boolean completed;
     private static final ExecutorService LOADER = Executors.newSingleThreadExecutor();
     private Future<?> loadTask;
 
     public static ChooseFeatureTypeDialog create(VectorLayer layer, String mapPath) {
+        return create(layer, mapPath, 0);
+    }
+
+    public static ChooseFeatureTypeDialog create(VectorLayer layer, String mapPath,
+                                                  int tool) {
         ChooseFeatureTypeDialog dialog = new ChooseFeatureTypeDialog();
         Bundle args = new Bundle(); args.putInt("layer", layer.getId()); args.putString("map", mapPath);
+        args.putInt(KEY_TOOL, tool);
         dialog.setArguments(args); return dialog;
     }
 

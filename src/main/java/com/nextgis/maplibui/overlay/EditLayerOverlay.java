@@ -788,6 +788,10 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
 
     /** Transfer ownership to the recorder before the foreground editor is released. */
     public boolean startIndependentWalk() {
+        return startIndependentWalk(null);
+    }
+
+    public boolean startIndependentWalk(android.os.Bundle initialValues) {
         mHasEdits = true;
         if (WalkSessionStore.load(mContext.get()) != null
                 || WalkEditService.hasValidDraft(mContext.get())) return false;
@@ -844,7 +848,8 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
         if (ctx instanceof Activity)
             targetActivity = ctx.getClass().getName();
         String sessionId = WalkSessionStore.begin(ctx, mLayer.getId(), mFeature.getId(),
-                fullGeometry, selectedGeometry, selectedRing, mWalkNextInsertIndex, targetActivity);
+                fullGeometry, selectedGeometry, selectedRing, mWalkNextInsertIndex, targetActivity,
+                initialValues == null ? null : com.nextgis.maplibui.util.FeatureTypeDefaults.encode(initialValues));
         if (sessionId == null) return false;
         trackerService.putExtra(WalkSessionStore.KEY_SESSION, sessionId);
         trackerService.putExtra(ConstantsUI.TARGET_CLASS, targetActivity);
