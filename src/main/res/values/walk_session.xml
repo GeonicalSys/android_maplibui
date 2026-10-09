@@ -25,4 +25,11 @@
     <string name="walk_emergency_reset_done">The walking session was reset.</string>
     <string name="walk_foreign_map_message">An unfinished walking session belongs to another project and cannot be shown on this map. Reset it to unblock walking tools?</string>
     <string name="walk_keep">Keep</string>
+    <string name="walk_pause">Pause</string>
+    <string name="walk_resume">Resume</string>
+    <string name="walk_save_confirm">Finish recording and open attributes?</string>
+    <string name="walk_save_ready_confirm">Open attributes to save the object?</string>
+    <string name="walk_pause_confirm">Pause recording? The collected geometry will be kept.</string>
+    <string name="walk_resume_confirm">Resume recording? The next point will be connected to the last recorded point.</string>
+    <string name="walk_pause_notification">Recording is paused. Resume only if you want to connect the last point to your current GPS position.</string>
 </resources>

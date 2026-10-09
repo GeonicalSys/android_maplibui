@@ -24,4 +24,11 @@
     <string name="walk_emergency_reset_done">Обход сброшен.</string>
     <string name="walk_foreign_map_message">Незавершённый обход относится к другому проекту и не может быть показан на этой карте. Сбросить его, чтобы разблокировать инструменты обхода?</string>
     <string name="walk_keep">Оставить</string>
+    <string name="walk_pause">Пауза</string>
+    <string name="walk_resume">Продолжить</string>
+    <string name="walk_save_confirm">Завершить запись и перейти к атрибутам?</string>
+    <string name="walk_save_ready_confirm">Перейти к атрибутам для сохранения объекта?</string>
+    <string name="walk_pause_confirm">Приостановить запись? Собранная геометрия сохранится.</string>
+    <string name="walk_resume_confirm">Продолжить запись? Следующая точка соединится с последней записанной.</string>
+    <string name="walk_pause_notification">Запись приостановлена. Продолжайте, если нужно соединить последнюю точку с текущим местоположением.</string>
 </resources>

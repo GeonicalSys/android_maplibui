@@ -130,6 +130,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     private boolean mClearDraftOnDestroy;
 
     public static final String ACTION_RESUME_GPS = "com.nextgis.maplibui.WALKEDIT_RESUME_GPS";
+    public static final String ACTION_PAUSE_GPS = "com.nextgis.maplibui.WALKEDIT_PAUSE_GPS";
     public static final String KEY_GPS_PAUSED = "gps_paused";
     private LocationRecordingSampler mSampler;
     private int mLastSampledIndex = -1;
@@ -189,11 +190,12 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                 if (mGeometry == null) stopSelf();
                 return mGeometry == null ? START_NOT_STICKY : START_STICKY;
             }
-            if (ACTION_STOP.equals(action) || ACTION_RESUME_GPS.equals(action) || ACTION_FINISH.equals(action)
+            if (ACTION_STOP.equals(action) || ACTION_RESUME_GPS.equals(action) || ACTION_PAUSE_GPS.equals(action) || ACTION_FINISH.equals(action)
                     || intent != null && intent.getBooleanExtra(EXTRA_USER_RESUME, false)) {
                 WalkSessionPolicy.Command command = ACTION_STOP.equals(action)
                         ? WalkSessionPolicy.Command.DISCARD : ACTION_FINISH.equals(action)
-                        ? WalkSessionPolicy.Command.FINISH : WalkSessionPolicy.Command.RESUME;
+                        ? WalkSessionPolicy.Command.FINISH : ACTION_PAUSE_GPS.equals(action)
+                        ? WalkSessionPolicy.Command.PAUSE : WalkSessionPolicy.Command.RESUME;
                 if (!WalkSessionStore.allows(this, commandId, command)) {
                     if (mGeometry == null) stopSelf();
                     return mGeometry == null ? START_NOT_STICKY : START_STICKY;
@@ -235,6 +237,19 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                         if (mSampler != null) mSampler.reset();
                         removeNotification();
                         stopSelf();
+                        break;
+                    case ACTION_PAUSE_GPS:
+                        if (mGeometry != null) {
+                            // Drain accepted fixes before freezing; keep the same durable owner.
+                            flushWalkLocationFilterToGeometry();
+                            mGpsPaused = true;
+                            mLastRecordingNanos = 0;
+                            if (mSampler != null) mSampler.reset();
+                            mRecordingSoundMonitor.onLocationUnavailable();
+                            persistWalkGeometryToTempPrefs();
+                            sendGeometryBroadcast();
+                            addNotification();
+                        }
                         break;
                     case ACTION_RESUME_GPS:
                         // This action explicitly acknowledges the unrecorded connection.
@@ -832,9 +847,9 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             NotificationCompat.Builder paused = createBuilder(this, R.string.title_edit_by_walk)
                     .setSmallIcon(mSmallIcon)
                     .setContentTitle(getString(R.string.walk_gps_paused))
-                    .setContentText(getString(R.string.walk_gps_gap_message))
+                    .setContentText(getString(R.string.walk_pause_notification))
                     .setStyle(new NotificationCompat.BigTextStyle()
-                            .bigText(getString(R.string.walk_gps_gap_message)))
+                            .bigText(getString(R.string.walk_pause_notification)))
                     .setOngoing(true);
             if (!WalkSessionStore.isPointActive(this))
                 paused.addAction(R.drawable.ic_location, getString(R.string.walk_gps_resume), resumeAction);
@@ -894,9 +909,11 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (command == WalkSessionPolicy.Command.RESUME && !isSessionRunning(id)) {
             return resumeFromDraft(context, preferencesActivity(context));
         }
+        if (command == WalkSessionPolicy.Command.PAUSE && !isSessionRunning(id)) return false;
         Intent intent = new Intent(context, WalkEditService.class)
                 .setAction(command == WalkSessionPolicy.Command.FINISH ? ACTION_FINISH
-                        : command == WalkSessionPolicy.Command.DISCARD ? ACTION_STOP : ACTION_RESUME_GPS)
+                        : command == WalkSessionPolicy.Command.DISCARD ? ACTION_STOP
+                        : command == WalkSessionPolicy.Command.PAUSE ? ACTION_PAUSE_GPS : ACTION_RESUME_GPS)
                 .putExtra(WalkSessionStore.KEY_SESSION, id);
         context.startService(intent);
         return true;

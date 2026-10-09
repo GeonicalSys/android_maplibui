@@ -65,7 +65,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkGeometrySnapshot.java
     responsibility: Replace only the selected line or ring, preserve other members, normalize WKT closing duplicates and require two distinct line vertices or three distinct ring vertices in every nonempty member before finishing.
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/WalkRecordingPanel.java
-    responsibility: Expose compact recording status without GPS accuracy, direct confirmed Cancel alongside Finish and active final Save; retain locked status in the point form without an overflow menu.
+    responsibility: Expose one themed 48dp layer-name row with Save, Pause/Resume and Cancel icon targets, accessibility descriptions and tooltips; delegate all actions for confirmation, disable pause after Finish and retain point-lock/persistence notices without GPS accuracy or an overflow menu.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ControlHelper.java
     responsibility: Isolate drawable alpha and tint per menu item and update enabled appearance safely for items with or without icons.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkGeometryInsertion.java
