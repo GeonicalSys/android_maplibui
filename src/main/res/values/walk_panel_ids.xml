@@ -1,0 +1,6 @@
+<resources>
+    <item name="walk_panel_title" type="id" />
+    <item name="walk_panel_finish" type="id" />
+    <item name="walk_panel_cancel" type="id" />
+    <item name="walk_panel_resume" type="id" />
+</resources>

@@ -12,6 +12,40 @@ import com.nextgis.maplib.datasource.GeoPolygon;
 public final class WalkGeometrySnapshot {
     private WalkGeometrySnapshot() { }
 
+    /** Count real vertices, never the WKT ring closure or repeated coordinates. */
+    public static boolean hasEnoughPoints(GeoGeometry geometry) {
+        if (geometry instanceof GeoPolygon) {
+            GeoPolygon polygon = (GeoPolygon) geometry;
+            if (!hasEnoughPoints(polygon.getOuterRing())) return false;
+            for (int i = 0; i < polygon.getInnerRingCount(); i++)
+                if (!hasEnoughPoints(polygon.getInnerRing(i))) return false;
+            return true;
+        }
+        if (geometry instanceof GeoLineString) {
+            int minimum = geometry instanceof GeoLinearRing ? 3 : 2;
+            java.util.List<com.nextgis.maplib.datasource.GeoPoint> distinct = new java.util.ArrayList<>(minimum);
+            for (com.nextgis.maplib.datasource.GeoPoint point : ((GeoLineString) geometry).getPoints()) {
+                boolean duplicate = false;
+                for (com.nextgis.maplib.datasource.GeoPoint previous : distinct)
+                    if (previous.getX() == point.getX() && previous.getY() == point.getY()) {
+                        duplicate = true;
+                        break;
+                    }
+                if (!duplicate) distinct.add(point);
+                if (distinct.size() == minimum) return true;
+            }
+            return false;
+        }
+        if (geometry instanceof GeoMultiLineString || geometry instanceof GeoMultiPolygon) {
+            GeoGeometryCollection collection = (GeoGeometryCollection) geometry;
+            if (collection.size() == 0) return false;
+            for (int i = 0; i < collection.size(); i++)
+                if (!hasEnoughPoints(collection.get(i))) return false;
+            return true;
+        }
+        return false;
+    }
+
     public static GeoGeometry restore(String wkt, int member, int ring) {
         GeoGeometry full = com.nextgis.maplib.datasource.GeoGeometryFactory.fromWKT(
                 wkt, com.nextgis.maplib.util.GeoConstants.CRS_WEB_MERCATOR);

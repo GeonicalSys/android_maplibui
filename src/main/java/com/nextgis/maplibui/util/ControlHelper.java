@@ -112,7 +112,13 @@ public final class ControlHelper
             return;
         }
         item.setEnabled(state);
-        item.getIcon().setAlpha(state ? 255 : 160);
+        Drawable icon = item.getIcon();
+        if (icon != null) {
+            // Resource drawables may share ConstantState with another toolbar item.
+            icon = icon.mutate();
+            icon.setAlpha(state ? 255 : 160);
+            item.setIcon(icon);
+        }
     }
 
     public static boolean isEnabled(
@@ -244,7 +250,7 @@ public final class ControlHelper
             return null;
         }
 
-        drawable = DrawableCompat.wrap(drawable);
+        drawable = DrawableCompat.wrap(drawable.mutate());
         DrawableCompat.setTint(drawable, color);
         return drawable;
     }

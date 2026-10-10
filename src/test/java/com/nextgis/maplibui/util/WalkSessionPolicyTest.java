@@ -19,6 +19,9 @@ public class WalkSessionPolicyTest {
         assertFalse(mayStartPoint("walk", "", Phase.FINISHING));
         assertFalse(mayStartPoint("walk", "", Phase.FINISHED));
         assertFalse(mayControl("walk", "walk", "", Phase.FINISHING, Command.RESUME));
+        assertFalse(mayControl("walk", "walk", "", Phase.FINISHING, Command.PAUSE));
+        assertFalse(mayControl("walk", "walk", "", Phase.FINISHED, Command.PAUSE));
+        assertTrue(mayControl("walk", "walk", "", Phase.RECORDING, Command.PAUSE));
         assertFalse(mayControl("walk", "walk", "", Phase.FINISHED, Command.RESUME));
         assertFalse(mayControl("walk", "walk", "", Phase.FINISHED, Command.FINISH));
         assertTrue(mayControl("walk", "walk", "", Phase.FINISHED, Command.DISCARD));

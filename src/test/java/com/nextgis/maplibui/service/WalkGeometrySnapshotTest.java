@@ -6,6 +6,30 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class WalkGeometrySnapshotTest {
+    private GeoGeometry geometry(String wkt) {
+        return GeoGeometryFactory.fromWKT(wkt, GeoConstants.CRS_WEB_MERCATOR);
+    }
+
+    @Test public void finishingRequiresTwoDistinctLineVerticesAndThreeDistinctRingVertices() {
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(new GeoMultiLineString()));
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(new GeoMultiPolygon()));
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(geometry("LINESTRING (10 20)")));
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(geometry("LINESTRING (10 20, 10 20)")));
+        assertTrue(WalkGeometrySnapshot.hasEnoughPoints(geometry("LINESTRING (10 20, 20 30)")));
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(geometry("POLYGON ((0 0, 10 0, 0 0))")));
+        assertTrue(WalkGeometrySnapshot.hasEnoughPoints(geometry("POLYGON ((0 0, 10 0, 10 10, 0 0))")));
+    }
+
+    @Test public void unfinishedMemberOrHoleCannotHideBehindAnotherValidPart() {
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(geometry("MULTILINESTRING ((0 0, 10 10), (20 20))")));
+        assertTrue(WalkGeometrySnapshot.hasEnoughPoints(geometry("MULTILINESTRING ((0 0, 10 10), (20 20, 30 30))")));
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(geometry(
+                "MULTIPOLYGON (((0 0, 100 0, 100 100, 0 0), (10 10, 20 10, 10 10)))")));
+        GeoPolygon polygon = new GeoPolygon();
+        polygon.getOuterRing().add(new GeoPoint(10, 20));
+        assertFalse(WalkGeometrySnapshot.hasEnoughPoints(WalkGeometrySnapshot.restore(polygon.toWKT(true), 0, 0)));
+    }
+
     @Test public void walkingAnInnerRingKeepsOtherPolygonMembersAndHolesAndDoesNotMutateTheEditor() {
         GeoMultiPolygon full = (GeoMultiPolygon) GeoGeometryFactory.fromWKT(
                 "MULTIPOLYGON (((0 0, 100 0, 100 100, 0 0), (10 10, 20 10, 20 20, 10 10)),"

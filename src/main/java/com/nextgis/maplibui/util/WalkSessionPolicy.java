@@ -3,7 +3,7 @@ package com.nextgis.maplibui.util;
 /** Command admission is shared by the UI and service, including stale notification intents. */
 public final class WalkSessionPolicy {
     public enum Phase { RECORDING, FINISHING, FINISHED }
-    public enum Command { RESUME, FINISH, DISCARD }
+    public enum Command { PAUSE, RESUME, FINISH, DISCARD }
 
     private WalkSessionPolicy() { }
 

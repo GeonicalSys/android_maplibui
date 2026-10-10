@@ -27,6 +27,7 @@ public final class WalkSessionStore {
     public static final String KEY_POINT_TOOL = "walk_point_tool";
     public static final String KEY_POINT_STAGE = "walk_point_stage";
     public static final String KEY_REVISION = "walk_revision";
+    public static final String KEY_INITIAL_VALUES = "walk_initial_values";
     public static final String STAGE_CHOOSE = "choose";
     public static final String STAGE_GEOMETRY = "geometry";
     public static final String STAGE_FORM = "form";
@@ -44,6 +45,7 @@ public final class WalkSessionStore {
 
     public static final class Snapshot {
         public final String id, mapPath, fullWkt, pointId, pointStage;
+        public final org.json.JSONObject initialValues;
         public final int layerId, member, ring, pointLayer, pointTool;
         public final long featureId, revision, updatedAt;
         public final boolean gpsPaused;
@@ -53,6 +55,9 @@ public final class WalkSessionStore {
             id = prefs.getString(KEY_SESSION, "");
             mapPath = prefs.getString(KEY_MAP, "");
             fullWkt = prefs.getString(KEY_FULL_GEOMETRY, "");
+            String values = prefs.getString(KEY_INITIAL_VALUES, null);
+            try { initialValues = values == null ? null : new org.json.JSONObject(values); }
+            catch (org.json.JSONException invalid) { throw new IllegalStateException(invalid); }
             pointId = prefs.getString(KEY_POINT, "");
             pointStage = prefs.getString(KEY_POINT_STAGE, "");
             pointLayer = prefs.getInt(KEY_POINT_LAYER, Constants.NOT_FOUND);
@@ -93,6 +98,13 @@ public final class WalkSessionStore {
     public static synchronized String begin(Context context, int layerId, long featureId,
                                              GeoGeometry full, int member, int ring,
                                              int insertion, String activity) {
+        return begin(context, layerId, featureId, full, member, ring, insertion, activity, null);
+    }
+
+    /** Persist the new object's typed category in the same transaction as recorder ownership. */
+    public static synchronized String begin(Context context, int layerId, long featureId,
+                                             GeoGeometry full, int member, int ring,
+                                             int insertion, String activity, org.json.JSONObject initialValues) {
         if (load(context) != null || WalkEditService.hasValidDraft(context)
                 || ProjectOperationCoordinator.isBusy()) return null;
         GeoLineString part = WalkGeometrySnapshot.part(full, member, ring);
@@ -104,6 +116,8 @@ public final class WalkSessionStore {
                 .putString(ConstantsUI.KEY_GEOMETRY, part.toWKT(true))
                 .putInt(ConstantsUI.KEY_LAYER_ID, layerId)
                 .putLong(ConstantsUI.KEY_FEATURE_ID, featureId)
+                .putString(KEY_INITIAL_VALUES, featureId == Constants.NOT_FOUND && initialValues != null
+                        ? initialValues.toString() : null)
                 .putInt(WalkEditService.KEY_GEOMETRY_INDEX, member)
                 .putInt(WalkEditService.KEY_RING_INDEX, ring)
                 .putInt(WalkEditService.KEY_INSERT_INDEX, insertion)

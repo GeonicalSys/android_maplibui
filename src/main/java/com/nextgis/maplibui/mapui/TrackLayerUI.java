@@ -85,17 +85,11 @@ public class TrackLayerUI extends TrackLayer implements ILayerUI {
         String name = getContext().getPackageName() + "_preferences";
         SharedPreferences mSharedPreferences = getContext().getSharedPreferences(name, MODE_MULTI_PROCESS);
 
-        if(!mSharedPreferences.getBoolean(SettingsConstants.KEY_PREF_TRACK_SEND, false))
+        if(!mSharedPreferences.getBoolean(SettingsConstants.KEY_PREF_TRACK_SEND, true))
             return; //do not run,  if "sent track  to cloud" turned on
 
 
-        if (((GISApplication)getContext().getApplicationContext()).getIsTrackInProgress()){
-            // nothing to  sync - tracking in progress already start sending tack
-        } else {
-            // start worker
-            Log.d(Constants.TAG, "start worker scheduling");
-            TrackWorker.schedule(getContext());
-        }
+        TrackWorker.schedule(getContext());
 
 //        Intent trackerService = new Intent(mContext, TrackerService.class);
 //        trackerService.setAction(ACTION_SYNC);
