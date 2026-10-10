@@ -13,7 +13,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
     responsibility: Scope persisted positive registration to the exact server and UID, hide pending track badges before confirmation or after explicit revocation and retain known registration across transport failures without changing upload intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackUploader.java
-    responsibility: Check registration at delivery without disabling intent, upload captured-layer packets under a shared lock and acknowledge only accepted rowids after success.
+    responsibility: Defer disconnected live/worker delivery before registration and each packet without disabling intent; upload captured-layer packets under a shared lock and acknowledge only accepted rowids after success.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackWorker.java
     responsibility: Persist per-workspace network-constrained immediate and periodic delivery, retain unsent points for registration/network retry and load registered background maps without changing the active workspace.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/ChooseFeatureTypeDialog.java
@@ -133,7 +133,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/ExternalGnssService.java
     responsibility: Hold the default process as a silent location|connectedDevice foreground service while an external endpoint is configured; maplib owns Pigo UART readiness and fix expiry, and service presence does not imply a usable fix; no second LocationManager subscription.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
-    responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, acknowledge a durable final snapshot before foreground editing, retain paused recovery without a raw-location tail, and provide an exact-session emergency stop/clear path across map identity changes.
+    responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, resume automatically after GPS gaps without changing user pause intent, acknowledge a durable final snapshot before foreground editing, retain geometry on recovery, and provide an exact-session emergency stop/clear path across map identity changes.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
     responsibility: Consume the shared validated GNSS stream before geometry sampling, use measurement age for the ten-second background heartbeat, rely on source-owned recording wake lock and retain existing alarm/vibration and persistence-failure feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundPolicy.java
@@ -157,7 +157,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
     responsibility: Rule-based style editor UI; other/default style naming and cloning new categories from other.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/SyncAccountWorker.java
-    responsibility: Schedule per-account sync work while delegating transient per-layer pull retries to the maplib account adapter.
+    responsibility: Keep per-account work waiting for connected network, recheck connectivity before requestSync and delegate transient per-layer pull retries to the maplib account adapter.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGIDLoginName.java
     responsibility: Locale-independent normalization of NextGIS ID identifiers only.
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
@@ -228,5 +228,5 @@ global_docs:
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
+smoke_tests: [SMOKE-WALK, SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
 upstream_hotspots: [LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]

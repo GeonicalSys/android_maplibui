@@ -22,6 +22,7 @@ import com.hypertrack.hyperlog.HyperLog;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.NetworkUtil;
 
 import java.util.concurrent.TimeUnit;
 
@@ -119,6 +120,12 @@ public class SyncAccountWorker extends Worker {
         if (!(context instanceof IGISApplication)) {
             Log.e("SSYNC", "SyncAccountWorker.doWork failed: application is not IGISApplication");
             return Result.failure();
+        }
+
+        // Connectivity can disappear after WorkManager releases its constraint.
+        // Retain this network-constrained work rather than dispatch an offline sync.
+        if (!new NetworkUtil(context).isNetworkAvailable()) {
+            return Result.retry();
         }
 
         IGISApplication application = (IGISApplication) context;

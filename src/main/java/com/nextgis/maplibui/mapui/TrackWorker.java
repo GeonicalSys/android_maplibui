@@ -13,6 +13,7 @@ import com.nextgis.maplib.map.MapContentProviderHelper;
 import com.nextgis.maplib.map.MapDrawable;
 import com.nextgis.maplib.map.TrackLayer;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.NetworkUtil;
 import com.nextgis.maplib.util.SyncWorkspaceSession;
 import com.nextgis.maplib.util.TrackSendSettings;
 import com.nextgis.maplibui.util.CollectorProjectRegistry;
@@ -73,6 +74,7 @@ public class TrackWorker extends Worker {
     @NonNull @Override public Result doWork() {
         if (!TrackSendSettings.isEnabled(PreferenceManager.getDefaultSharedPreferences(getApplicationContext())))
             return Result.success();
+        if (!new NetworkUtil(getApplicationContext()).isNetworkAvailable()) return Result.retry();
         boolean complete = uploadProject(getApplicationContext(), getInputData().getString(MAP_PATH));
         // A periodic pass keeps its fifteen-minute cadence while awaiting registration/network.
         return complete || getInputData().getBoolean(PERIODIC, false) ? Result.success() : Result.retry();
@@ -81,6 +83,7 @@ public class TrackWorker extends Worker {
     public static boolean uploadProject(Context context, String path) {
         if (!TrackSendSettings.isEnabled(PreferenceManager.getDefaultSharedPreferences(context))) return true;
         if (path == null) return true; // Old unowned jobs must not fall through to the active map.
+        if (!new NetworkUtil(context).isNetworkAvailable()) return false;
         MapContentProviderHelper map = null;
         SyncWorkspaceSession session = null;
         boolean background = false;
