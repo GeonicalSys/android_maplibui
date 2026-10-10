@@ -41,6 +41,7 @@ public final class TrackUploader {
         synchronized (DELIVERY_LOCK) {
             if (Thread.currentThread().isInterrupted()) return false;
             if (!TrackSendSettings.isEnabled(preferences) || !hasPending(context, layer)) return true;
+            if (!new NetworkUtil(context).isNetworkAvailable()) return false;
             String device = TrackRegistrationState.deviceUrl(context);
             // Registration gates delivery, never the persisted user's upload intent.
             HttpResponse registration = NetworkUtil.get(device + "/registered", null, null, false);
@@ -50,6 +51,7 @@ public final class TrackUploader {
             TrackRegistrationState.record(context, device, (Boolean) registered);
             if (!((Boolean) registered)) return false;
             while (TrackSendSettings.isEnabled(preferences) && !Thread.currentThread().isInterrupted()) {
+                if (!new NetworkUtil(context).isNetworkAvailable()) return false;
                 JSONArray payload = new JSONArray();
                 List<String> rows = new ArrayList<>();
                 Uri uri = pointsUri(context);

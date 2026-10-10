@@ -13,7 +13,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
     responsibility: Scope persisted positive registration to the exact server and UID, hide pending track badges before confirmation or after explicit revocation and retain known registration across transport failures without changing upload intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackUploader.java
-    responsibility: Check registration at delivery without disabling intent, upload captured-layer packets under a shared lock and acknowledge only accepted rowids after success.
+    responsibility: Defer disconnected live/worker delivery before registration and each packet without disabling intent; upload captured-layer packets under a shared lock and acknowledge only accepted rowids after success.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackWorker.java
     responsibility: Persist per-workspace network-constrained immediate and periodic delivery, retain unsent points for registration/network retry and load registered background maps without changing the active workspace.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/ChooseFeatureTypeDialog.java
@@ -157,7 +157,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
     responsibility: Rule-based style editor UI; other/default style naming and cloning new categories from other.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/SyncAccountWorker.java
-    responsibility: Schedule per-account sync work while delegating transient per-layer pull retries to the maplib account adapter.
+    responsibility: Keep per-account work waiting for connected network, recheck connectivity before requestSync and delegate transient per-layer pull retries to the maplib account adapter.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NGIDLoginName.java
     responsibility: Locale-independent normalization of NextGIS ID identifiers only.
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java

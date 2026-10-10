@@ -8,6 +8,11 @@ last_verified: 2026-10-10
 
 ## Назначение
 
+Account/track work требует connected network. При потере сети до dispatch
+`SyncAccountWorker` возвращает retry без requestSync; `TrackWorker` не получает
+workspace lease, а общий `TrackUploader` не выполняет регистрацию/пакеты без
+подключения. Неотправленные точки и пользовательский upload intent сохраняются.
+
 `WalkEditService` при потере GPS сохраняет принятый хвост, сбрасывает sampler
 и автоматически принимает следующую пригодную координату. `gps_paused` меняется
 только ручной Pause/Resume; GPS gap, unexpected onDestroy и sticky restart не
