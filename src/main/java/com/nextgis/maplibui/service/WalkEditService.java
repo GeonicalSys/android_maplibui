@@ -320,7 +320,8 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             mShowNotification = mSharedPreferencesTemp.getBoolean(ConstantsUI.KEY_MESSAGE, true);
             mClearDraftOnDestroy = false;
             mLastRecordingNanos = 0;
-            mGpsPaused = getWalkGeometryVertexCount() > 0;
+            // A sticky restart retains the user's intent; a gap never creates a pause.
+            mGpsPaused = mSharedPreferencesTemp.getBoolean(KEY_GPS_PAUSED, false);
             if (mGeometry != null && mLayerId != Constants.NOT_FOUND) {
                 if (!startWalkEdit()) {
                     return START_NOT_STICKY;
@@ -423,7 +424,6 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (mSessionId != null) {
             if (!mTerminalHandled) {
                 flushWalkLocationFilterToGeometry();
-                mGpsPaused = true;
                 if (mGeometry != null) persistWalkGeometryToTempPrefs();
                 WalkSessionStore.notifyChanged(this);
             }
@@ -523,7 +523,6 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (mLastRecordingNanos > 0
                 && (nanos - mLastRecordingNanos) / 1_000_000L > LocationFixPolicy.FRESHNESS_MS) {
             onRecordingUnavailable();
-            return;
         }
         mLastRecordingNanos = nanos;
         mRecordingSoundMonitor.onLocationChanged(location);
@@ -549,7 +548,8 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         mRecordingSoundMonitor.onLocationUnavailable();
         if (mGeometry == null || mGpsPaused || mLastRecordingNanos == 0) return;
         saveSampledPoints(mSampler.flush());
-        mGpsPaused = true;
+        mSampler.reset();
+        mLastRecordingNanos = 0;
         persistWalkGeometryToTempPrefs();
         sendGeometryBroadcast();
         addNotification();
@@ -719,7 +719,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         intent.putExtra(KEY_RING_INDEX, ringIndex);
         intent.putExtra(KEY_INSERT_INDEX, insertIndex);
         // This new-session entry point is called only after explicit Continue/Connect.
-        // Sticky system restarts still take the separate paused path in onStartCommand.
+        // Sticky system restarts preserve the stored user pause state instead.
         intent.putExtra(KEY_GPS_PAUSED, session == null);
         intent.putExtra(EXTRA_USER_RESUME, session != null);
         intent.putExtra(ConstantsUI.KEY_GEOMETRY, geometry);
