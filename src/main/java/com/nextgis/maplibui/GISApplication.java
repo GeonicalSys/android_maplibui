@@ -239,12 +239,7 @@ public abstract class GISApplication extends Application
         instance = this;
 
 
-        HyperLog.initialize(this);
-        /* Without setURL, HyperLog logs ERROR on every call and may do extra work; remote upload stays a no-op. */
-        try {
-            HyperLog.setURL("https://127.0.0.1/nextgis-hyperlog-no-remote/");
-        } catch (IllegalArgumentException ignored) {
-        }
+        com.nextgis.maplib.util.LocalLogInitializer.initialize(this);
 
         if (!(Thread.getDefaultUncaughtExceptionHandler() instanceof HyperLogCrashHandler)) {
             Thread.setDefaultUncaughtExceptionHandler(

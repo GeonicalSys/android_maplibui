@@ -2,12 +2,14 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-09
+last_verified: 2026-10-10
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
+    responsibility: Reuse process-wide local HyperLog without overwriting the app format or preparing remote uploads; retain Collector form hash and recoverable installation gates.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
     responsibility: Scope persisted positive registration to the exact server and UID, hide pending track badges before confirmation or after explicit revocation and retain known registration across transport failures without changing upload intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackUploader.java
@@ -213,7 +215,7 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
   - id: geometry_edit_draft
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
-invariant_refs: [INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
+invariant_refs: [INV-LOCAL-LOG-STARTUP, INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
 global_docs:
   - docs/guides/project-synchronization-user-guide.md
   - docs/architecture/conditional-form-rules.md

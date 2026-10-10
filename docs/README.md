@@ -1,12 +1,18 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-09
+last_verified: 2026-10-10
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
 ## Назначение
+
+`GISApplication` использует `maplib.LocalLogInitializer` для process-wide
+локального HyperLog без фиктивного endpoint; app-формат и crash delegation
+сохраняются. Collector form transaction получает общий канонический JSON hash:
+разный порядок ключей не ломает sync, реальные изменения по-прежнему блокируют
+установку до замены предыдущей пары файлов.
 
 TrackUploader обслуживает живой recorder и WorkManager через захваченный TrackLayer;
 ошибка регистрации/сервера оставляет SQLite outbox для повтора. TrackWorker
