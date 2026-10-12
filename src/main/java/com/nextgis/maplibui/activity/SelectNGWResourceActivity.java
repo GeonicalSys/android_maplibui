@@ -240,7 +240,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
             if (mListAdapter.isLoading() || getConnection() == null) return true;
             View view = View.inflate(this, R.layout.dialog_edittext, null);
             final EditText editText = view.findViewById(R.id.edit1);
-            final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            final AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(this);
             builder.setTitle(R.string.new_group_name).setView(view)
                     .setNegativeButton(R.string.cancel, null)
                     .setPositiveButton(R.string.ok, null);
@@ -326,7 +326,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                     this, ProjectOperationCoordinator.Kind.LAYER_FILL);
         }
         if (importLease == null) {
-            new AlertDialog.Builder(this)
+            com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(this)
                     .setTitle(R.string.ngw_collector_import_busy_title)
                     .setMessage(R.string.ngw_collector_import_busy_message)
                     .setPositiveButton(android.R.string.ok, null)
@@ -528,7 +528,7 @@ public class SelectNGWResourceActivity extends NGActivity implements View.OnClic
                 HyperLog.w(TAG, "Collector import: workspace switch blocked by active operation"
                         + " remoteId=" + collector.getRemoteId()
                         + " account=" + connection.getName());
-                new AlertDialog.Builder(this)
+                com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(this)
                         .setTitle(R.string.ngw_collector_import_busy_title)
                         .setMessage(R.string.ngw_collector_import_busy_message)
                         .setPositiveButton(android.R.string.ok, null)

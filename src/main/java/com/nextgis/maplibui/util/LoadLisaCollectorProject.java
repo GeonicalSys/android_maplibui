@@ -52,7 +52,7 @@ public final class LoadLisaCollectorProject {
         AccountManager accountManager = AccountManager.get(activity);
         Connections connections = SelectNGWResourceDialog.fillConnections(activity, accountManager);
         if (connections.getChildrenCount() == 0) {
-            new AlertDialog.Builder(activity)
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                     .setTitle(R.string.lisa_catalog_load_project)
                     .setMessage(R.string.lisa_catalog_need_account)
                     .setPositiveButton(R.string.ngw_account_add, (dialog, which) ->
@@ -72,7 +72,7 @@ public final class LoadLisaCollectorProject {
             items[i] = connection;
             names[i] = connection == null ? "" : connection.getName();
         }
-        new AlertDialog.Builder(activity)
+        com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                 .setTitle(R.string.ngw_accounts)
                 .setItems(names, (dialog, which) -> {
                     if (which >= 0 && which < items.length && items[which] != null) {
@@ -134,7 +134,7 @@ public final class LoadLisaCollectorProject {
         CheckedTextView[] rows = new CheckedTextView[projects.size()];
         final int[] selected = {-1};
 
-        AlertDialog dialog = new AlertDialog.Builder(activity)
+        AlertDialog dialog = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                 .setTitle(R.string.lisa_catalog_load_project)
                 .setView(wrapScroll(activity, container))
                 .setPositiveButton(R.string.lisa_catalog_load, null)
@@ -278,7 +278,7 @@ public final class LoadLisaCollectorProject {
         LayerGroup workspace = prepareResult.getWorkspace();
         if (workspace == null) {
             if (prepareResult.isBusy()) {
-                new AlertDialog.Builder(activity)
+                com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                         .setTitle(R.string.ngw_collector_import_busy_title)
                         .setMessage(R.string.ngw_collector_import_busy_message)
                         .setPositiveButton(android.R.string.ok, null)

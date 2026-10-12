@@ -360,7 +360,7 @@ public class LayerFillProgressDialogFragment extends Fragment {
                             Toast.makeText(host, toast, Toast.LENGTH_LONG).show();
                         } else {
                             final androidx.appcompat.app.AlertDialog builder
-                                    = new androidx.appcompat.app.AlertDialog.Builder(host).setTitle(title)
+                                    = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(host).setTitle(title)
                                     .setMessage(toast)
                                     .setPositiveButton(R.string.ok, null)
                                     .create();

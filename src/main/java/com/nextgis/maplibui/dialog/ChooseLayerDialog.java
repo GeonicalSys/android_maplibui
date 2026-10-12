@@ -113,8 +113,8 @@ public class ChooseLayerDialog
         dialogListView.setAdapter(mListAdapter);
         dialogListView.setOnItemClickListener(mListAdapter);
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(mContextWeakRef.get());
-        //AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mContextWeakRef.get());
+        //AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(requireContext());
         builder.setTitle(mTitle).setView(view).setInverseBackgroundForced(true).setNegativeButton(
                 R.string.cancel, new DialogInterface.OnClickListener() {
                     public void onClick(

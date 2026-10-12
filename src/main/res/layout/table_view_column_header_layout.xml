@@ -45,13 +45,18 @@
             android:layout_marginStart="10dp"
             android:orientation="horizontal">
 
-            <TextView
+            <androidx.appcompat.widget.AppCompatTextView
                 android:id="@+id/column_header_textView"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="center"
                 android:layout_weight="4"
                 android:gravity="center"
+                android:maxLines="2"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="1sp"
+                app:autoSizeMaxTextSize="@dimen/text_size"
+                app:autoSizeStepGranularity="1px"
                 android:textColor="@color/table_view_default_text_color"
                 android:textSize="@dimen/text_size"
                 tools:text="Header Data"/>

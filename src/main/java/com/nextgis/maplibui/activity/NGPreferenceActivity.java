@@ -171,6 +171,7 @@ public abstract class NGPreferenceActivity
 
 
     private void safeInvalidatePreferences() {
+        if (isFinishing() || isDestroyed()) return;
         FragmentManager fm = getSupportFragmentManager();
         // Проверяем headers
         NGPreferenceHeaderFragment headers = (NGPreferenceHeaderFragment) fm.findFragmentByTag(getPreferenceHeaderFragmentTag());
@@ -188,8 +189,7 @@ public abstract class NGPreferenceActivity
 
     public void invalidatePreferences()
     {
-
-
+        if (isFinishing() || isDestroyed() || mListeners == null) return;
         for (OnInvalidatePreferencesListener listener : mListeners) {
             listener.onInvalidatePreferences();
         }

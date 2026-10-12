@@ -121,8 +121,8 @@ public class CreateRemoteTMSLayerDialog
             }
         }
 
-//        AlertDialog.Builder builder = new AlertDialog.Builder(mContext, mDialogTheme);
-        AlertDialog.Builder builder = new AlertDialog.Builder(mContextWeakRef.get());
+//        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mContext, mDialogTheme);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mContextWeakRef.get());
         builder.setTitle(mTitle).setView(view).setPositiveButton(
                 R.string.create, new DialogInterface.OnClickListener()
                 {

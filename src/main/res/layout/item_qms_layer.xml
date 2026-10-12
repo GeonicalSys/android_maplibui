@@ -28,7 +28,6 @@
                  android:drawableEnd="?android:attr/listChoiceIndicatorMultiple"
                  android:drawablePadding="8dp"
                  android:drawableRight="?android:attr/listChoiceIndicatorMultiple"
-                 android:ellipsize="marquee"
                  android:gravity="center_vertical"
                  android:minHeight="?attr/listPreferredItemHeightSmall"
                  android:paddingEnd="?attr/dialogPreferredPadding"

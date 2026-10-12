@@ -19,6 +19,8 @@
   ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
   -->
 
+<com.nextgis.maplibui.view.FittedPanelLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/login_fit_panel" android:layout_width="match_parent" android:layout_height="match_parent">
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
@@ -140,7 +142,7 @@
 
         <TextView
             android:id="@+id/signup"
-            android:layout_height="42dp"
+            android:layout_height="wrap_content"
             android:layout_margin="16dp"
             android:layout_width="wrap_content"
             android:text="@string/ngid_account_new"
@@ -148,19 +150,27 @@
             android:textSize="14sp"
             android:layout_toLeftOf="@+id/center_element"
             android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
 
             />
 
         <Button
             android:id="@+id/signin"
             android:layout_width="wrap_content"
-            android:layout_height="42dp"
+            android:layout_height="wrap_content"
             android:layout_margin="16dp"
 
             android:background="@drawable/rounded_button"
             android:text="@string/login"
             android:textColor="@color/color_white"
             android:layout_toRightOf="@+id/center_element"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
             />
     </RelativeLayout>
 
@@ -178,10 +188,10 @@
 <!--        android:textColor="@color/primary_dark"-->
 <!--        android:textSize="14sp" />-->
 
-    <Button
+<Button
         android:id="@+id/onpremiseButton"
         android:layout_width="wrap_content"
-        android:layout_height="32dp"
+        android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:text="@string/ngid_onpremise"
         android:textSize="12sp"
@@ -190,6 +200,10 @@
         android:paddingLeft="16dp"
         android:paddingRight="16dp"
         android:layout_marginTop="36dp"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
 
         />
 
@@ -231,3 +245,4 @@ android:visibility="gone">
 
 </RelativeLayout>
 </RelativeLayout>
+</com.nextgis.maplibui.view.FittedPanelLayout>

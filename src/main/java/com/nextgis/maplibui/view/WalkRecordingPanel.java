@@ -12,7 +12,6 @@ import android.graphics.drawable.InsetDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -33,7 +32,7 @@ import com.nextgis.maplibui.util.WalkSessionPolicy;
 import com.nextgis.maplibui.util.WalkSessionStore;
 
 /** Passive recording status remains visible while point creation disables every walk action. */
-public class WalkRecordingPanel extends LinearLayout {
+public class WalkRecordingPanel extends FittedPanelLayout {
     public interface Listener {
         void onSessionChanged(WalkSessionStore.Snapshot session);
         void onFinishWalk(WalkSessionStore.Snapshot session);
@@ -43,7 +42,8 @@ public class WalkRecordingPanel extends LinearLayout {
 
     private final TextView title, notice;
     private final AppCompatImageButton finish, discard, resume;
-    private final LinearLayout actions;
+    private final WrappingRow actions;
+    private final LinearLayout row;
     private final int primaryColor, secondaryColor;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Listener listener;
@@ -62,7 +62,6 @@ public class WalkRecordingPanel extends LinearLayout {
     public WalkRecordingPanel(Context context) { this(context, null); }
     public WalkRecordingPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
-        setOrientation(VERTICAL);
         setPadding(dp(12), 0, dp(4), 0);
         primaryColor = themeColor(androidx.appcompat.R.attr.colorPrimary, Color.DKGRAY);
         int textColor = themeColor(android.R.attr.textColorPrimary, Color.DKGRAY);
@@ -74,20 +73,20 @@ public class WalkRecordingPanel extends LinearLayout {
         background.setStroke(dp(1), ColorUtils.blendARGB(surface, textColor, .10f));
         setBackground(background);
         setElevation(dp(2));
-        LinearLayout row = new LinearLayout(context);
+        LinearLayout content = new LinearLayout(context);
+        content.setOrientation(LinearLayout.VERTICAL);
+        addView(content, new android.widget.FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        row = new LinearLayout(context);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        addView(row, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        content.addView(row, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         title = label(13);
         title.setId(R.id.walk_panel_title);
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         title.setTextColor(textColor);
-        title.setMaxLines(1);
-        title.setEllipsize(TextUtils.TruncateAt.END);
-        LayoutParams titleParams = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1);
         titleParams.setMarginEnd(dp(4));
         row.addView(title, titleParams);
-        actions = new LinearLayout(context);
-        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        actions = new WrappingRow(context, null);
         resume = iconButton(R.id.walk_panel_resume, R.drawable.ic_walk_panel_resume, R.string.walk_resume);
         finish = iconButton(R.id.walk_panel_finish, R.drawable.ic_walk_panel_save, R.string.walk_complete_object);
         finish.setImageTintList(ColorStateList.valueOf(ColorUtils.calculateContrast(Color.WHITE, primaryColor)
@@ -99,14 +98,14 @@ public class WalkRecordingPanel extends LinearLayout {
         finish.setPadding(dp(14), dp(14), dp(14), dp(14));
         finish.setStateListAnimator(null);
         discard = iconButton(R.id.walk_panel_cancel, R.drawable.ic_walk_panel_cancel, R.string.walk_discard);
-        actions.addView(finish, new LayoutParams(dp(48), dp(48)));
-        actions.addView(resume, new LayoutParams(dp(48), dp(48)));
-        actions.addView(discard, new LayoutParams(dp(48), dp(48)));
-        row.addView(actions, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+        actions.addView(finish, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        actions.addView(resume, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        actions.addView(discard, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        row.addView(actions, new LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
         notice = label(12);
         notice.setTextColor(secondaryColor);
         notice.setPadding(0, 0, dp(6), dp(6));
-        addView(notice, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        content.addView(notice, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         finish.setOnClickListener(view -> {
             WalkSessionStore.Snapshot session = actionableSession();
             if (session != null && listener != null) listener.onFinishWalk(session);
@@ -124,6 +123,18 @@ public class WalkRecordingPanel extends LinearLayout {
     }
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+
+    @Override protected void onMeasure(int widthSpec, int heightSpec) {
+        int available = MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight();
+        boolean stacked = MeasureSpec.getMode(widthSpec) != MeasureSpec.UNSPECIFIED
+                && title.getPaint().measureText(title.getText().toString()) + dp(156) > available;
+        row.setOrientation(stacked ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) title.getLayoutParams();
+        params.width = stacked ? LayoutParams.MATCH_PARENT : 0;
+        params.weight = stacked ? 0 : 1;
+        params.topMargin = params.bottomMargin = stacked ? dp(6) : 0;
+        super.onMeasure(widthSpec, heightSpec);
+    }
     private int themeColor(int attribute, int fallback) {
         TypedValue value = new TypedValue();
         if (!getContext().getTheme().resolveAttribute(attribute, value, true)) return fallback;

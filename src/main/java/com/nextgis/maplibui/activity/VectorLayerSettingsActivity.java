@@ -602,7 +602,7 @@ public class VectorLayerSettingsActivity
                                                DialogInterface.OnClickListener yesClick,
                                                DialogInterface.OnClickListener noClick,
                                                DialogInterface.OnCancelListener cancelClick){
-        AlertDialog.Builder builder = new AlertDialog.Builder(view);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(view);
         builder.setMessage(R.string.sync_delete_alert_turnon)
                 .setNegativeButton(R.string.cancel, noClick)
                 .setPositiveButton(R.string.sync_turn_on_confirm, yesClick)
@@ -615,7 +615,7 @@ public class VectorLayerSettingsActivity
                                                 DialogInterface.OnClickListener yesClick,
                                                 DialogInterface.OnClickListener noClick,
                                                 DialogInterface.OnCancelListener cancelClick){
-        AlertDialog.Builder builder = new AlertDialog.Builder(view);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(view);
         builder.setMessage(R.string.sync_delete_alert_turnoff)
                 .setNegativeButton(R.string.cancel, noClick)
                 .setPositiveButton(R.string.sync_turn_off_confirm, yesClick)

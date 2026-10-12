@@ -38,8 +38,12 @@
     <Button
         android:id="@+id/average"
         android:layout_width="wrap_content"
-        android:layout_height="36dp"
+        android:layout_height="wrap_content"
         android:background="@drawable/dark_button"
         android:text="@string/averaging"
-        android:textColor="@color/color_white" />
+        android:textColor="@color/color_white"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
 </com.nextgis.maplibui.formcontrol.Averaging>

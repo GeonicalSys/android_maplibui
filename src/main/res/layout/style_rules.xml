@@ -33,7 +33,11 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
-        android:text="@string/rule_other_style"/>
+        android:text="@string/rule_other_style"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"/>
 
     <TextView
         android:layout_width='match_parent'
@@ -72,7 +76,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
-            android:text="@string/new_tms"/>
+            android:text="@string/new_tms"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"/>
     </FrameLayout>
 
     <ListView

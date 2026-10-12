@@ -1661,7 +1661,7 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                 mWalkGpsPauseShown = true;
                 Context owner = mContext.get();
                 if (owner instanceof Activity && !((Activity) owner).isFinishing()) {
-                    new androidx.appcompat.app.AlertDialog.Builder(owner)
+                    com.nextgis.maplibui.util.FittedDialogs.compatBuilder(owner)
                             .setTitle(R.string.walk_gps_paused)
                             .setMessage(R.string.walk_gps_gap_message)
                             .setNegativeButton(android.R.string.cancel, null)

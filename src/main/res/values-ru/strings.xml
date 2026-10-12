@@ -333,7 +333,7 @@
     <string name="manual_ngw">Расширенные настройки</string>
     <string name="instance_name">Адрес Веб ГИС</string>
     <string name="ngw_login_descr_1">Подключить Веб ГИС</string>
-    <string name="ngw_from_my_nextgis">Веб ГИС - это облачное хранилище геоданных. Укажите её данные, чтобы подключиться или <a href="https://my.nextgis.com/webgis/">создайте</a>, если у вас его еще нет.</string>
+    <string name="ngw_from_my_nextgis">Укажите данные Веб ГИС или <a href="https://my.nextgis.com/webgis/">создайте новую</a>.</string>
     <string name="guest">Гость</string>
     <string name="field_not_filled">Некоторые поля пустые</string>
     <string name="web_map">Веб карта</string>

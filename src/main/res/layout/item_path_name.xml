@@ -25,17 +25,15 @@
 <TextView
         xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/path_name"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:layout_marginBottom="10dp"
         android:layout_marginRight="5dp"
         android:gravity="start|top"
         android:textAppearance="?android:attr/textAppearanceSmall"
-        android:ellipsize="none"
         android:textStyle="bold"
         android:lines="1"
         android:minLines="1"
-        android:maxLines="1"
         android:background="?attr/sdf_buttonBackground"
         />

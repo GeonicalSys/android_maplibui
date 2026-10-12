@@ -46,7 +46,7 @@ public final class ChooseFeatureTypeDialog extends DialogFragment {
     }
 
     @NonNull @Override public Dialog onCreateDialog(Bundle saved) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext()).setTitle(R.string.choose_feature_type)
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(requireContext()).setTitle(R.string.choose_feature_type)
                 .setNegativeButton(R.string.cancel, (dialog, which) -> result(null));
         IGISApplication app = (IGISApplication)requireActivity().getApplication();
         VectorLayer layer = (VectorLayer)app.getMap().getLayerById(requireArguments().getInt("layer"));

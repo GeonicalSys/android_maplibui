@@ -2,12 +2,28 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-10
+last_verified: 2026-10-13
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/res/layout-land/fragment_ngw_login.xml
+    responsibility: Reflow Web GIS explanation and input/actions into two compact landscape columns before fitting the form, preserving field identities and the account-creation link.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGPreferenceActivity.java
+    responsibility: Host settings sections and ignore delayed invalidation after the owning Activity is finished or destroyed during rotation.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/view/ReflowingGuidanceHeader.java
+    responsibility: Keep direction and Close visible while moving complete instruction text below them when it cannot fit alongside.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/view/WrappingLabel.java
+    responsibility: Preserve complete words when wrapping instructions; fit only a word exceeding available width and restore the preferred system-scaled type when space returns.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
+    responsibility: Provide compatible native/AppCompat dialog builders with complete captions and local content fitting for enlarged-display non-list dialogs, preserving callbacks and normal list viewports.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/view/WrappingRow.java
+    responsibility: Wrap complete naturally measured labels and controls into centered rows with margins and RTL support.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/view/FittedPanelLayout.java
+    responsibility: Fit a single fully wrapped content block to its available width/height with a shared rendering and touch transform, restoring scale when space returns.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ToolbarTextFit.java
+    responsibility: Retain the preferred toolbar text size and locally fit overflowing titles within the actual toolbar bounds, restoring their preferred size when space returns.
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     responsibility: Reuse process-wide local HyperLog without overwriting the app format or preparing remote uploads; retain Collector form hash and recoverable installation gates.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
@@ -73,7 +89,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkGeometrySnapshot.java
     responsibility: Replace only the selected line or ring, preserve other members, normalize WKT closing duplicates and require two distinct line vertices or three distinct ring vertices in every nonempty member before finishing.
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/WalkRecordingPanel.java
-    responsibility: Expose one themed 48dp layer-name row with Save, Pause/Resume and Cancel icon targets, accessibility descriptions and tooltips; delegate all actions for confirmation, disable pause after Finish and retain point-lock/persistence notices without GPS accuracy or an overflow menu.
+    responsibility: Show the complete themed layer name beside or above Save, Pause/Resume and Cancel icon targets, fitting bounded height with matching touch transforms; retain accessibility, confirmation, post-Finish pause gating and point-lock/persistence notices.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ControlHelper.java
     responsibility: Isolate drawable alpha and tint per menu item and update enabled appearance safely for items with or without icons.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkGeometryInsertion.java

@@ -213,7 +213,7 @@ public class NGWResourcesListAdapter
                     if (adapter.mPathView != null) adapter.mPathView.onUpdate(restored.current);
                     if (host instanceof SelectNGWResourceActivity) ((SelectNGWResourceActivity) host).enableButton();
                 } else {
-                    adapter.mRestoreErrorDialog = new AlertDialog.Builder(host).setMessage(R.string.resource_selection_restore_failed)
+                    adapter.mRestoreErrorDialog = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(host).setMessage(R.string.resource_selection_restore_failed)
                             .setPositiveButton(R.string.resource_selection_retry,
                                     (dialog, which) -> adapter.restoreSelection(saved, skip))
                             .setNegativeButton(android.R.string.cancel, null).show();
@@ -901,7 +901,7 @@ public class NGWResourcesListAdapter
                     ((SelectNGWResourceActivity) activity).enableButton();
 
                 if (error != null && error.length() > 0) {
-                    new AlertDialog.Builder(activity)
+                    com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                             .setMessage(error)
                             .setPositiveButton(R.string.ok, null)
                             .create()

@@ -264,7 +264,7 @@ public final class ProjectScriptFormController {
         StringBuilder text = new StringBuilder();
         for (Message message : visible) { if (text.length() > 0) text.append("\n\n"); text.append(message.text); }
         boolean allow = !blocking;
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity)
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(activity)
                 .setTitle(R.string.project_scripts_notice_title).setMessage(text.toString())
                 .setPositiveButton(save && allow ? R.string.project_scripts_continue : android.R.string.ok, (d, which) -> {
                     if (allow) for (Message message : visible) acknowledged.add(message.key);

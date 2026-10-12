@@ -158,7 +158,7 @@ public class TracksActivity extends NGActivity implements ActionMode.Callback {
         if (mProgress != null)
             mProgress.dismiss();
 
-        AlertDialog builder = new AlertDialog.Builder(this)
+        AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this)
                 .setTitle(R.string.stats)
                 .setMessage(getString(R.string.trackpoints_stats, total, sent, last))
                 .setPositiveButton(R.string.ok, null).create();

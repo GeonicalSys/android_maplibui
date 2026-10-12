@@ -132,7 +132,7 @@ public final class NotificationHelper {
     }
 
     private static AlertDialog showLocationDialog(final Context context, String title, String info) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context);
         builder.setTitle(title).setMessage(info)
                 .setPositiveButton(R.string.action_settings,
                         new DialogInterface.OnClickListener() {

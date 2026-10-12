@@ -236,7 +236,7 @@ public class NGIDLoginFragment extends Fragment implements View.OnClickListener 
         helpTextView.setMovementMethod(LinkMovementMethod.getInstance());
 
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getContext());
         builder.setTitle(R.string.ngid_server_caption)
                 //.setView(editText)
                 .setView(view)

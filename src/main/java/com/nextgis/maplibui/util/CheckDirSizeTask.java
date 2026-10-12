@@ -142,7 +142,7 @@ public class CheckDirSizeTask extends AsyncTask<Void, Long, Boolean> {
             String free = getFileSize(mFree);
             String needed = getFileSize(mNeeded);
             String message = mActivity.getString(R.string.free_space_message, needed, free);
-            AlertDialog builder = new AlertDialog.Builder(mActivity).setTitle(R.string.not_enough_space).setMessage(message)
+            AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mActivity).setTitle(R.string.not_enough_space).setMessage(message)
                     .setPositiveButton(R.string.ok, null).create();
             builder.show();
         }

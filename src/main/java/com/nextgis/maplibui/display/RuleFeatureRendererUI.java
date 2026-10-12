@@ -193,7 +193,7 @@ public class RuleFeatureRendererUI extends RendererUI {
                         return;
                     }
 
-                    AlertDialog.Builder alert = new AlertDialog.Builder(getActivity());
+                    AlertDialog.Builder alert = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getActivity());
                     alert.setTitle(R.string.are_you_sure).setMessage(R.string.replace_field_rule)
                             .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                                 @Override
@@ -228,7 +228,7 @@ public class RuleFeatureRendererUI extends RendererUI {
             newRule.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+                    AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getActivity());
                     builder.setTitle(R.string.value).setSingleChoiceItems(mData, -1, mSelectedField, new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {

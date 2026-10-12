@@ -515,7 +515,7 @@ public final class ControlHelper
     }
 
     public static void showProDialog(final Context context) {
-        AlertDialog builder = new AlertDialog.Builder(context)
+        AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context)
                 .setTitle(R.string.pro_user_only)
                 .setMessage(R.string.get_pro)
                 .setPositiveButton(R.string.login, new DialogInterface.OnClickListener() {
@@ -537,7 +537,7 @@ public final class ControlHelper
 
 
     public static void showNoLoginDialog(final Context context) {
-        AlertDialog builder = new AlertDialog.Builder(context)
+        AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context)
                 .setTitle(R.string.login_requred_header)
                 .setMessage(R.string.login_requred)
                 .setPositiveButton(R.string.login, new DialogInterface.OnClickListener() {

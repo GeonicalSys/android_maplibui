@@ -531,7 +531,7 @@ class VectorLayerSettingsFragment2
 //            no: () -> Unit,
 //            cancel: () -> Unit
 //        ) {
-//            AlertDialog.Builder(context)
+//            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context)
 //                .setMessage(messageRes)
 //                .setNegativeButton(R.string.cancel) { _, _ -> no() }
 //                .setPositiveButton(positiveRes) { _, _ -> yes() }

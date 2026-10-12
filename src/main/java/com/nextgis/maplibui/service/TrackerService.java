@@ -1404,6 +1404,10 @@ public class TrackerService extends Service
 
 
     public static void showBackgroundDialog(final Activity context, final BackgroundPermissionCallback listener) {
+        if (context.isFinishing() || context.isDestroyed()) {
+            listener.onCancelled();
+            return;
+        }
         int okButton = R.string.ok;
         CharSequence backgroundPermissionTitle = context.getString(R.string.background_location_always);
         if (android.os.Build.VERSION.SDK_INT >= 30) {
@@ -1418,7 +1422,7 @@ public class TrackerService extends Service
             List<String> permslist = new ArrayList<>();
             permslist.add(Manifest.permission.ACCESS_COARSE_LOCATION);
             permslist.add(Manifest.permission.ACCESS_FINE_LOCATION);
-            new AlertDialog.Builder(context).setTitle(R.string.permissions)
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context).setTitle(R.string.permissions)
                     .setMessage(R.string.location_permissions)
                     .setPositiveButton(R.string.allow, (dialog, which) ->
                             ActivityCompat.requestPermissions(context,
@@ -1446,7 +1450,7 @@ public class TrackerService extends Service
             listener.beforeAndroid10(hasLocation);
             return;
         }
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context);
         builder.setTitle(R.string.background_location)
                .setMessage(message)
                .setPositiveButton(okButton, new DialogInterface.OnClickListener() {
@@ -1469,7 +1473,7 @@ public class TrackerService extends Service
                                    final String... permissions) {
         final Activity activity = activity1;
         if (true) {
-            androidx.appcompat.app.AlertDialog builder = new androidx.appcompat.app.AlertDialog.Builder(activity).setTitle(title)
+            androidx.appcompat.app.AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity).setTitle(title)
                     .setMessage(message)
                     .setPositiveButton(com.nextgis.maplibui.R.string.allow, (dialog, which) -> {
                         ActivityCompat.requestPermissions(activity, permissions, requestCode);})
