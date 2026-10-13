@@ -1,10 +1,20 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-13
+last_verified: 2026-10-14
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
+
+## Сетевая точка и автоматический GPS приложения
+
+CurrentLocationOverlay получает display-only Network estimate общего источника
+между обновлениями, сохраняя timestamp/accuracy. `onLocationUnavailable` означает,
+что допустимой display estimate больше нет; восьмисекундная свежесть по-прежнему
+обязательна для recording stream. Automatic background lease принадлежит app,
+не TrackerService/WalkEditService: его выключение или timeout не останавливают
+запись. Источник не сбрасывается при переходе с карты к форме, пока lease активен.
+
 
 ## Назначение
 
