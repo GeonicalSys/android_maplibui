@@ -27,12 +27,12 @@
         android:id="@+id/menu_edit_undo"
         android:icon="@drawable/ic_action_undo_dark"
         android:title="@string/undo"
-        app:showAsAction="always"/>
+        app:showAsAction="ifRoom"/>
     <item
         android:id="@+id/menu_edit_redo"
         android:icon="@drawable/ic_action_redo_dark"
         android:title="@string/redo"
-        app:showAsAction="always"/>
+        app:showAsAction="ifRoom"/>
     <item
         android:id="@+id/menu_edit_save"
         android:icon="@drawable/ic_action_save"

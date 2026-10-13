@@ -148,7 +148,7 @@ public class CreateFromQMSLayerDialog extends NGDialog {
             }
         }
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(mContextWeakRef.get());
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mContextWeakRef.get());
         builder.setTitle(mTitle).setView(R.layout.list_content)
                 .setPositiveButton(R.string.add, null)
                 .setNeutralButton(R.string.new_tms, new DialogInterface.OnClickListener() {
@@ -315,7 +315,7 @@ public class CreateFromQMSLayerDialog extends NGDialog {
                     new JSONObject(response.getResponseBody());
                     createLayer(response.getResponseBody(), contextWeakReference.get());
                 } catch (JSONException ignored) {
-                    new AlertDialog.Builder(getContext())
+                    com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getContext())
                             .setMessage(R.string.qms_unavailable)
                             .setPositiveButton(R.string.ok, null)
                             .create()
@@ -324,7 +324,7 @@ public class CreateFromQMSLayerDialog extends NGDialog {
                 }
 
             } else {
-                new AlertDialog.Builder(getContext())
+                com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getContext())
                         .setMessage(NetworkUtil.getError(mContextWeakRef.get(), response.getResponseCode()))
                         .setPositiveButton(R.string.ok, null)
                         .create()

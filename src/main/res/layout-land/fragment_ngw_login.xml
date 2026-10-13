@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Project:  NextGIS Mobile
+  ~ Purpose:  Mobile GIS for Android.
+  ~ Author:   Dmitry Baryshnikov (aka Bishop), bishop.dev@gmail.com
+  ~ Author:   NikitaFeodonit, nfeodonit@yandex.com
+  ~ Author:   Stanislav Petriakov, becomeglory@gmail.com
+  ~ ******************************************************************************
+  ~ Copyright (c) 2015-2016, 2020-2021 NextGIS, info@nextgis.com
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Lesser Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Lesser Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Lesser Public License
+  ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<com.nextgis.maplibui.view.FittedPanelLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:id="@+id/login_fit_panel" android:layout_width="match_parent" android:layout_height="match_parent">
+    <RelativeLayout android:layout_width="match_parent" android:layout_height="match_parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="8dp">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginEnd="12dp" android:orientation="vertical">
+                <ImageView android:layout_width="40dp" android:layout_height="40dp" android:layout_gravity="center_horizontal" android:adjustViewBounds="true" android:src="@drawable/ic_ngw" tools:ignore="ContentDescription" />
+                <TextView style="@style/TextAppearance.AppCompat.Large" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="@string/ngw_login_descr_1" android:textAppearance="?android:attr/textAppearanceMedium" android:textColor="@color/primary_dark" android:textStyle="bold" android:layout_marginBottom="4dp" />
+                <TextView android:id="@+id/login_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ngw_from_my_nextgis" android:layout_marginStart="4dp" android:layout_marginTop="4dp" android:layout_marginEnd="4dp" android:layout_marginBottom="4dp" />
+                <LinearLayout android:id="@+id/ll_manual" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:orientation="vertical">
+                    <TextView android:id="@+id/tip" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/manual_tip" />
+                    <TextView android:id="@+id/manual" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:text="@string/click_here" />
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <EditText android:id="@+id/url" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="2dp" android:autoLink="web" android:drawableEnd="@drawable/nextgis_addition" android:drawableRight="@drawable/nextgis_addition" android:hint="@string/instance_name" android:importantForAutofill="no" android:inputType="textUri" />
+                <EditText android:id="@+id/login" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="2dp" android:autofillHints="username" android:ems="10" android:hint="@string/user_name_ngw" android:inputType="textPersonName" />
+                <com.google.android.material.textfield.TextInputLayout android:id="@+id/password_layout" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="@string/password" app:endIconMode="password_toggle">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/password" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="2dp" android:autofillHints="password" android:ems="10" android:inputType="textPassword" />
+                </com.google.android.material.textfield.TextInputLayout>
+                <LinearLayout style="?android:attr/buttonBarStyle" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="8dp">
+                    <Button android:id="@+id/guest" style="?android:attr/buttonBarButtonStyle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" android:layout_margin="2dp" android:layout_weight="1" android:background="@drawable/light_button" android:text="@string/guest" android:textColor="@color/primary_dark" android:minHeight="48dp" android:singleLine="false" android:paddingTop="8dp" android:paddingBottom="8dp" />
+                    <Button android:id="@+id/signin" style="?android:attr/buttonBarButtonStyle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" android:layout_margin="2dp" android:layout_weight="1" android:background="@drawable/dark_button" android:text="@string/login" android:textColor="@color/color_white" android:minHeight="48dp" android:singleLine="false" android:paddingTop="8dp" android:paddingBottom="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+        <RelativeLayout android:id="@+id/progressArea" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/background" android:visibility="gone">
+            <ProgressBar android:id="@+id/progress" android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="center" android:layout_gravity="center" android:indeterminate="true" android:indeterminateOnly="true" android:visibility="visible" android:layout_centerInParent="true" />
+        </RelativeLayout>
+    </RelativeLayout>
+</com.nextgis.maplibui.view.FittedPanelLayout>

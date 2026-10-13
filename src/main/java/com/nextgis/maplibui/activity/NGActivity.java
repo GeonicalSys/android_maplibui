@@ -154,6 +154,7 @@ public class NGActivity
         }
         toolbar.getBackground().setAlpha(getToolbarAlpha());
         setSupportActionBar(toolbar);
+        com.nextgis.maplibui.util.ToolbarTextFit.attach(toolbar);
 
         if (null != getSupportActionBar()) {
             getSupportActionBar().setHomeButtonEnabled(true);

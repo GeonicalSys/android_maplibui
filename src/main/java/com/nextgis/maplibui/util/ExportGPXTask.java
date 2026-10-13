@@ -112,7 +112,7 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
 
             mIsChosen = false;
             if (!onlyResult) {
-                AlertDialog.Builder mDialog = new AlertDialog.Builder(mActivity);
+                AlertDialog.Builder mDialog = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mActivity);
                 mDialog.setTitle(R.string.menu_share).setMessage(R.string.share_gpx_multiple)
                         .setPositiveButton(R.string.share_gpx_together, this)
                         .setNeutralButton(android.R.string.cancel, this)

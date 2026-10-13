@@ -96,7 +96,7 @@ public final class UiUtil {
         } catch (ActivityNotFoundException e) {
             if (showInfoDialog) {
                 String info = activity.getString(R.string.get_file_manually, file.getName(), file.getAbsolutePath());
-                AlertDialog.Builder dialog = new AlertDialog.Builder(activity);
+                AlertDialog.Builder dialog = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity);
                 dialog.setTitle(R.string.error_file_create)
                         .setMessage(info)
                         .setPositiveButton(R.string.ok, null)
@@ -129,7 +129,7 @@ public final class UiUtil {
                         Toast.makeText(activity, R.string.save_complete, Toast.LENGTH_LONG).show();
 
                     } catch (Exception ex) {
-                        new AlertDialog.Builder(activity)
+                        com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                                 .setMessage(R.string.error_on_save)
                                 .setPositiveButton(R.string.ok, null)
                                 .create()
@@ -143,7 +143,7 @@ public final class UiUtil {
                 }
             }
         } catch (Exception exception){
-            new AlertDialog.Builder(activity)
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                     .setMessage(R.string.error_on_save)
                     .setPositiveButton(R.string.ok, null)
                     .create()

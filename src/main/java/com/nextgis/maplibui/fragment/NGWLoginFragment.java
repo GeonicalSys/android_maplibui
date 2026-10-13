@@ -222,7 +222,7 @@ public class NGWLoginFragment
             }
 
             if (!NetworkUtil.isValidUri(mUrlText)) {
-                new AlertDialog.Builder(getContext())
+                com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getContext())
                         .setMessage(R.string.error_invalid_url)
                         .setPositiveButton(R.string.ok, null)
                         .create()

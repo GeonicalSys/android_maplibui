@@ -81,7 +81,7 @@ public class NGWWebMapLayerUI extends NGWWebMapLayer implements ILayerUI {
             visible[i] = mChildren.get(i).isVisible();
         }
 
-        final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        final AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity);
         builder.setTitle(R.string.track_list)
                 .setMultiChoiceItems(names, visible, new DialogInterface.OnMultiChoiceClickListener() {
                     @Override

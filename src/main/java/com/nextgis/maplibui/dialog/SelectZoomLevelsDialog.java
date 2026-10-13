@@ -155,7 +155,7 @@ public class SelectZoomLevelsDialog extends DialogFragment {
         else
             zoom = map.getZoomLevel();
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(context);
         builder.setTitle(
                 String.format(getString(R.string.current_zoom),zoom))
                 .setView(view).setPositiveButton(

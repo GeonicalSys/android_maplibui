@@ -144,7 +144,7 @@ public class Averaging extends LinearLayout implements IFormControl, View.OnClic
     private void createDialog() {
         final EditText editText = new EditText(getContext());
         editText.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getContext());
         String title = getContext().getString(R.string.averaging_enter_value, mDoneMeasures + 1, mMeasures);
         builder.setTitle(title).setView(editText).setPositiveButton(R.string.average_next, new DialogInterface.OnClickListener() {
             @Override

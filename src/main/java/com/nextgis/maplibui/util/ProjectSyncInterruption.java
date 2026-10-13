@@ -25,7 +25,7 @@ public final class ProjectSyncInterruption {
         if (activity == null || action == null || !ProjectOperationCoordinator.isDataSyncActive()) {
             return false;
         }
-        new AlertDialog.Builder(activity)
+        com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                 .setTitle(R.string.sync_interrupt_title)
                 .setMessage(R.string.sync_interrupt_message)
                 .setNegativeButton(R.string.cancel, null)
@@ -38,7 +38,7 @@ public final class ProjectSyncInterruption {
                         return;
                     }
                     AtomicBoolean actionCanceled = new AtomicBoolean();
-                    AlertDialog waiting = new AlertDialog.Builder(activity)
+                    AlertDialog waiting = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity)
                             .setTitle(R.string.sync_interrupt_title)
                             .setMessage(waitMessage(activity))
                             .setNegativeButton(R.string.cancel,

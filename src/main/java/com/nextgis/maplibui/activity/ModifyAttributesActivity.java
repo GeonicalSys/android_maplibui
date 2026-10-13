@@ -303,7 +303,7 @@ public class ModifyAttributesActivity
                             refreshLocation.startAnimation(rotateAnimation);
 
                             if (mAccurateLocation.isChecked()) {
-                                AlertDialog.Builder builder = new AlertDialog.Builder(ModifyAttributesActivity.this);
+                                AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(ModifyAttributesActivity.this);
                                 View layout = View.inflate(ModifyAttributesActivity.this, R.layout.dialog_progress_accurate_location, null);
                                 TextView message = layout.findViewById(R.id.message);
                                 final ProgressBar progress = layout.findViewById(R.id.progress);
@@ -768,7 +768,7 @@ public class ModifyAttributesActivity
     private boolean checkEdits() {
         if (mFormSaving) return true;
         if (hasEdits() && !mIsViewOnly) {
-            AlertDialog builder = new AlertDialog.Builder(this)
+            AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this)
                     .setTitle(R.string.save)
                     .setMessage(R.string.has_edits)
                     .setPositiveButton(R.string.save, new DialogInterface.OnClickListener() {
@@ -866,7 +866,7 @@ public class ModifyAttributesActivity
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R && !PermissionUtil.hasPermission(this, read)) {
 
-            new AlertDialog.Builder(this)
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this)
                     .setMessage(R.string.no_permission_granted)
                     .setPositiveButton(R.string.ok, (dialog, which) -> {
                         List<String> permslist = new ArrayList<>();
@@ -1101,7 +1101,7 @@ public class ModifyAttributesActivity
                 && isDestroyed())) {
             return;
         }
-        new AlertDialog.Builder(this)
+        com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this)
                 .setMessage(messageResId)
                 .setPositiveButton(R.string.ok, null)
                 .create()
@@ -1316,7 +1316,7 @@ public class ModifyAttributesActivity
                     RequiredFieldUi.fieldView(field, mFields), getString(R.string.form_fill_required));
             if (target == null) message.append("\n\n").append(
                     getString(R.string.form_required_field_unavailable));
-            new AlertDialog.Builder(this)
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this)
                     .setTitle(R.string.form_required_fields_title)
                     .setMessage(message)
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> {

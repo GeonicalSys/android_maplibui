@@ -175,7 +175,7 @@ class LayerGeneralSettingsFragment2
 //            val deleteButton = view.findViewById<Button>(R.id.delete_features)
 //            deleteButton.visibility = View.VISIBLE
 //            deleteButton.setOnClickListener {
-//                AlertDialog.Builder(requireContext())
+//                com.nextgis.maplibui.util.FittedDialogs.compatBuilder(requireContext())
 //                    .setTitle(R.string.are_you_sure)
 //                    .setMessage(R.string.delete_features)
 //                    .setNegativeButton(R.string.cancel, null)

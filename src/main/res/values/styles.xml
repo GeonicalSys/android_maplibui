@@ -60,6 +60,11 @@
     <style name="Theme.NextGIS.AppCompat.Light.Base"
            parent="Theme.AppCompat.Light.NoActionBar">
         <item name="isLightTheme">true</item>
+        <item name="buttonBarButtonStyle">@style/Widget.NextGIS.DialogButton</item>
+        <item name="android:buttonBarButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>
@@ -104,6 +109,11 @@
     <style name="Theme.NextGIS.AppCompat.Dark.Base"
            parent="Theme.AppCompat.NoActionBar">
         <item name="isLightTheme">false</item>
+        <item name="buttonBarButtonStyle">@style/Widget.NextGIS.DialogButton</item>
+        <item name="android:buttonBarButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/Widget.NextGIS.NativeDialogButton</item>
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>

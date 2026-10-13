@@ -140,7 +140,7 @@ public class NGWLoginActivity
                                    final String... permissions) {
         final Activity activity = activity1;
         if (true) {
-            androidx.appcompat.app.AlertDialog builder = new androidx.appcompat.app.AlertDialog.Builder(activity).setTitle(title)
+            androidx.appcompat.app.AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(activity).setTitle(title)
                     .setMessage(message)
                     .setPositiveButton(com.nextgis.maplibui.R.string.allow, (dialog, which) -> {
                         ActivityCompat.requestPermissions(activity, permissions, requestCode);})

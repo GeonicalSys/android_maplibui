@@ -215,7 +215,7 @@ public class LayerGeneralSettingsFragment extends Fragment {
             deleteFeatures.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    AlertDialog builder = new AlertDialog.Builder(getActivity())
+                    AlertDialog builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(getActivity())
                             .setTitle(R.string.are_you_sure)
                             .setMessage(R.string.delete_features)
                             .setNegativeButton(R.string.cancel, null)

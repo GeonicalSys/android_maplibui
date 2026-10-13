@@ -26,46 +26,41 @@
               android:id="@+id/resource_radio_row"
               android:orientation="horizontal"
               android:layout_width="fill_parent"
-              android:layout_height="?android:attr/listPreferredItemHeight"
+              android:layout_height="wrap_content"
+        android:minHeight="48dp"
     >
 
     <ImageView
         android:id="@+id/ivIcon"
         android:layout_width="32dp"
-        android:layout_height="fill_parent"
+        android:layout_height="48dp"
         android:layout_margin="5dp"
         android:layout_gravity="center"
         />
 
     <LinearLayout
         android:orientation="vertical"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
         android:layout_weight="1"
         >
 
         <TextView
             android:id="@+id/tvName"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:gravity="center_vertical"
             android:textAppearance="?android:attr/textAppearanceMedium"
-            android:ellipsize="end"
             android:textStyle="bold"
             android:layout_margin="2dp"
-            android:singleLine="true"
-            android:maxLines="1"
             />
 
         <TextView
             android:id="@+id/tvDesc"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="0"
             android:gravity="center_vertical"
             android:textAppearance="?android:attr/textAppearanceSmall"
-            android:ellipsize="marquee"
             android:layout_margin="2dp"
             />
     </LinearLayout>

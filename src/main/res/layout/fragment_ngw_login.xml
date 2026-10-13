@@ -21,6 +21,8 @@
   ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
   -->
 
+<com.nextgis.maplibui.view.FittedPanelLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/login_fit_panel" android:layout_width="match_parent" android:layout_height="match_parent">
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
@@ -148,25 +150,33 @@
                 android:id="@+id/guest"
                 style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_margin="10dp"
                 android:layout_weight="1"
                 android:background="@drawable/light_button"
                 android:text="@string/guest"
-                android:textColor="@color/primary_dark" />
+                android:textColor="@color/primary_dark"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
 
             <Button
                 android:id="@+id/signin"
                 style="?android:attr/buttonBarButtonStyle"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_margin="10dp"
                 android:layout_weight="1"
                 android:background="@drawable/dark_button"
                 android:text="@string/login"
-                android:textColor="@color/color_white" />
+                android:textColor="@color/color_white"
+        android:minHeight="48dp"
+        android:singleLine="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
         </LinearLayout>
 
         <LinearLayout
@@ -218,3 +228,4 @@ android:visibility="gone">
 
 </RelativeLayout>
 </RelativeLayout>
+</com.nextgis.maplibui.view.FittedPanelLayout>

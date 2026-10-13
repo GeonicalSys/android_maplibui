@@ -581,7 +581,7 @@ public class NGWSettingsFragment
             }
         };
 
-        final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(mStyledContext);
+        final AlertDialog.Builder dialogBuilder = com.nextgis.maplibui.util.FittedDialogs.nativeBuilder(mStyledContext);
         dialogBuilder.setIcon(R.drawable.ic_action_warning_light)
                 .setTitle(getString(R.string.ngw_account_delete) + "?")
                 .setMessage(mDeleteAccountWarnMsg)

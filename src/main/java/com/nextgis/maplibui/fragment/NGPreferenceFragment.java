@@ -95,6 +95,14 @@ public abstract class NGPreferenceFragment
             @Override
             public void onBindViewHolder(PreferenceViewHolder holder, int position) {
                 super.onBindViewHolder(holder, position);
+                for (int id : new int[]{android.R.id.title, android.R.id.summary}) {
+                    android.widget.TextView label = (android.widget.TextView) holder.findViewById(id);
+                    if (label != null) {
+                        label.setSingleLine(false);
+                        label.setMaxLines(Integer.MAX_VALUE);
+                        label.setEllipsize(null);
+                    }
+                }
                 Preference preference = getItem(position);
                 if (preference instanceof PreferenceCategory)
                     setZeroPaddingToLayoutChildren(holder.itemView);

@@ -317,7 +317,7 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
 
                                                 final String[] items = {one, two};
 
-                                                AlertDialog.Builder builder = new AlertDialog.Builder(arg0.getContext());
+                                                AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(arg0.getContext());
                                                 builder.setTitle(R.string.export_options);
                                                 updateChoise(0);
                                                 builder.setSingleChoiceItems(items, 0, new DialogInterface.OnClickListener() {
@@ -432,7 +432,7 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
 
     private boolean deleteLayer(final ILayer layer) {
         boolean shared = layer instanceof LocalTMSLayer && ((LocalTMSLayer) layer).isSharedUnderlay();
-        new AlertDialog.Builder(mActivity.get()).setTitle(R.string.are_you_sure)
+        com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mActivity.get()).setTitle(R.string.are_you_sure)
                 .setMessage(shared ? R.string.underlay_unlink_confirm : R.string.delete_confirm)
                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                    @Override

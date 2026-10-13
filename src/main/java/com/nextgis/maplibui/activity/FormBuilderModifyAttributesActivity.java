@@ -412,7 +412,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
         final Spinner spinner = (Spinner) View.inflate(this, R.layout.table_select_row, null);
         spinner.setAdapter(spinnerMenu);
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this);
         builder.setTitle(R.string.select_row).setView(spinner)
                 .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
@@ -811,12 +811,12 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
 
     @Override protected boolean validateFormValues(ContentValues values) {
         if (mRequiredRulesInvalid) {
-            new AlertDialog.Builder(this).setMessage(R.string.form_rules_unavailable).setPositiveButton(android.R.string.ok,null).show();
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this).setMessage(R.string.form_rules_unavailable).setPositiveButton(android.R.string.ok,null).show();
             return false;
         }
         refreshRequiredMarkers();
         if (mCascadesInvalid) {
-            new AlertDialog.Builder(this).setMessage(R.string.form_cascade_unavailable)
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this).setMessage(R.string.form_cascade_unavailable)
                     .setPositiveButton(android.R.string.ok, null).show();
             return false;
         }
@@ -828,7 +828,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
         for (String name : invalid) captions.add(mLayer.getFieldByName(name).getAlias());
         View target = com.nextgis.maplibui.util.RequiredFieldUi.fieldView(
                 mLayer.getFieldByName(invalid.get(0)), mFields);
-        new AlertDialog.Builder(this).setTitle(R.string.form_cascade_invalid_title)
+        com.nextgis.maplibui.util.FittedDialogs.compatBuilder(this).setTitle(R.string.form_cascade_invalid_title)
                 .setMessage(getString(R.string.form_cascade_invalid, android.text.TextUtils.join(", ", captions)))
                 .setPositiveButton(android.R.string.ok, (dialog, which) ->
                         com.nextgis.maplibui.util.RequiredFieldUi.reveal(findViewById(R.id.controls_list),

@@ -191,8 +191,8 @@ public class SelectNGWResourceDialog
         LinearLayout pathView = (LinearLayout) view.findViewById(R.id.path);
         mListAdapter.setPathLayout(pathView);
 
-//        AlertDialog.Builder builder = new AlertDialog.Builder(mContext, mDialogTheme);
-        AlertDialog.Builder builder = new AlertDialog.Builder(mContextWeakRef.get());
+//        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mContext, mDialogTheme);
+        AlertDialog.Builder builder = com.nextgis.maplibui.util.FittedDialogs.compatBuilder(mContextWeakRef.get());
         builder.setTitle(mTitle)
                 .setIcon(R.drawable.ic_ngw)
                 .setView(view)
@@ -385,7 +385,7 @@ public class SelectNGWResourceDialog
                     context, ProjectOperationCoordinator.Kind.LAYER_FILL);
         }
         if (importLease == null) {
-            new AlertDialog.Builder(context)
+            com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context)
                     .setTitle(R.string.ngw_collector_import_busy_title)
                     .setMessage(R.string.ngw_collector_import_busy_message)
                     .setPositiveButton(android.R.string.ok, null)
@@ -601,7 +601,7 @@ public class SelectNGWResourceDialog
                         "Collector import (dialog): workspace switch blocked by active operation"
                                 + " remoteId=" + collector.getRemoteId()
                                 + " account=" + connection.getName());
-                new AlertDialog.Builder(context)
+                com.nextgis.maplibui.util.FittedDialogs.compatBuilder(context)
                         .setTitle(R.string.ngw_collector_import_busy_title)
                         .setMessage(R.string.ngw_collector_import_busy_message)
                         .setPositiveButton(android.R.string.ok, null)
