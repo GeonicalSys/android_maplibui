@@ -2917,6 +2917,10 @@ public abstract class GISApplication extends Application
     }
 
 
+    @Override public void onLocalChangesCommitted(MapBase map) {
+        com.nextgis.maplibui.mapui.LocalChangesWorker.schedule(this, map);
+    }
+
     public void resetSyncTime(){
 
         AccountManager mAccountManager = AccountManager.get(this);

@@ -8,6 +8,8 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LocalChangesWorker.java
+    responsibility: Deliver committed local edits using a network-constrained per-map one-off queue and periodic recovery, retaining errors and never writing full-sync clocks.
   - path: maplibui/src/main/res/layout-land/fragment_ngw_login.xml
     responsibility: Reflow Web GIS explanation and input/actions into two compact landscape columns before fitting the form, preserving field identities and the account-creation link.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGPreferenceActivity.java

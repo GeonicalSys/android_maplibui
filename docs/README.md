@@ -6,6 +6,20 @@ last_verified: 2026-10-14
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
+## Доставка сохранённых локальных изменений
+
+GISApplication направляет after-commit callback нижней библиотеки в
+LocalChangesWorker. События карты объединяются за секунду в network-constrained
+one-off цепочку APPEND_OR_REPLACE; startup и 15-минутный recovery job подбирают
+оставшиеся очереди. Работает независимо от account full-sync enabled, соблюдая
+remote read-only, направление to-server, SYNC_NONE и отдельные Save-флаги.
+Штатный sendLocalChanges подтверждает только принятые сервером изменения.
+DATA_SYNC lease и SyncWorkspaceSession удерживают owner до children/HTTP окончания;
+равные layer IDs разных карт не смешиваются и активные preferences не меняются.
+Worker не пишет full-project clock и не выполняет полный pull. Network/HTTP
+ошибка возвращает retry с сохранением данных. Native LocalChangesUploadTest
+использует synthetic account и реальный loopback NGW только на isolated emulator.
+
 ## Сетевая точка и автоматический GPS приложения
 
 CurrentLocationOverlay получает display-only Network estimate общего источника
