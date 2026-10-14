@@ -8,6 +8,8 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java
+    responsibility: Give each API 29+ script execution a unique isolated service binding to avoid Android 16 late-teardown races; retain deadlines, cleanup and API 26-28 fallback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
     responsibility: Preserve native bounded viewport of nested adapter lists instead of fitting the whole custom dialog with unconstrained measurement.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LocalChangesWorker.java

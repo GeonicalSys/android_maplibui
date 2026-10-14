@@ -534,3 +534,12 @@ Native LayerSelectionDialogTest consumer app проверяет viewport, пол
 каждый geometry choice и Cancel реальным касанием в 36 UI profiles.
 ProjectLayerSelectionTest проверяет реальный состав разрешённого проекта.
 Контракт: [интерфейс](../../docs/architecture/ui-accessibility.md).
+
+## Последовательный запуск скриптов
+
+ProjectScriptClient на API 29+ привязывает каждый запрос через отдельный
+bindIsolatedService instanceName. Это устраняет гонку быстрого unbind/rebind
+на Samsung Android 16, обнаруженную Full phone suite. API 26–28 сохраняют
+bindService fallback, deadline и обязательное освобождение binding.
+ProjectScriptsTest проверяет настоящие JNI/Binder/UID и последовательные
+вызовы на смартфоне; [контракт](../../docs/architecture/project-scripts.md).
