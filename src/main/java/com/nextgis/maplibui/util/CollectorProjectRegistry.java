@@ -377,8 +377,11 @@ public final class CollectorProjectRegistry {
                 if (legacyMap != null) {
                     try {
                         com.nextgis.maplib.util.SharedUnderlayStore.migrateWorkspace(context, legacyMap);
+                        com.nextgis.maplib.map.SharedTrackStore tracks = com.nextgis.maplib.map.SharedTrackStore.get(context);
+                        tracks.migrateWorkspace(legacyMap.getParentFile());
                         LegacyMapWorkspaceCopier.copy(
                                 legacyMap, new File(initial.getMapPath()), initial.getMapName());
+                        tracks.registerWorkspaceCopy(legacyMap.getParentFile(), new File(initial.getMapPath()));
                         HyperLog.i(Constants.TAG,
                                 "CollectorProjectRegistry: legacy map copied into initial local project");
                     } catch (IOException | JSONException | RuntimeException e) {
@@ -620,6 +623,8 @@ public final class CollectorProjectRegistry {
                 }
 
                 try {
+                    com.nextgis.maplib.map.SharedTrackStore.get(context)
+                            .migrateWorkspace(new File(target.getMapPath()));
                     com.nextgis.maplib.util.SharedUnderlayStore.migrateWorkspace(context,
                             new File(target.getMapPath(), target.getMapName() + ".ngm"));
                 } catch (IOException e) {

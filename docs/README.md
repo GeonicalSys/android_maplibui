@@ -1,10 +1,42 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-13
+last_verified: 2026-10-14
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
+
+## Общая история треков и проверки обычных стилей
+
+SharedTrackProjects migrates every registered history before recording/upload and
+translates saved track ownership. TrackWorker is one application queue; TrackUploader
+ACKs common point IDs without a project lease. Switch recording guards remain.
+Startup migration pending state is observable for isolated fixtures. Contracts:
+consuming root docs/architecture/shared-tracks.md and classic-style-verification.md.
+
+## Доставка сохранённых локальных изменений
+
+GISApplication направляет after-commit callback нижней библиотеки в
+LocalChangesWorker. События карты объединяются за секунду в network-constrained
+one-off цепочку APPEND_OR_REPLACE; startup и 15-минутный recovery job подбирают
+оставшиеся очереди. Работает независимо от account full-sync enabled, соблюдая
+remote read-only, направление to-server, SYNC_NONE и отдельные Save-флаги.
+Штатный sendLocalChanges подтверждает только принятые сервером изменения.
+DATA_SYNC lease и SyncWorkspaceSession удерживают owner до children/HTTP окончания;
+равные layer IDs разных карт не смешиваются и активные preferences не меняются.
+Worker не пишет full-project clock и не выполняет полный pull. Network/HTTP
+ошибка возвращает retry с сохранением данных. Native LocalChangesUploadTest
+использует synthetic account и реальный loopback NGW только на isolated emulator.
+
+## Сетевая точка и автоматический GPS приложения
+
+CurrentLocationOverlay получает display-only Network estimate общего источника
+между обновлениями, сохраняя timestamp/accuracy. `onLocationUnavailable` означает,
+что допустимой display estimate больше нет; восьмисекундная свежесть по-прежнему
+обязательна для recording stream. Automatic background lease принадлежит app,
+не TrackerService/WalkEditService: его выключение или timeout не останавливают
+запись. Источник не сбрасывается при переходе с карты к форме, пока lease активен.
+
 
 ## Назначение
 
@@ -41,9 +73,10 @@ workspace lease, а общий `TrackUploader` не выполняет реги�
 разный порядок ключей не ломает sync, реальные изменения по-прежнему блокируют
 установку до замены предыдущей пары файлов.
 
-TrackUploader обслуживает живой recorder и WorkManager через захваченный TrackLayer;
+TrackUploader обслуживает живой recorder и WorkManager через общую базу треков;
 ошибка регистрации/сервера оставляет SQLite outbox для повтора. TrackWorker
-владеет отдельными заданиями каждого workspace, не переключая активную карту.
+владеет одной очередью установки, не переключая активную карту. Старые задания
+workspace завершаются и планируют общую очередь без чтения старых таблиц.
 TrackRegistrationState сохраняет подтверждение регистрации для точной пары
 сервер/UID. До первого подтверждения или после registered=false отметки трека
 скрыты; сетевой сбой не снимает прежнее подтверждение. Intent остаётся независимым.
@@ -498,3 +531,24 @@ callback, provider URI и service ticket до фактического заве�
 пользовательская инструкция: docs/guides/project-synchronization-user-guide.md.
 Перед изменениями читать оба документа. Нельзя заменить изоляцию временным
 переключением глобальной карты или prefs, либо закрыть БД по timeout при живом child.
+
+## Многорядный выбор слоя
+
+FittedDialogs не оборачивает в FittedPanelLayout весь диалог с вложенным
+AbsListView/RecyclerView, включая custom `AlertDialog.setView`. При
+UNSPECIFIED height ListView измерял только первую строку, скрывая остальные
+слои при увеличенном системном интерфейсе. Список сохраняет bounded native
+viewport и обычную прокрутку; фильтрация разрешённых слоёв не менялась.
+Native LayerSelectionDialogTest consumer app проверяет viewport, полный текст,
+каждый geometry choice и Cancel реальным касанием в 36 UI profiles.
+ProjectLayerSelectionTest проверяет реальный состав разрешённого проекта.
+Контракт: [интерфейс](../../docs/architecture/ui-accessibility.md).
+
+## Последовательный запуск скриптов
+
+ProjectScriptClient на API 29+ привязывает каждый запрос через отдельный
+bindIsolatedService instanceName. Это устраняет гонку быстрого unbind/rebind
+на Samsung Android 16, обнаруженную Full phone suite. API 26–28 сохраняют
+bindService fallback, deadline и обязательное освобождение binding.
+ProjectScriptsTest проверяет настоящие JNI/Binder/UID и последовательные
+вызовы на смартфоне; [контракт](../../docs/architecture/project-scripts.md).

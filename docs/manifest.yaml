@@ -2,12 +2,20 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-13
+last_verified: 2026-10-14
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedTrackProjects.java
+    responsibility: Import all registered histories before track work and translate legacy recording preferences to common ownership.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java
+    responsibility: Give each API 29+ script execution a unique isolated service binding to avoid Android 16 late-teardown races; retain deadlines, cleanup and API 26-28 fallback.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
+    responsibility: Preserve native bounded viewport of nested adapter lists instead of fitting the whole custom dialog with unconstrained measurement.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LocalChangesWorker.java
+    responsibility: Deliver committed local edits using a network-constrained per-map one-off queue and periodic recovery, retaining errors and never writing full-sync clocks.
   - path: maplibui/src/main/res/layout-land/fragment_ngw_login.xml
     responsibility: Reflow Web GIS explanation and input/actions into two compact landscape columns before fitting the form, preserving field identities and the account-creation link.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGPreferenceActivity.java
@@ -29,9 +37,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
     responsibility: Scope persisted positive registration to the exact server and UID, hide pending track badges before confirmation or after explicit revocation and retain known registration across transport failures without changing upload intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackUploader.java
-    responsibility: Defer disconnected live/worker delivery before registration and each packet without disabling intent; upload captured-layer packets under a shared lock and acknowledge only accepted rowids after success.
+    responsibility: Defer disconnected live/worker delivery before registration and each packet without disabling intent; upload the application track store under a shared lock and acknowledge only accepted stable point IDs after success.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackWorker.java
-    responsibility: Persist per-workspace network-constrained immediate and periodic delivery, retain unsent points for registration/network retry and load registered background maps without changing the active workspace.
+    responsibility: Persist one application-wide network-constrained immediate and periodic track queue, retain unsent points for registration/network retry and retire legacy project jobs without reopening old track tables or acquiring project leases.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/ChooseFeatureTypeDialog.java
     responsibility: Load project style categories off the UI thread and return one explicit typed creation selection and its sketch/location/walk continuation through a recreation-safe fragment result; use nonselectable list headers for loading/failure so long lists retain a visible Cancel button.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypeDefaults.java
@@ -79,7 +87,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java
     responsibility: Encode account/server plus remote resource paths and selected flags without trees or credentials, and resolve new process-local IDs off the main thread using current accounts.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedUnderlayProjects.java
-    responsibility: Coordinate migration, catalog usage, duplicate-safe attach and global unlink under a project lease.
+    responsibility: Coordinate migration, catalog usage, duplicate-safe attach and global unlink under a project lease; expose pending startup migration to isolated native fixture readiness checks.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
     responsibility: Atomically persist typed new-object category defaults with one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel, including revision and snapshot acknowledgement used by startup repair.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionRecoveryPolicy.java
@@ -179,6 +187,10 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
     responsibility: Recoverable stroke state and checked atomic signature output.
 public_contracts:
+  - id: scrolling-dialog-viewport
+    symbol: FittedDialogs.nativeBuilder and compatBuilder preserve nested adapter viewport
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
+    consumers: [app]
   - id: track-registration-indication
     symbol: TrackRegistrationState.canShowPending and registration preference keys
     path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
@@ -231,8 +243,9 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
   - id: geometry_edit_draft
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
-invariant_refs: [INV-LOCAL-LOG-STARTUP, INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
+invariant_refs: [INV-SCROLLING-DIALOG-VIEWPORT, INV-MOBILE-PUBLICATION-ACCEPTANCE, INV-LOCAL-LOG-STARTUP, INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
 global_docs:
+  - docs/runbooks/automated-tests.md
   - docs/guides/project-synchronization-user-guide.md
   - docs/architecture/conditional-form-rules.md
   - docs/guides/form-behavior-user-guide.md
@@ -244,5 +257,5 @@ global_docs:
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [SMOKE-WALK, SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
+smoke_tests: [AUTO-MOBILE-RELATED, AUTO-MOBILE-FULL, AUTO-MOBILE-PUBLICATION-GATE, SMOKE-LAYER-CHOOSER, SMOKE-WALK, SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
 upstream_hotspots: [LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]

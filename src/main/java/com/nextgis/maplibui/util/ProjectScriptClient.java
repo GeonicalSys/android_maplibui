@@ -29,7 +29,14 @@ public final class ProjectScriptClient {
             @Override public void onBindingDied(ComponentName name) { remote.set(null); ready.countDown(); }
         };
         Context app = context.getApplicationContext();
-        boolean bound = app.bindService(new Intent(app, ProjectScriptService.class), connection, Context.BIND_AUTO_CREATE);
+        Intent intent = new Intent(app, ProjectScriptService.class);
+        // Android 16 can still be terminating the preceding isolated instance when the next
+        // script binds. Give each execution its own identity so a late teardown cannot kill it.
+        boolean bound = android.os.Build.VERSION.SDK_INT >= 29
+                ? app.bindIsolatedService(intent, Context.BIND_AUTO_CREATE,
+                        "script_" + java.util.UUID.randomUUID().toString().replace("-", ""),
+                        app.getMainExecutor(), connection)
+                : app.bindService(intent, connection, Context.BIND_AUTO_CREATE);
         if (!bound) throw new IllegalStateException("Script sandbox unavailable");
         try {
             if (!ready.await(3, TimeUnit.SECONDS) || remote.get() == null) throw new IllegalStateException("Sandbox binding failed");

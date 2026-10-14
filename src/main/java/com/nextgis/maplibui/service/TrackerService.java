@@ -228,12 +228,13 @@ public class TrackerService extends Service
                 ContextCompat.RECEIVER_NOT_EXPORTED);
         mSharedPreferencesTemp = getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE);
         try {
+            com.nextgis.maplibui.util.SharedTrackProjects.prepare(this);
             mRecordingMap = (MapContentProviderHelper) application.getMap();
             mTrackLayer = (TrackLayer) MapContentProviderHelper.getVectorLayerByPath(
                     mRecordingMap, TrackLayer.TABLE_TRACKS);
             com.nextgis.maplibui.mapui.TrackWorker.schedule(this, mRecordingMap);
             if (mTrackLayer == null) throw new IOException("Track layer is unavailable");
-            mPendingPoints = new PendingTrackPoints(mRecordingMap.getPath());
+            mPendingPoints = new PendingTrackPoints(com.nextgis.maplib.map.SharedTrackStore.get(this).getDirectory());
         } catch (IOException | RuntimeException error) {
             mQueueError = error;
             HyperLog.w(Constants.TAG, "Cannot open pending track storage", error);
@@ -472,7 +473,7 @@ public class TrackerService extends Service
 
         String savedMap = mSharedPreferencesTemp.getString(TRACK_MAP, null);
         if (mQueueError != null || savedMap != null
-                && !savedMap.equals(mRecordingMap.getPath().getAbsolutePath())) {
+                && !savedMap.equals(com.nextgis.maplib.map.SharedTrackStore.get(this).getDirectory().getAbsolutePath())) {
             initTargetIntent(intent == null ? null : intent.getStringExtra(ConstantsUI.TARGET_CLASS));
             addStartingNotification();
             reportTrackPersistenceFailure();
@@ -702,7 +703,7 @@ public class TrackerService extends Service
                 // save vars
                 mTrackId = newTrack.getLastPathSegment();
                 if (!mSharedPreferencesTemp.edit().putString(TRACK_URI, newTrack.toString())
-                        .putString(TRACK_MAP, mRecordingMap.getPath().getAbsolutePath()).commit()
+                        .putString(TRACK_MAP, com.nextgis.maplib.map.SharedTrackStore.get(this).getDirectory().getAbsolutePath()).commit()
                         || !checkpointRecordingIntent(this, true))
                     throw new SQLiteException("Cannot checkpoint track session");
                 HyperLog.v(Constants.TAG, "TrackerService.startTrack trackId=" + mTrackId
@@ -797,7 +798,7 @@ public class TrackerService extends Service
         String stopping = mPendingStop;
         boolean stopCheckpoint = stopping == null || mSharedPreferencesTemp.edit()
                 .putString(PENDING_STOP, stopping)
-                .putString(TRACK_MAP, mRecordingMap.getPath().getAbsolutePath()).commit();
+                .putString(TRACK_MAP, com.nextgis.maplib.map.SharedTrackStore.get(this).getDirectory().getAbsolutePath()).commit();
         mPointWriter.execute(() -> {
             PendingTrackPoints.DrainResult result = mPendingPoints.drain(new PendingTrackPoints.Writer() {
                 @Override public long insert(String operation, ContentValues values) {
@@ -808,7 +809,7 @@ public class TrackerService extends Service
                     return android.content.ContentUris.parseId(inserted);
                 }
                 @Override public void acknowledged(String operation) {
-                    FeatureSaveJournal.forget(mRecordingMap.getDatabase(false),
+                    FeatureSaveJournal.forget(mTrackLayer.getDatabase(false),
                             TrackLayer.TABLE_TRACKPOINTS, operation);
                 }
             });
@@ -817,8 +818,9 @@ public class TrackerService extends Service
                     ContentValues closed = new ContentValues();
                     closed.put(TrackLayer.FIELD_END, System.currentTimeMillis());
                     String unfinished = TrackLayer.FIELD_END + " IS NULL OR " + TrackLayer.FIELD_END + " = ''";
-                    // This layer owns the captured map; never route through the active-map provider.
-                    mTrackLayer.update(mContentUriTracks, closed, unfinished, null);
+                    // Imported unfinished histories are not part of this Stop request.
+                    mTrackLayer.update(mContentUriTracks, closed, TrackLayer.FIELD_ID + "=? AND (" + unfinished + ")",
+                            new String[]{mTrackId});
                 } catch (RuntimeException error) { result.failure = error; }
             }
             mPointHandler.post(() -> {

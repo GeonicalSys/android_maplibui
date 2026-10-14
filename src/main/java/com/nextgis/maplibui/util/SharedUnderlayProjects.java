@@ -17,7 +17,8 @@ import java.util.concurrent.FutureTask;
 
 /** Cross-workspace operations run under the caller's UNDERLAY_MIGRATION lease. */
 public final class SharedUnderlayProjects {
-    private static boolean scheduled;
+    private static volatile boolean scheduled;
+    public static boolean isMigrationPending() { return scheduled; }
     private SharedUnderlayProjects() { }
     public static void scheduleMigration(Context context) {
         if (scheduled) return;

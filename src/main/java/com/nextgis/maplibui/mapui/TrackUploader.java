@@ -9,6 +9,7 @@ import android.preference.PreferenceManager;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.datasource.GeoPoint;
 import com.nextgis.maplib.map.TrackLayer;
+import com.nextgis.maplib.map.SharedTrackStore;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.HttpResponse;
 import com.nextgis.maplib.util.MapUtil;
@@ -19,7 +20,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Shares packet delivery between the live recorder and durable workers, on the captured layer. */
+/** Serializes packet delivery and acknowledgements in the application-owned track database. */
 public final class TrackUploader {
     private static final Object DELIVERY_LOCK = new Object();
     private TrackUploader() {}
@@ -30,17 +31,27 @@ public final class TrackUploader {
     }
 
     public static boolean hasPending(Context context, TrackLayer layer) {
-        try (Cursor rows = layer.query(pointsUri(context), new String[]{"rowid"},
-                TrackLayer.FIELD_SENT + " = 0", null, null, "1")) {
+        return hasPending(context);
+    }
+
+    public static boolean hasPending(Context context) {
+        try (Cursor rows = SharedTrackStore.get(context).getDatabase(true).query(TrackLayer.TABLE_TRACKPOINTS,
+                new String[]{"rowid"}, TrackLayer.FIELD_SENT + " = 0", null, null, null, null, "1")) {
             return rows != null && rows.moveToFirst();
         }
     }
 
     public static boolean upload(Context context, TrackLayer layer) throws Exception {
+        return upload(context);
+    }
+
+    public static boolean upload(Context context) throws Exception {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         synchronized (DELIVERY_LOCK) {
             if (Thread.currentThread().isInterrupted()) return false;
-            if (!TrackSendSettings.isEnabled(preferences) || !hasPending(context, layer)) return true;
+            if (!TrackSendSettings.isEnabled(preferences) || !hasPending(context)) return true;
+            SharedTrackStore store = SharedTrackStore.get(context);
+            android.database.sqlite.SQLiteDatabase database = store.getDatabase(false);
             if (!new NetworkUtil(context).isNetworkAvailable()) return false;
             String device = TrackRegistrationState.deviceUrl(context);
             // Registration gates delivery, never the persisted user's upload intent.
@@ -55,8 +66,8 @@ public final class TrackUploader {
                 JSONArray payload = new JSONArray();
                 List<String> rows = new ArrayList<>();
                 Uri uri = pointsUri(context);
-                try (Cursor points = layer.query(uri, new String[]{"rowid AS upload_id", "*"},
-                        TrackLayer.FIELD_SENT + " = 0", null,
+                try (Cursor points = database.query(TrackLayer.TABLE_TRACKPOINTS,
+                        new String[]{"rowid AS upload_id", "*"}, TrackLayer.FIELD_SENT + " = 0", null, null, null,
                         TrackLayer.FIELD_TIMESTAMP + " ASC, rowid ASC", "100")) {
                     while (points != null && points.moveToNext()) {
                         GeoPoint point = new GeoPoint(points.getDouble(points.getColumnIndexOrThrow(TrackLayer.FIELD_LON)),
@@ -83,8 +94,9 @@ public final class TrackUploader {
                 ContentValues values = new ContentValues();
                 values.put(TrackLayer.FIELD_SENT, 1);
                 // Timestamps can repeat across sessions; acknowledge only the rows in this packet.
-                int acknowledged = layer.update(uri, values, "rowid IN (" + MapUtil.makePlaceholders(rows.size()) + ") AND "
+                int acknowledged = database.update(TrackLayer.TABLE_TRACKPOINTS, values, "rowid IN (" + MapUtil.makePlaceholders(rows.size()) + ") AND "
                         + TrackLayer.FIELD_SENT + " = 0", rows.toArray(new String[0]));
+                store.changed();
                 if (acknowledged != rows.size()) return false;
             }
             return !TrackSendSettings.isEnabled(preferences);
