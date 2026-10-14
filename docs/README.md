@@ -6,6 +6,14 @@ last_verified: 2026-10-14
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
+## Общая история треков и проверки обычных стилей
+
+SharedTrackProjects migrates every registered history before recording/upload and
+translates saved track ownership. TrackWorker is one application queue; TrackUploader
+ACKs common point IDs without a project lease. Switch recording guards remain.
+Startup migration pending state is observable for isolated fixtures. Contracts:
+consuming root docs/architecture/shared-tracks.md and classic-style-verification.md.
+
 ## Доставка сохранённых локальных изменений
 
 GISApplication направляет after-commit callback нижней библиотеки в
@@ -65,9 +73,10 @@ workspace lease, а общий `TrackUploader` не выполняет реги�
 разный порядок ключей не ломает sync, реальные изменения по-прежнему блокируют
 установку до замены предыдущей пары файлов.
 
-TrackUploader обслуживает живой recorder и WorkManager через захваченный TrackLayer;
+TrackUploader обслуживает живой recorder и WorkManager через общую базу треков;
 ошибка регистрации/сервера оставляет SQLite outbox для повтора. TrackWorker
-владеет отдельными заданиями каждого workspace, не переключая активную карту.
+владеет одной очередью установки, не переключая активную карту. Старые задания
+workspace завершаются и планируют общую очередь без чтения старых таблиц.
 TrackRegistrationState сохраняет подтверждение регистрации для точной пары
 сервер/UID. До первого подтверждения или после registered=false отметки трека
 скрыты; сетевой сбой не снимает прежнее подтверждение. Intent остаётся независимым.

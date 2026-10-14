@@ -8,6 +8,8 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedTrackProjects.java
+    responsibility: Import all registered histories before track work and translate legacy recording preferences to common ownership.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java
     responsibility: Give each API 29+ script execution a unique isolated service binding to avoid Android 16 late-teardown races; retain deadlines, cleanup and API 26-28 fallback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
@@ -35,9 +37,9 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
     responsibility: Scope persisted positive registration to the exact server and UID, hide pending track badges before confirmation or after explicit revocation and retain known registration across transport failures without changing upload intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackUploader.java
-    responsibility: Defer disconnected live/worker delivery before registration and each packet without disabling intent; upload captured-layer packets under a shared lock and acknowledge only accepted rowids after success.
+    responsibility: Defer disconnected live/worker delivery before registration and each packet without disabling intent; upload the application track store under a shared lock and acknowledge only accepted stable point IDs after success.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackWorker.java
-    responsibility: Persist per-workspace network-constrained immediate and periodic delivery, retain unsent points for registration/network retry and load registered background maps without changing the active workspace.
+    responsibility: Persist one application-wide network-constrained immediate and periodic track queue, retain unsent points for registration/network retry and retire legacy project jobs without reopening old track tables or acquiring project leases.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/ChooseFeatureTypeDialog.java
     responsibility: Load project style categories off the UI thread and return one explicit typed creation selection and its sketch/location/walk continuation through a recreation-safe fragment result; use nonselectable list headers for loading/failure so long lists retain a visible Cancel button.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypeDefaults.java
@@ -85,7 +87,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java
     responsibility: Encode account/server plus remote resource paths and selected flags without trees or credentials, and resolve new process-local IDs off the main thread using current accounts.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedUnderlayProjects.java
-    responsibility: Coordinate migration, catalog usage, duplicate-safe attach and global unlink under a project lease.
+    responsibility: Coordinate migration, catalog usage, duplicate-safe attach and global unlink under a project lease; expose pending startup migration to isolated native fixture readiness checks.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
     responsibility: Atomically persist typed new-object category defaults with one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel, including revision and snapshot acknowledgement used by startup repair.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionRecoveryPolicy.java
