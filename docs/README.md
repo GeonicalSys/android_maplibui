@@ -522,3 +522,15 @@ callback, provider URI и service ticket до фактического заве�
 пользовательская инструкция: docs/guides/project-synchronization-user-guide.md.
 Перед изменениями читать оба документа. Нельзя заменить изоляцию временным
 переключением глобальной карты или prefs, либо закрыть БД по timeout при живом child.
+
+## Многорядный выбор слоя
+
+FittedDialogs не оборачивает в FittedPanelLayout весь диалог с вложенным
+AbsListView/RecyclerView, включая custom `AlertDialog.setView`. При
+UNSPECIFIED height ListView измерял только первую строку, скрывая остальные
+слои при увеличенном системном интерфейсе. Список сохраняет bounded native
+viewport и обычную прокрутку; фильтрация разрешённых слоёв не менялась.
+Native LayerSelectionDialogTest consumer app проверяет viewport, полный текст,
+каждый geometry choice и Cancel реальным касанием в 36 UI profiles.
+ProjectLayerSelectionTest проверяет реальный состав разрешённого проекта.
+Контракт: [интерфейс](../../docs/architecture/ui-accessibility.md).

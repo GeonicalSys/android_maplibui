@@ -51,6 +51,10 @@ public final class FittedDialogs {
         ViewGroup content = dialog.findViewById(android.R.id.content);
         if (content == null || content.getChildCount() != 1 || content.getChildAt(0) instanceof FittedPanelLayout) return;
         View body = content.getChildAt(0);
+        // A list supplied through setView() is not exposed by AlertDialog.getListView().
+        // Measuring its entire dialog with UNSPECIFIED height would measure just the first
+        // adapter row. Preserve the controller's bounded, scrollable viewport instead.
+        if (containsScrollingAdapter(body)) return;
         wrapLabels(body);
         ViewGroup.LayoutParams preferred = body.getLayoutParams();
         content.removeView(body);
@@ -82,6 +86,17 @@ public final class FittedDialogs {
         dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(surface.getColor(0, android.graphics.Color.WHITE)));
         surface.recycle();
         dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    private static boolean containsScrollingAdapter(View view) {
+        if (view instanceof android.widget.AbsListView
+                || view instanceof androidx.recyclerview.widget.RecyclerView) return true;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i=0; i<group.getChildCount(); i++)
+                if (containsScrollingAdapter(group.getChildAt(i))) return true;
+        }
+        return false;
     }
 
     private static void wrapLabels(View view) {
