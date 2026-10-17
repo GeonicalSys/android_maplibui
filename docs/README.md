@@ -8,6 +8,11 @@ last_verified: 2026-10-17
 
 ## GPS diagnostic episodes
 
+App explicit exit (double Back or recent-task removal) releases only automatic
+GPS owners. TrackerService and WalkEditService retain their own foreground
+recording sessions/listeners until the user's recording Stop. Minimization keeps
+automatic background GPS. The consuming app owns this distinction.
+
 Snapshot v2 separates reception loss, callback delivery and processing; bounded
 24-sample history and correlated recovery/cancel preserve the episode UUID.
 Short no-fix gaps stay local; long/repeated gaps are rate limited. Only sustained

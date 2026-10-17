@@ -157,7 +157,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/ExternalGnssService.java
     responsibility: Hold the default process as a silent location|connectedDevice foreground service while an external endpoint is configured; maplib owns Pigo UART readiness and fix expiry, and service presence does not imply a usable fix; no second LocationManager subscription.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java
-    responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, resume automatically after GPS gaps without changing user pause intent, acknowledge a durable final snapshot before foreground editing, retain geometry on recovery, and provide an exact-session emergency stop/clear path across map identity changes.
+    responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, resume automatically after GPS gaps without changing user pause intent, acknowledge a durable final snapshot before foreground editing, retain geometry on recovery, and provide an exact-session emergency stop/clear path across map identity changes; app task removal or double-Back exit releases automatic owners without stopping this recording service.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
     responsibility: Consume the shared validated GNSS stream before geometry sampling, use measurement age for the ten-second background heartbeat, rely on source-owned recording wake lock and retain existing alarm/vibration and persistence-failure feedback.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundPolicy.java
