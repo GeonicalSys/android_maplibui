@@ -105,7 +105,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/CurrentTrackOverlay.java
     responsibility: Keep active track segment boundaries through Canvas draw, pan and zoom.
   - path: maplibui/src/main/java/com/nextgis/maplibui/overlay/CurrentLocationOverlay.java
-    responsibility: Draw the current GPS marker and autopan; per-fix traces stay in DEBUG Logcat, not HyperLog.
+    responsibility: Draw the current GPS marker and autopan; preserve source ownership and freshness through diagnostic re-registration, while per-fix traces stay in DEBUG Logcat.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ExportGPXTask.java
     responsibility: Export persisted GNSS segments as separate GPX trkseg elements and share through GpxSharePublisher.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GpxSharePublisher.java
