@@ -6,6 +6,15 @@ last_verified: 2026-10-17
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
+## GPS diagnostic episodes
+
+Snapshot v2 separates reception loss, callback delivery and processing; bounded
+24-sample history and correlated recovery/cancel preserve the episode UUID.
+Short no-fix gaps stay local; long/repeated gaps are rate limited. Only sustained
+fresh used-in-fix statuses without callbacks allow one same-listener re-registration.
+Recorders, Network, precision leases, wake lock, filtering and segment rules remain owned
+by their existing controllers. See consuming root docs/architecture/location-pipeline.md.
+
 ## Общая история треков и проверки обычных стилей
 
 SharedTrackProjects migrates every registered history before recording/upload and
