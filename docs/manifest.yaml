@@ -8,6 +8,8 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Tabs.java
+    responsibility: Keep the latest pending page until the attached host is resumed with FragmentManager state unsaved; cancel detached/destroyed callbacks while preserving controls and selected-page state without commitAllowingStateLoss.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/SharedTrackProjects.java
     responsibility: Import all registered histories before track work and translate legacy recording preferences to common ownership.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java
