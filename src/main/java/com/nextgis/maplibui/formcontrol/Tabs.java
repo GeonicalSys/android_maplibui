@@ -29,6 +29,9 @@ import com.google.android.material.tabs.TabLayout;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
+import androidx.lifecycle.DefaultLifecycleObserver;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleOwner;
 import androidx.core.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.ViewGroup;
@@ -91,6 +94,18 @@ public class Tabs extends LinearLayout implements IFormControl
     private TabLayout mTabLayout;
     private ScrollView mFormScroll;
     private boolean mRuleVisible = true;
+    private Fragment mPendingTab;
+    private Lifecycle mHostLifecycle;
+    private final Runnable mApplyPendingTab = this::applyPendingTab;
+    private final DefaultLifecycleObserver mHostObserver = new DefaultLifecycleObserver() {
+        @Override public void onResume(LifecycleOwner owner) {
+            schedulePendingTab();
+        }
+        @Override public void onDestroy(LifecycleOwner owner) {
+            removeCallbacks(mApplyPendingTab);
+            mPendingTab = null;
+        }
+    };
 
     public Tabs(Context context) {
         super(context);
@@ -133,6 +148,9 @@ public class Tabs extends LinearLayout implements IFormControl
                      Map<String, Map<String, String>> translations,
                      final ModifyAttributesActivity modifyAttributesActivity) throws JSONException {
         mTranslations = translations;
+        if (mHostLifecycle != null) mHostLifecycle.removeObserver(mHostObserver);
+        mHostLifecycle = modifyAttributesActivity.getLifecycle();
+        mHostLifecycle.addObserver(mHostObserver);
         mFields = new HashMap<>();
         mTabs = new ArrayList<>();
         TabLayout tabLayout = (TabLayout) getChildAt(0);
@@ -244,15 +262,39 @@ public class Tabs extends LinearLayout implements IFormControl
     }
 
     private void replaceFragment(final Fragment fragment) {
-        post(new Runnable() {
-            @Override
-            public void run() {
-                FragmentManager fragmentManager = mFragmentManager;
-                FragmentTransaction transaction = fragmentManager.beginTransaction();
-                transaction.replace(mTag, fragment);
-                transaction.commit();
-            }
-        });
+        mPendingTab = fragment;
+        schedulePendingTab();
+    }
+
+    private void schedulePendingTab() {
+        removeCallbacks(mApplyPendingTab);
+        if (mPendingTab != null) post(mApplyPendingTab);
+    }
+
+    private void applyPendingTab() {
+        if (mPendingTab == null) return;
+        if (mFragmentManager.isDestroyed() || mHostLifecycle == null
+                || mHostLifecycle.getCurrentState() == Lifecycle.State.DESTROYED) {
+            mPendingTab = null;
+            return;
+        }
+        // Keep the last requested page while paused; commit only after the host can save it.
+        if (!ViewCompat.isAttachedToWindow(this) || mFragmentManager.isStateSaved()
+                || !mHostLifecycle.getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) return;
+        FragmentTransaction transaction = mFragmentManager.beginTransaction();
+        transaction.replace(mTag, mPendingTab);
+        transaction.commit();
+        mPendingTab = null;
+    }
+
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        schedulePendingTab();
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        removeCallbacks(mApplyPendingTab);
+        super.onDetachedFromWindow();
     }
 
     public boolean revealView(android.view.View target, Runnable onVisible) {

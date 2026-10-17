@@ -6,6 +6,15 @@ last_verified: 2026-10-17
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
+## Жизненный цикл вкладок формы
+
+Tabs coalesces the latest requested page until its view is attached and the
+Activity is resumed with an unsaved FragmentManager state. Resume/reattach
+applies the page; destruction cancels the callback. No state-loss transaction is
+used, and controls, selected page, cascade values and draft persistence remain
+owned by the existing form. The consuming CascadingFormsTest covers saved-state
+selection, actual resumed page visibility, retained values and immediate close.
+
 ## GPS diagnostic episodes
 
 App explicit exit (double Back or recent-task removal) releases only automatic
