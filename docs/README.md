@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-14
+last_verified: 2026-10-17
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -552,3 +552,8 @@ bindIsolatedService instanceName. Это устраняет гонку быст�
 bindService fallback, deadline и обязательное освобождение binding.
 ProjectScriptsTest проверяет настоящие JNI/Binder/UID и последовательные
 вызовы на смартфоне; [контракт](../../docs/architecture/project-scripts.md).
+
+GlitchTip triage 2026-10-17 не меняет UI/sync callbacks maplibui. App-owned
+SyncRecoveryJournal подтверждает disk enqueue/ACK собственным writer и сохраняет
+сигнал отмены. Library map-runtime observer теперь сохраняет startup и исходный
+process snapshot для delayed ANR; UI не подменяет identity прежнего события.
