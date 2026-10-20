@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-17
+last_verified: 2026-10-20
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -580,3 +580,9 @@ GlitchTip triage 2026-10-17 не меняет UI/sync callbacks maplibui. App-ow
 SyncRecoveryJournal подтверждает disk enqueue/ACK собственным writer и сохраняет
 сигнал отмены. Library map-runtime observer теперь сохраняет startup и исходный
 process snapshot для delayed ANR; UI не подменяет identity прежнего события.
+
+
+## Учёт доработок
+
+Карточки и автоматический контроль исходных путей: [реестр обновлений](../update-reports/README.md).
+Перед push выполняется локальный hook; в новом клоне требуется его установка.
