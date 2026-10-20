@@ -2,7 +2,8 @@
 id: maplibui-20261014-shared-tracks
 area: Мобильное приложение
 kind: internal
-at: 2026-10-14
+at: 2026-10-14T22:33:23+02:00
+at_source_commit: 18c28acb16a31f285c89af6f5c58296e26d10613
 title: Общая очередь записи и отправки треков
 why: Фоновая доставка была привязана к workspace
 ---
