@@ -30,6 +30,13 @@ public final class FeatureTypePreview extends GISDisplay {
             if (style instanceof SimpleMarkerStyle) {
                 SimpleMarkerStyle marker = (SimpleMarkerStyle)style;
                 marker.setText(null);
+                if (FireflyMarkerRegistry.isFirefly(marker)) {
+                    Bitmap sprite = FireflyMarkerRegistry.sprite(marker).bitmap();
+                    float inset = 2 * density;
+                    display.mMainCanvas.drawBitmap(sprite, null, new RectF(inset, inset, size - inset, size - inset),
+                            new android.graphics.Paint(3));
+                    if (marker.getIconImage() == null) return bitmap;
+                }
                 String image = marker.getIconImage();
                 if (image != null && !image.contains("/") && !image.contains("\\")) {
                     try (InputStream input = context.getAssets().open("marker_icons/" + image + ".png")) {
@@ -45,6 +52,7 @@ public final class FeatureTypePreview extends GISDisplay {
                         }
                     } catch (java.io.IOException ignored) { /* Render the configured primitive fallback. */ }
                 }
+                if (FireflyMarkerRegistry.isFirefly(marker)) return bitmap;
                 marker.setSize(Math.min(marker.getSize(), 13));
                 geometry = new GeoPoint(size / 2d, size / 2d);
             } else if (style instanceof SimpleLineStyle) {

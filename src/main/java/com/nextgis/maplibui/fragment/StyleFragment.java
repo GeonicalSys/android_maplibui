@@ -121,10 +121,13 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
 
     private void inflateMarker(View v) {
         Spinner type = v.findViewById(R.id.type);
+        type.setAdapter(new com.nextgis.maplibui.util.FormChoiceAdapter(v.getContext(),
+                java.util.Arrays.asList(v.getResources().getStringArray(R.array.marker_type)), value -> false));
         type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 ((SimpleMarkerStyle) mStyle).setType(position + 1);
+                updateMarkerLabels(v);
             }
 
             @Override
@@ -253,6 +256,37 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             }
         });
         inflateGeometryScale(v);
+        v.findViewById(R.id.firefly_preset).setOnClickListener(button -> {
+            // Explicit preset: choosing a marker type alone never overwrites a user's colours or blur.
+            ((EditText) v.findViewById(R.id.size)).setText("6");
+            ((EditText) v.findViewById(R.id.width)).setText("14");
+            ((Spinner) v.findViewById(R.id.circle_blur)).setSelection(2);
+            ((SimpleMarkerStyle) mStyle).setCircleBlur(2);
+            mFillColor = android.graphics.Color.WHITE;
+            mStrokeColor = android.graphics.Color.rgb(255, 102, 133);
+            mStyle.setColor(mFillColor);
+            mStyle.setOutColor(mStrokeColor);
+            setFillColor(mFillColor);
+            setStrokeColor(mStrokeColor);
+        });
+        updateMarkerLabels(v);
+    }
+
+    private boolean isFirefly() {
+        return mStyle instanceof SimpleMarkerStyle
+                && ((SimpleMarkerStyle) mStyle).getType() == SimpleMarkerStyle.MarkerStyleFirefly;
+    }
+
+    private void updateMarkerLabels(View body) {
+        boolean firefly = isFirefly();
+        ((TextView) body.findViewById(R.id.marker_size_label)).setText(firefly ? R.string.firefly_core_size : R.string.size);
+        ((TextView) body.findViewById(R.id.marker_blur_label)).setText(firefly ? R.string.firefly_glow_softness : R.string.circle_blur);
+        ((TextView) body.findViewById(R.id.marker_fill_label)).setText(firefly ? R.string.firefly_core_color : R.string.fill_color);
+        ((TextView) body.findViewById(R.id.marker_stroke_label)).setText(firefly ? R.string.firefly_glow_color : R.string.stroke_color);
+        ((TextView) body.findViewById(R.id.marker_width_label)).setText(firefly ? R.string.firefly_glow_width : R.string.width);
+        body.findViewById(R.id.firefly_hint).setVisibility(firefly ? View.VISIBLE : View.GONE);
+        body.findViewById(R.id.firefly_preset).setVisibility(firefly ? View.VISIBLE : View.GONE);
+        updateAlphaLabels();
     }
 
     private void inflateGeometryScale(View v) {
@@ -1078,11 +1112,11 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         }
         if (mFillAlphaLabel != null) {
             mFillAlphaLabel.setText(ControlHelper.getPercentValue(
-                    getContext(), R.string.fill_opacity, mStyle.getAlpha() * 1.0f));
+                    getContext(), isFirefly() ? R.string.firefly_core_opacity : R.string.fill_opacity, mStyle.getAlpha() * 1.0f));
         }
         if (mStrokeAlphaLabel != null) {
             mStrokeAlphaLabel.setText(ControlHelper.getPercentValue(
-                    getContext(), R.string.stroke_opacity, mStyle.getOutAlpha() * 1.0f));
+                    getContext(), isFirefly() ? R.string.firefly_glow_opacity : R.string.stroke_opacity, mStyle.getOutAlpha() * 1.0f));
         }
     }
 

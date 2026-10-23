@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="marker_firefly">Firefly</string>
+    <string name="firefly_core_size">Core size</string>
+    <string name="firefly_core_color">Core colour</string>
+    <string name="firefly_glow_color">Glow colour</string>
+    <string name="firefly_glow_width">Glow width</string>
+    <string name="firefly_glow_softness">Glow softness</string>
+    <string name="firefly_core_opacity">Core opacity</string>
+    <string name="firefly_glow_opacity">Glow opacity</string>
+    <string name="firefly_hint">The core stays sharp. The glow fades only outwards, leaving the inside clear even when the core is transparent.</string>
+    <string name="firefly_field_points_preset">Field points example</string>
+</resources>

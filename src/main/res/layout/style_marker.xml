@@ -28,6 +28,7 @@
         android:layout_width='match_parent'
         android:layout_height='wrap_content'
         android:gravity="center_vertical"
+        android:id="@+id/marker_size_label"
         android:text="@string/size"
         android:textAppearance='?android:attr/textAppearanceMedium' />
 
@@ -41,6 +42,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:id="@+id/marker_blur_label"
         android:text="@string/circle_blur"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
@@ -67,6 +69,22 @@
         android:layout_height="wrap_content"
         android:entries="@array/marker_type"
         android:padding="5dp" />
+
+    <TextView
+        android:id="@+id/firefly_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/firefly_hint"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/firefly_preset"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:singleLine="false"
+        android:textAllCaps="false"
+        android:text="@string/firefly_field_points_preset"
+        android:visibility="gone" />
 
     <TextView
         android:layout_width="match_parent"
@@ -166,6 +184,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:id="@+id/marker_fill_label"
         android:text="@string/fill_color"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
@@ -194,6 +213,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:id="@+id/marker_stroke_label"
         android:text="@string/stroke_color"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
@@ -222,6 +242,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:id="@+id/marker_width_label"
         android:text="@string/width"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="marker_firefly">Светлячок</string>
+    <string name="firefly_core_size">Размер ядра</string>
+    <string name="firefly_core_color">Цвет ядра</string>
+    <string name="firefly_glow_color">Цвет свечения</string>
+    <string name="firefly_glow_width">Ширина свечения</string>
+    <string name="firefly_glow_softness">Размытие свечения</string>
+    <string name="firefly_core_opacity">Непрозрачность ядра</string>
+    <string name="firefly_glow_opacity">Непрозрачность свечения</string>
+    <string name="firefly_hint">Ядро остаётся чётким. Свечение размывается только наружу и не заполняет ядро, даже если оно прозрачное.</string>
+    <string name="firefly_field_points_preset">Образец «Полевые точки»</string>
+</resources>

@@ -1,10 +1,20 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-23
+last_verified: 2026-10-24
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
+
+## «Светлячок»
+
+В StyleFragment добавлен отдельный тип «Светлячок»: цвет/размер ядра,
+цвет/ширина/размытие свечения и независимая непрозрачность. Смена типа сохраняет
+параметры; явная кнопка «Образец „Полевые точки“» задаёт белое ядро и розовый ореол.
+Выбор типа переносит длинные названия. FeatureTypePreview использует тот же
+sprite и вписывает его целиком. Матрица настоящего редактора проверяет 72
+локальных font/display/theme/orientation профиля с реальными touches.
+Контракт — consuming docs/architecture/point-firefly.md.
 
 ## Копирование, сдвиг и поворот
 
