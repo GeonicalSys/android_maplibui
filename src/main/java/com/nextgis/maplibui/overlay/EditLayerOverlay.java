@@ -511,6 +511,8 @@ public class EditLayerOverlay extends Overlay implements MapViewEventListener, G
                         break;
                 }
 
+                mBottomToolbar.inflateMenu(R.menu.edit_transform);
+                mBottomToolbar.fitAllActions();
                 // Navigation close is set by MapFragment (cancelEdits); do not hide it here.
 
                 for (EditEventListener listener : mListeners)

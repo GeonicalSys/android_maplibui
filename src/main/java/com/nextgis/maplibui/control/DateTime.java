@@ -267,7 +267,8 @@ public class DateTime
         String text = "";
 
         if (ControlHelper.hasKey(savedState, mFieldName)) {
-            mValue = savedState.getLong(ControlHelper.getSavedStateKey(mFieldName));
+            String key = ControlHelper.getSavedStateKey(mFieldName);
+            mValue = savedState.get(key) == null ? null : savedState.getLong(key);
         } else if (null != featureCursor) {
             int column = getColumnIndexSafely(featureCursor, mFieldName); //featureCursor.getColumnIndex(mFieldName);
             if (column >= 0) {
@@ -291,7 +292,8 @@ public class DateTime
 
     @Override
     public void saveState(Bundle outState) {
-        outState.putLong(ControlHelper.getSavedStateKey(mFieldName), mValue);
+        if (mValue == null) outState.putString(ControlHelper.getSavedStateKey(mFieldName), null);
+        else outState.putLong(ControlHelper.getSavedStateKey(mFieldName), mValue);
         if (datePickerDialog != null)
             datePickerDialog.dismiss();
     }

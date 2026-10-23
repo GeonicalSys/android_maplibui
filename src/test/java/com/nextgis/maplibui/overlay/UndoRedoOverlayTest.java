@@ -15,6 +15,25 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class UndoRedoOverlayTest {
+    @Test public void multipartHistoryRetainsContainerAndRingCrsForSavingAfterTransform() {
+        UndoRedoOverlay history = new UndoRedoOverlay(null,null);
+        Feature feature = new Feature();
+        com.nextgis.maplib.datasource.GeoGeometry original = com.nextgis.maplib.datasource.GeoGeometryFactory.fromWKT(
+                "MULTIPOLYGON (((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 8 2, 8 8, 2 8, 2 2)))",
+                GeoConstants.CRS_WEB_MERCATOR);
+        feature.setGeometry(original); history.saveToHistory(feature);
+        feature.setGeometry(com.nextgis.maplib.util.GeometryTransform.apply(original,10,20,.5,5,5));
+        history.saveToHistory(feature);
+        assertTrue(history.onOptionsItemSelected(R.id.menu_edit_undo));
+        assertTrue(history.onOptionsItemSelected(R.id.menu_edit_redo));
+        com.nextgis.maplib.datasource.GeoMultiPolygon restored =
+                (com.nextgis.maplib.datasource.GeoMultiPolygon)history.getFeature().getGeometry();
+        assertEquals(GeoConstants.CRS_WEB_MERCATOR,restored.getCRS());
+        assertEquals(GeoConstants.CRS_WEB_MERCATOR,restored.get(0).getCRS());
+        assertEquals(GeoConstants.CRS_WEB_MERCATOR,restored.get(0).getInnerRing(0).getCRS());
+        assertEquals(com.nextgis.maplib.util.MultiPolygonGeometryRepair.Status.UNCHANGED,
+                com.nextgis.maplib.util.MultiPolygonGeometryRepair.repairIfNeeded(restored).getStatus());
+    }
     @Test
     public void duplicateGeometryConsumesNoUndoOrRedoStep() {
         UndoRedoOverlay history = new UndoRedoOverlay(null, null);

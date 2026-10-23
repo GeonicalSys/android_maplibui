@@ -159,6 +159,8 @@ public class ModifyAttributesActivity
     private Map<String, String> mRequiredFieldCaptions = new HashMap<>();
     protected VectorLayer           mLayer;
     protected long                  mFeatureId;
+    private String mCopiedValues;
+    private String mCopiedControlBaseline;
 
     protected GeoGeometry           mGeometry;
     protected TextView              mLatView;
@@ -440,8 +442,18 @@ public class ModifyAttributesActivity
                     }
                 }
 
+                mCopiedValues = controlsState == null ? null : controlsState.getString(
+                        com.nextgis.maplibui.util.FeatureCopyDefaults.VALUES);
+                mCopiedControlBaseline = controlsState == null ? null : controlsState.getString(
+                        com.nextgis.maplibui.util.FeatureCopyDefaults.BASELINE);
                 LinearLayout layout = findViewById(R.id.controls_list);
                 fillControls(layout, controlsState);
+                if (mCopiedValues != null && mCopiedControlBaseline == null) {
+                    Map<String,Object> initialControls = new java.util.LinkedHashMap<>();
+                    for (Map.Entry<String,IControl> entry : mFields.entrySet())
+                        initialControls.put(entry.getKey(),entry.getValue().getValue());
+                    mCopiedControlBaseline = com.nextgis.maplibui.util.FeatureCopyDefaults.baseline(initialControls);
+                }
                 if (!mIsViewOnly) refreshRequiredMarkers();
                 if (draft != null && draft.photoPaths != null && !draft.photoPaths.isEmpty()) {
                     applyDraftPhotos(draft.photoPaths);
@@ -581,6 +593,8 @@ public class ModifyAttributesActivity
 
     /** Presentation containers must not affect rotation or durable draft capture. */
     private void saveControlState(Bundle state) {
+        if (mCopiedValues != null) state.putString(com.nextgis.maplibui.util.FeatureCopyDefaults.VALUES, mCopiedValues);
+        if (mCopiedControlBaseline != null) state.putString(com.nextgis.maplibui.util.FeatureCopyDefaults.BASELINE, mCopiedControlBaseline);
         java.util.Set<IControl> controls = new java.util.LinkedHashSet<>();
         if (mFields != null) controls.addAll(mFields.values());
         LinearLayout layout = findViewById(R.id.controls_list);
@@ -968,7 +982,7 @@ public class ModifyAttributesActivity
         }
 
         if (!onMain(() -> checkpointFormDraft(true))) return false;
-        ContentValues values = new ContentValues();
+        ContentValues values = com.nextgis.maplibui.util.FeatureCopyDefaults.values(mCopiedValues, mLayer.getFields());
         boolean valid = onMain(() -> {
             for (Field field : mLayer.getFields()) {
                 putFieldValue(values, field);
@@ -1330,7 +1344,7 @@ public class ModifyAttributesActivity
     }
 
     protected ContentValues captureScriptValues() {
-        ContentValues values = new ContentValues();
+        ContentValues values = com.nextgis.maplibui.util.FeatureCopyDefaults.values(mCopiedValues, mLayer.getFields());
         for (Field field : mLayer.getFields()) putFieldValue(values, field);
         return values;
     }
@@ -1361,6 +1375,8 @@ public class ModifyAttributesActivity
         }
 
         Object value = control.getValue();
+        if (com.nextgis.maplibui.util.FeatureCopyDefaults.retainEmpty(values,mCopiedValues,
+                mCopiedControlBaseline,fieldName,value)) return values.get(fieldName);
         //fieldName = "'" + fieldName + "'"; // no need
 
         if (null != value) {

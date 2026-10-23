@@ -258,7 +258,7 @@ public class CompassFragment extends Fragment implements View.OnTouchListener {
 
                 this.rotateCompass(angle1 - angle2);
 
-                if (mIsVibrationOn) {
+                if (mIsVibrationOn && mVibrator != null && mVibrator.hasVibrator()) {
                     mVibrator.vibrate(5);
                 }
 

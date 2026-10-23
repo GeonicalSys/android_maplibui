@@ -21,6 +21,8 @@
 
 package com.nextgis.maplibui.overlay;
 
+import static com.nextgis.maplib.util.GeometryTransform.copy;
+
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.PointF;
@@ -107,7 +109,7 @@ public class UndoRedoOverlay extends Overlay {
                 ? -1
                 : Math.max(0, Math.min(restoredState, mHistory.size() - 1));
         if (mHistoryState >= 0) {
-            mFeature.setGeometry(mHistory.get(mHistoryState).copy());
+            mFeature.setGeometry(copy(mHistory.get(mHistoryState)));
         } else {
             mFeature.setGeometry(null);
         }
@@ -138,9 +140,9 @@ public class UndoRedoOverlay extends Overlay {
         if (mHistoryState >= 0
                 && mHistoryState < mHistory.size()
                 && hasSameCoordinates(mHistory.get(mHistoryState), geometry)) {
-            GeoGeometry snapshot = geometry.copy();
+            GeoGeometry snapshot = copy(geometry);
             mHistory.set(mHistoryState, snapshot);
-            mFeature.setGeometry(snapshot.copy());
+            mFeature.setGeometry(copy(snapshot));
             defineUndoRedo();
             return;
         }
@@ -153,9 +155,9 @@ public class UndoRedoOverlay extends Overlay {
             mHistoryState--;
         }
 
-        mHistory.add(geometry.copy());
+        mHistory.add(copy(geometry));
         mHistoryState = mHistory.size() - 1;
-        mFeature.setGeometry(mHistory.getLast().copy());
+        mFeature.setGeometry(copy(mHistory.getLast()));
         defineUndoRedo();
     }
 
@@ -170,7 +172,7 @@ public class UndoRedoOverlay extends Overlay {
             return false;
 
         mHistoryState = id;
-        mFeature.setGeometry(mHistory.get(id).copy());
+        mFeature.setGeometry(copy(mHistory.get(id)));
         defineUndoRedo();
 
         return true;

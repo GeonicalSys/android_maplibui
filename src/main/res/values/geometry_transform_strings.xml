@@ -1,0 +1,5 @@
+<resources>
+    <string name="geometry_transform">Move and rotate</string>
+    <string name="geometry_transform_finish">Finish moving and rotating</string>
+    <string name="geometry_transform_hint">Drag with one finger to move the object. Use two fingers to rotate it.</string>
+</resources>

@@ -1,0 +1,5 @@
+<resources>
+    <string name="geometry_transform">Сдвиг и поворот</string>
+    <string name="geometry_transform_finish">Завершить сдвиг и поворот</string>
+    <string name="geometry_transform_hint">Одним пальцем сдвигайте объект, двумя — поворачивайте.</string>
+</resources>

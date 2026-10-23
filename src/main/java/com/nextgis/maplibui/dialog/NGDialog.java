@@ -68,6 +68,10 @@ public class NGDialog extends DialogFragment {
     @NonNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
+        if (savedInstanceState != null) {
+            mTitle = savedInstanceState.getString(KEY_TITLE);
+            setTheme(savedInstanceState.getInt(KEY_THEME));
+        }
         mActivity = getActivity();
         mContextWeakRef = new WeakReference<>( new ContextThemeWrapper(mActivity, mTheme));
         mDisabledColor = getResources().getColor(R.color.color_grey_400);
@@ -81,11 +85,6 @@ public class NGDialog extends DialogFragment {
             ta.recycle();
         }
 
-
-        if (savedInstanceState != null) {
-            mTitle = savedInstanceState.getString(KEY_TITLE);
-            setTheme(savedInstanceState.getInt(KEY_THEME));
-        }
 
         return super.onCreateDialog(savedInstanceState);
     }
