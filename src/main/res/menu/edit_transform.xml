@@ -1,0 +1,4 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/menu_edit_transform" android:icon="@drawable/ic_action_transform"
+        android:title="@string/geometry_transform" android:checkable="true" app:showAsAction="always"/>
+</menu>

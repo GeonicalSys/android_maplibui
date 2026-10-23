@@ -6,6 +6,13 @@ last_verified: 2026-10-23
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
+## Копирование, сдвиг и поворот
+
+FeatureCopyDefaults адаптирует поля к control state обычной/NGFP формы и сохраняет raw поля вне формы/пустые исходные значения в durable checkpoint. ModifyAttributesActivity использует их в Save/scripts и сохраняет выбранные пользователем изменения. BottomToolbar.fitAllActions вписывает команды без overflow по density/insets; EditLayerOverlay добавляет режим сдвига/поворота. Полный контракт — consuming docs/architecture/feature-copy-transform.md.
+
+Категория накладывается до адаптации типов checkbox/counter; большие целые счётчика сохраняют int64 precision. NGDialog восстанавливает тему до создания контекста, чтобы выбор слоя выдерживал пересоздание Activity.
+
+
 ## Компас без вибрации
 
 GlitchTip 101: `CompassFragment.onTouch` вращает лимб независимо от наличия

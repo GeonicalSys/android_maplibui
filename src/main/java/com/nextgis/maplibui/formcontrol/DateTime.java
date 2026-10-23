@@ -86,6 +86,7 @@ public class DateTime
 
     protected Calendar mCalendar = Calendar.getInstance();
     protected Long mValue = Calendar.getInstance().getTimeInMillis();
+    private boolean mExplicitNull;
 
     android.app.TimePickerDialog.OnTimeSetListener onTimeSetListener = new android.app.TimePickerDialog.OnTimeSetListener() {
         @Override
@@ -98,6 +99,7 @@ public class DateTime
             newCalendar.set(Calendar.MINUTE, minute);
             newCalendar.set(Calendar.SECOND, 0);
 
+            mExplicitNull = false;
             mValue = newCalendar.getTimeInMillis();
             mCalendar.setTimeInMillis(newCalendar.getTimeInMillis());
             DateTime.this.setText(mDateFormat.format(mCalendar.getTime()));
@@ -133,6 +135,7 @@ public class DateTime
                 newCalendar.set(Calendar.MONTH, myMonth);
                 newCalendar.set(Calendar.DAY_OF_MONTH, myDay);
 
+                mExplicitNull = false;
                 mValue = newCalendar.getTimeInMillis();
                 mCalendar.setTimeInMillis(newCalendar.getTimeInMillis());
 
@@ -216,7 +219,9 @@ public class DateTime
 
         long timestamp = System.currentTimeMillis();
         if (ControlHelper.hasKey(savedState, mFieldName)) {
-            timestamp = savedState.getLong(ControlHelper.getSavedStateKey(mFieldName));
+            String key = ControlHelper.getSavedStateKey(mFieldName);
+            mExplicitNull = savedState.get(key) == null;
+            if (!mExplicitNull) timestamp = savedState.getLong(key);
             mValue = timestamp;
         } else if (null != featureCursor) { // feature exists
             int column = getColumnIndexSafely(featureCursor, mFieldName); // featureCursor.getColumnIndex(mFieldName);
@@ -235,7 +240,7 @@ public class DateTime
         }
 
         mCalendar.setTimeInMillis(timestamp);
-        setText(mDateFormat.format(mCalendar.getTime()));
+        setText(mExplicitNull ? "" : mDateFormat.format(mCalendar.getTime()));
         setSingleLine(true);
         setFocusable(false);
         setOnClickListener(getDateUpdateWatcher(mPickerType));
@@ -279,7 +284,8 @@ public class DateTime
     @Override
     public void saveLastValue(SharedPreferences preferences)
     {
-        preferences.edit().putLong(mFieldName, (Long) getValue()).commit();
+        if (getValue() == null) preferences.edit().remove(mFieldName).commit();
+        else preferences.edit().putLong(mFieldName, (Long) getValue()).commit();
     }
 
     @Override
@@ -354,13 +360,14 @@ public class DateTime
     @Override
     public Object getValue()
     {
-        return mCalendar.getTimeInMillis();
+        return mExplicitNull ? null : mCalendar.getTimeInMillis();
     }
 
 
     @Override
     public void saveState(Bundle outState) {
-        outState.putLong(ControlHelper.getSavedStateKey(mFieldName), mCalendar.getTimeInMillis());
+        if (mExplicitNull) outState.putString(ControlHelper.getSavedStateKey(mFieldName), null);
+        else outState.putLong(ControlHelper.getSavedStateKey(mFieldName), mCalendar.getTimeInMillis());
         if (datePickerDialog != null)
             datePickerDialog.dismiss();
     }

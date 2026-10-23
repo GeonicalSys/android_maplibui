@@ -44,6 +44,64 @@ public class BottomToolbar
 {
 
     protected boolean mIsMenuInitialized;
+    private boolean textFitAttached;
+    private boolean fitEditingActions;
+
+    /** Keep every editing action on the panel, shrinking only the overflowing icon targets. */
+    public void fitAllActions() {
+        fitEditingActions = true;
+        setContentInsetsRelative(0, 0);
+        for (int i = 0; i < getMenu().size(); i++) {
+            MenuItem item = getMenu().getItem(i);
+            item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+            if (!(item.getActionView() instanceof androidx.appcompat.widget.AppCompatImageButton)) {
+                androidx.appcompat.widget.AppCompatImageButton button = new androidx.appcompat.widget.AppCompatImageButton(
+                        getContext(),null,androidx.appcompat.R.attr.actionButtonStyle);
+                button.setId(item.getItemId()); button.setMinimumWidth(0); button.setMinimumHeight(0);
+                button.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+                button.setPadding(dp(4),0,dp(4),0);
+                button.setOnClickListener(view -> { if(item.isEnabled()) getMenu().performIdentifierAction(item.getItemId(),0); });
+                item.setActionView(button);
+            }
+        }
+        if (!textFitAttached) {
+            com.nextgis.maplibui.util.ToolbarTextFit.attach(this);
+            textFitAttached = true;
+        }
+    }
+
+    private int dp(int value) { return Math.round(value*getResources().getDisplayMetrics().density); }
+
+    @Override protected void onMeasure(int widthSpec, int heightSpec) {
+        if (fitEditingActions) {
+            int count = 0;
+            for (int i=0; i<getMenu().size(); i++) if (getMenu().getItem(i).isVisible()) count++;
+            int available = MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight()
+                    - Math.max(getCurrentContentInsetStart(),getNavigationIcon() == null ? 0 : dp(56))
+                    - getCurrentContentInsetEnd();
+            int cell = Math.min(dp(56), Math.max(1, available / Math.max(1,count)));
+            for (int i=0; i<getMenu().size(); i++) {
+                final MenuItem item = getMenu().getItem(i);
+                if (!item.isVisible()) continue;
+                android.view.View action = item.getActionView();
+                if (!(action instanceof androidx.appcompat.widget.AppCompatImageButton)) continue;
+                androidx.appcompat.widget.AppCompatImageButton button = (androidx.appcompat.widget.AppCompatImageButton) action;
+                button.setImageDrawable(item.getIcon()); button.setEnabled(item.isEnabled());
+                button.setContentDescription(item.getTitle());
+                androidx.appcompat.widget.TooltipCompat.setTooltipText(button,item.getTitle());
+                android.view.ViewGroup.LayoutParams params = button.getLayoutParams();
+                if (params == null) {
+                    params = new android.view.ViewGroup.LayoutParams(cell,android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+                    button.setLayoutParams(params);
+                }
+                if (params.width != cell || params.height != android.view.ViewGroup.LayoutParams.MATCH_PARENT) {
+                    params.width = cell; params.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
+                    button.setLayoutParams(params);
+                }
+            }
+        }
+        super.onMeasure(widthSpec,heightSpec);
+    }
 
 
     public BottomToolbar(Context context)
