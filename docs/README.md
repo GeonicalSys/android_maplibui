@@ -1,10 +1,19 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-20
+last_verified: 2026-10-23
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
+
+## Компас без вибрации
+
+GlitchTip 101: `CompassFragment.onTouch` вращает лимб независимо от наличия
+Vibrator service и физического оборудования. Необязательный импульс 5 ms
+включается только при пользовательском разрешении вибрации и доступном
+vibrator/hasVibrator. Отсутствующий сервис на планшете или ранний выход
+инициализации при отсутствии location permission больше не вызывает NPE.
+API 26/36 регрессии и native consumer `CompassTouchTest` находятся в app.
 
 ## Жизненный цикл вкладок формы
 
