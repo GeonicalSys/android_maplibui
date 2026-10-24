@@ -6,6 +6,10 @@ last_verified: 2026-10-24
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
+## Штриховки, контуры и живой образец
+
+PolygonStyleControls редактирует независимые параметры узора и контура; неверные числа блокируют Save. StylePreviewView показывает геометрический символ через production MapLibre factories над прокруткой, без сети и изменений рабочей карты. Контракт — consuming docs/architecture/polygon-style-controls.md.
+
 ## «Светлячок»
 
 В StyleFragment добавлен отдельный тип «Светлячок»: цвет/размер ядра,

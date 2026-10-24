@@ -80,6 +80,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
     protected Style mStyle;
     protected VectorLayer mLayer;
     protected View mBody;
+    private com.nextgis.maplibui.util.StylePreviewView mPreview;
 
     public StyleFragment() {
     }
@@ -93,6 +94,14 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         if (mStyle == null)
             return null;
 
+        // SDF supplies window colours as an overlay. Controls also need a complete widget theme,
+        // including when a dark dialog is opened from a light Activity or a local test configuration.
+        android.content.res.TypedArray windowColors = mContext.obtainStyledAttributes(new int[]{R.attr.sdf_messageTextColor});
+        int foreground = windowColors.getColor(0, android.graphics.Color.BLACK); windowColors.recycle();
+        boolean darkControls = androidx.core.graphics.ColorUtils.calculateLuminance(foreground) > .5;
+        Context controlsContext = new android.view.ContextThemeWrapper(mContext,
+                darkControls ? R.style.Theme_NextGIS_AppCompat_Dark : R.style.Theme_NextGIS_AppCompat_Light);
+        inflater = inflater.cloneInContext(controlsContext);
         View body = null;
         mFillColor = mStyle.getColor();
         if (mStyle instanceof SimpleMarkerStyle) {
@@ -116,7 +125,26 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         inflateOpacity(body);
 
         setView(body, true);
-        return super.onCreateView(inflater, container, savedInstanceState);
+        View root = super.onCreateView(inflater, container, savedInstanceState);
+        mPreview = new com.nextgis.maplibui.util.StylePreviewView(body.getContext(), () -> mStyle);
+        mPreview.setId(R.id.style_live_preview);
+        LinearLayout main = root.findViewById(R.id.main_view);
+        boolean compact = body.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        main.addView(mPreview, 0, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.round((compact ? 48 : 100) * body.getResources().getDisplayMetrics().density)));
+        body.getViewTreeObserver().addOnPreDrawListener(() -> {
+            View save = root.findViewById(R.id.button_positive);
+            if (save != null) save.setEnabled(!com.nextgis.maplibui.util.PolygonStyleControls.hasInputError(mBody));
+            return true;
+        });
+        return root;
+    }
+
+    @Override public void onStart() { super.onStart(); if (mPreview != null) mPreview.start(); }
+    @Override public void onStop() { if (mPreview != null) mPreview.stop(); super.onStop(); }
+    @Override public void onDestroyView() {
+        if (mPreview != null) { mPreview.destroy(); mPreview = null; }
+        super.onDestroyView();
     }
 
     private void inflateMarker(View v) {
@@ -838,6 +866,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         color_stroke.setOnClickListener(this);
         setStrokeColor(mStrokeColor);
         inflateGeometryScale(v);
+        com.nextgis.maplibui.util.PolygonStyleControls.bind(v, polygonStyle);
     }
 
     private void updatePolygonFillPatternVisibility(

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="style_live_preview">Живой образец символа</string>
+    <string name="polygon_pattern_configure">Настроить штриховку</string>
+    <string name="polygon_pattern_hint">Встроенные штриховки независимы от фона. Угол — по часовой стрелке от горизонтали. Расстояния — в пикселях карты.</string>
+    <string name="polygon_pattern_angle">Угол, градусы</string>
+    <string name="polygon_pattern_second_angle">Второе направление, градусы</string>
+    <string name="polygon_pattern_spacing">Шаг, 4–64 пикс.</string>
+    <string name="polygon_pattern_width">Толщина / размер точек, 0,5–16 пикс.</string>
+    <string name="polygon_pattern_color">Цвет штриховки</string>
+    <string name="polygon_pattern_alpha">Непрозрачность штриховки</string>
+    <string name="polygon_outline_configure">Расширенный контур</string>
+    <string name="polygon_outline_type">Рисунок контура</string>
+    <string name="polygon_outline_cap">Концы штрихов</string>
+    <string name="polygon_outline_join">Соединения контура</string>
+    <string name="polygon_outline_miter">Предел острых углов, 1–10</string>
+    <string name="polygon_outline_gap">Просвет между линиями, 0–64 пикс.</string>
+    <string name="polygon_outline_offset">Смещение контура, −64–64 пикс.</string>
+    <string name="polygon_outline_casing">Дополнительная обводка</string>
+    <string name="polygon_outline_casing_color">Цвет дополнительной обводки</string>
+    <string name="polygon_outline_casing_width">Добавочная ширина с каждой стороны, 0–32 пикс.</string>
+    <string name="polygon_outline_casing_alpha">Непрозрачность дополнительной обводки</string>
+    <string name="polygon_outline_custom_dash">Длины штрихов и пропусков, например 4, 2</string>
+    <string name="style_invalid_number">Введите число от %1$s до %2$s</string>
+    <string-array name="polygon_outline_types">
+        <item>Сплошной</item>
+        <item>Пунктир</item>
+        <item>Точечный</item>
+        <item>Штрихпунктир</item>
+        <item>Свой рисунок</item>
+    </string-array>
+</resources>
