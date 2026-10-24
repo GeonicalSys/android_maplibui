@@ -296,7 +296,7 @@ public class RuleFeatureRendererUI extends RendererUI {
                 if (value == null) {
                     style = mStyle;
                 } else if (mRulesList.contains(mSelectedValue)) {
-                    style = mStyleRule.getStyle(mSelectedValue);
+                    style = mStyleRule.resolveEffectiveStyle(mSelectedValue, mStyle);
                 } else {
                     Style other = mStyleRule.resolveOtherStyle(mStyle);
                     style = other != null ? other.clone() : mStyle.clone();
@@ -307,8 +307,10 @@ public class RuleFeatureRendererUI extends RendererUI {
             }
         }
 
-        private void showStyleDialogForStyle(final Style style, final boolean saveAsOtherStyle) {
+        private void showStyleDialogForStyle(final Style sourceStyle, final boolean saveAsOtherStyle) {
             try {
+                // The modal owns a private effective symbol. Only its positive action replaces a rule.
+                final Style style = sourceStyle.clone();
                 FragmentManager fm = getActivity().getSupportFragmentManager();
                 final StyleFragment styleFragment = new StyleFragment();
                 styleFragment.setLayer(mLayer);
@@ -392,6 +394,11 @@ public class RuleFeatureRendererUI extends RendererUI {
             @Override
             public View getView(final int position, View convertView, @NonNull ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
+                // Keep the row editable even when its independent remove button can take focus.
+                view.setOnClickListener(v -> {
+                    mSelectedValue = getItem(position);
+                    showStyleDialog(mSelectedValue);
+                });
                 final ImageButton remove = (ImageButton) view.findViewById(R.id.rule_remove);
                 remove.setOnClickListener(new View.OnClickListener() {
                     @Override

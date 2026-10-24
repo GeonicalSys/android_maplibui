@@ -8,6 +8,8 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
+    responsibility: Open a private effective category symbol, preserve the source rule/Other on modal Cancel and replace only the selected category after Save.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/StylePreviewView.java
     responsibility: Own the polygon pattern, advanced contour or live native preview contract described in polygon-style-controls.md.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/PolygonStyleControls.java
