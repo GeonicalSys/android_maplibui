@@ -122,7 +122,7 @@ dependencies {
 
 
     // Match the app/maplib renderer backend; MapLibre 13's generic artifact uses Vulkan.
-    implementation 'org.maplibre.gl:android-sdk-opengl:13.0.2'
+    implementation 'org.maplibre.gl:android-sdk-opengl:13.7.1'
     implementation 'com.squareup.okhttp3:okhttp:5.3.2'
     implementation 'androidx.core:core-ktx:1.18.0'
 

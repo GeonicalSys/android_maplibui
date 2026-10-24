@@ -129,7 +129,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GpxSharePublisher.java
     responsibility: Share GPX through FileProvider with a text/xml URI MIME while the Intent stays application/gpx+xml.
   - path: maplibui/build.gradle
-    responsibility: Compile MapLibre UI against the same explicit MapLibre 13.0.2 OpenGL artifact as app and maplib so the final runtime does not require Vulkan.
+    responsibility: Compile MapLibre UI against the same explicit MapLibre 13.7.1 OpenGL artifact as app and maplib so the final runtime does not require Vulkan.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/NGWResourcesListAdapter.java
     responsibility: Load NGW resource trees asynchronously, wrap long resource names in the list rows, and report connection failures only through a live Activity window without crashing after lifecycle transitions.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGWLoginActivity.java

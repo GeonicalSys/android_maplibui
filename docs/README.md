@@ -194,7 +194,7 @@ row bind не читает SQLite и сбрасывает отметку при 
 
 UI-библиотека и runtime orchestration: выбор NGW resources, создание/настройка
 слоёв, batch fill, layer list/reorder, edit overlays, sync/account UI,
-Collector workspaces и защитные backups. MapLibre Android `13.0.2` подключён
+Collector workspaces и защитные backups. MapLibre Android `13.7.1` подключён
 через явный OpenGL-артефакт, согласованный с `app` и `maplib`.
 
 При подготовке production `3.1.2.27` библиотека проверяется вместе с consuming
@@ -357,7 +357,7 @@ app и maplib; shared UI, account identities и OpenGL backend сохраняю�
 
 - Нет compile dependency на `app`.
 - MapLibre dependency совпадает с `app` и `maplib`:
-  `org.maplibre.gl:android-sdk-opengl:13.0.2`; generic MapLibre 13 artifact
+  `org.maplibre.gl:android-sdk-opengl:13.7.1`; generic MapLibre 13 artifact
   использует Vulkan и не допускается в production dependency graph.
 - UI не выбирает типы для topology repair: решение разрешено только app/maplib
   для точного `GTMultiPolygon`; Polygon и линии сохраняют прежнее поведение.
