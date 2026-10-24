@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <merge xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <CheckBox
+    <CheckBox style="@style/Widget.NextGIS.StyleCheckbox"
         android:id="@+id/geometry_scale_with_zoom"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

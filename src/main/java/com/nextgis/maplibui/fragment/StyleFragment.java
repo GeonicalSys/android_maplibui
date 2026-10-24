@@ -80,6 +80,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
     protected Style mStyle;
     protected VectorLayer mLayer;
     protected View mBody;
+    private com.nextgis.maplibui.util.StylePreviewView mPreview;
 
     public StyleFragment() {
     }
@@ -93,6 +94,14 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         if (mStyle == null)
             return null;
 
+        // SDF supplies window colours as an overlay. Controls also need a complete widget theme,
+        // including when a dark dialog is opened from a light Activity or a local test configuration.
+        android.content.res.TypedArray windowColors = mContext.obtainStyledAttributes(new int[]{R.attr.sdf_messageTextColor});
+        int foreground = windowColors.getColor(0, android.graphics.Color.BLACK); windowColors.recycle();
+        boolean darkControls = androidx.core.graphics.ColorUtils.calculateLuminance(foreground) > .5;
+        Context controlsContext = new android.view.ContextThemeWrapper(mContext,
+                darkControls ? R.style.Theme_NextGIS_AppCompat_Dark : R.style.Theme_NextGIS_AppCompat_Light);
+        inflater = inflater.cloneInContext(controlsContext);
         View body = null;
         mFillColor = mStyle.getColor();
         if (mStyle instanceof SimpleMarkerStyle) {
@@ -116,15 +125,37 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         inflateOpacity(body);
 
         setView(body, true);
-        return super.onCreateView(inflater, container, savedInstanceState);
+        View root = super.onCreateView(inflater, container, savedInstanceState);
+        mPreview = new com.nextgis.maplibui.util.StylePreviewView(body.getContext(), () -> mStyle);
+        mPreview.setId(R.id.style_live_preview);
+        LinearLayout main = root.findViewById(R.id.main_view);
+        boolean compact = body.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        main.addView(mPreview, 0, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.round((compact ? 48 : 100) * body.getResources().getDisplayMetrics().density)));
+        body.getViewTreeObserver().addOnPreDrawListener(() -> {
+            View save = root.findViewById(R.id.button_positive);
+            if (save != null) save.setEnabled(!com.nextgis.maplibui.util.PolygonStyleControls.hasInputError(mBody));
+            return true;
+        });
+        return root;
+    }
+
+    @Override public void onStart() { super.onStart(); if (mPreview != null) mPreview.start(); }
+    @Override public void onStop() { if (mPreview != null) mPreview.stop(); super.onStop(); }
+    @Override public void onDestroyView() {
+        if (mPreview != null) { mPreview.destroy(); mPreview = null; }
+        super.onDestroyView();
     }
 
     private void inflateMarker(View v) {
         Spinner type = v.findViewById(R.id.type);
+        type.setAdapter(new com.nextgis.maplibui.util.FormChoiceAdapter(v.getContext(),
+                java.util.Arrays.asList(v.getResources().getStringArray(R.array.marker_type)), value -> false));
         type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 ((SimpleMarkerStyle) mStyle).setType(position + 1);
+                updateMarkerLabels(v);
             }
 
             @Override
@@ -253,6 +284,37 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             }
         });
         inflateGeometryScale(v);
+        v.findViewById(R.id.firefly_preset).setOnClickListener(button -> {
+            // Explicit preset: choosing a marker type alone never overwrites a user's colours or blur.
+            ((EditText) v.findViewById(R.id.size)).setText("6");
+            ((EditText) v.findViewById(R.id.width)).setText("14");
+            ((Spinner) v.findViewById(R.id.circle_blur)).setSelection(2);
+            ((SimpleMarkerStyle) mStyle).setCircleBlur(2);
+            mFillColor = android.graphics.Color.WHITE;
+            mStrokeColor = android.graphics.Color.rgb(255, 102, 133);
+            mStyle.setColor(mFillColor);
+            mStyle.setOutColor(mStrokeColor);
+            setFillColor(mFillColor);
+            setStrokeColor(mStrokeColor);
+        });
+        updateMarkerLabels(v);
+    }
+
+    private boolean isFirefly() {
+        return mStyle instanceof SimpleMarkerStyle
+                && ((SimpleMarkerStyle) mStyle).getType() == SimpleMarkerStyle.MarkerStyleFirefly;
+    }
+
+    private void updateMarkerLabels(View body) {
+        boolean firefly = isFirefly();
+        ((TextView) body.findViewById(R.id.marker_size_label)).setText(firefly ? R.string.firefly_core_size : R.string.size);
+        ((TextView) body.findViewById(R.id.marker_blur_label)).setText(firefly ? R.string.firefly_glow_softness : R.string.circle_blur);
+        ((TextView) body.findViewById(R.id.marker_fill_label)).setText(firefly ? R.string.firefly_core_color : R.string.fill_color);
+        ((TextView) body.findViewById(R.id.marker_stroke_label)).setText(firefly ? R.string.firefly_glow_color : R.string.stroke_color);
+        ((TextView) body.findViewById(R.id.marker_width_label)).setText(firefly ? R.string.firefly_glow_width : R.string.width);
+        body.findViewById(R.id.firefly_hint).setVisibility(firefly ? View.VISIBLE : View.GONE);
+        body.findViewById(R.id.firefly_preset).setVisibility(firefly ? View.VISIBLE : View.GONE);
+        updateAlphaLabels();
     }
 
     private void inflateGeometryScale(View v) {
@@ -804,6 +866,7 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         color_stroke.setOnClickListener(this);
         setStrokeColor(mStrokeColor);
         inflateGeometryScale(v);
+        com.nextgis.maplibui.util.PolygonStyleControls.bind(v, polygonStyle);
     }
 
     private void updatePolygonFillPatternVisibility(
@@ -1078,11 +1141,11 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         }
         if (mFillAlphaLabel != null) {
             mFillAlphaLabel.setText(ControlHelper.getPercentValue(
-                    getContext(), R.string.fill_opacity, mStyle.getAlpha() * 1.0f));
+                    getContext(), isFirefly() ? R.string.firefly_core_opacity : R.string.fill_opacity, mStyle.getAlpha() * 1.0f));
         }
         if (mStrokeAlphaLabel != null) {
             mStrokeAlphaLabel.setText(ControlHelper.getPercentValue(
-                    getContext(), R.string.stroke_opacity, mStyle.getOutAlpha() * 1.0f));
+                    getContext(), isFirefly() ? R.string.firefly_glow_opacity : R.string.stroke_opacity, mStyle.getOutAlpha() * 1.0f));
         }
     }
 

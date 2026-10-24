@@ -1,10 +1,24 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-23
+last_verified: 2026-10-24
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
+
+## Штриховки, контуры и живой образец
+
+PolygonStyleControls редактирует независимые параметры узора и контура; неверные числа блокируют Save. StylePreviewView показывает геометрический символ через production MapLibre factories над прокруткой, без сети и изменений рабочей карты. Контракт — consuming docs/architecture/polygon-style-controls.md.
+
+## «Светлячок»
+
+В StyleFragment добавлен отдельный тип «Светлячок»: цвет/размер ядра,
+цвет/ширина/размытие свечения и независимая непрозрачность. Смена типа сохраняет
+параметры; явная кнопка «Образец „Полевые точки“» задаёт белое ядро и розовый ореол.
+Выбор типа переносит длинные названия. FeatureTypePreview использует тот же
+sprite и вписывает его целиком. Матрица настоящего редактора проверяет 72
+локальных font/display/theme/orientation профиля с реальными touches.
+Контракт — consuming docs/architecture/point-firefly.md.
 
 ## Копирование, сдвиг и поворот
 
@@ -180,7 +194,7 @@ row bind не читает SQLite и сбрасывает отметку при 
 
 UI-библиотека и runtime orchestration: выбор NGW resources, создание/настройка
 слоёв, batch fill, layer list/reorder, edit overlays, sync/account UI,
-Collector workspaces и защитные backups. MapLibre Android `13.0.2` подключён
+Collector workspaces и защитные backups. MapLibre Android `13.7.1` подключён
 через явный OpenGL-артефакт, согласованный с `app` и `maplib`.
 
 При подготовке production `3.1.2.27` библиотека проверяется вместе с consuming
@@ -343,7 +357,7 @@ app и maplib; shared UI, account identities и OpenGL backend сохраняю�
 
 - Нет compile dependency на `app`.
 - MapLibre dependency совпадает с `app` и `maplib`:
-  `org.maplibre.gl:android-sdk-opengl:13.0.2`; generic MapLibre 13 artifact
+  `org.maplibre.gl:android-sdk-opengl:13.7.1`; generic MapLibre 13 artifact
   использует Vulkan и не допускается в production dependency graph.
 - UI не выбирает типы для topology repair: решение разрешено только app/maplib
   для точного `GTMultiPolygon`; Polygon и линии сохраняют прежнее поведение.
@@ -602,3 +616,5 @@ process snapshot для delayed ANR; UI не подменяет identity пре�
 
 Карточки и автоматический контроль исходных путей: [реестр обновлений](../update-reports/README.md).
 Перед push выполняется локальный hook; в новом клоне требуется его установка.
+
+Редактор существующей категории открывает effective clone; Cancel не изменяет исходную категорию/Other, а Save закрепляет показанный snapshot. Это проверяется consuming native входом из настоящего списка категорий.

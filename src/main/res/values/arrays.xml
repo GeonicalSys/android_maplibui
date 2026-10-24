@@ -218,6 +218,7 @@
         <item>@string/type_box</item>
         <item>@string/type_edit_circle</item>
         <item>@string/type_crossed_box</item>
+        <item>@string/marker_firefly</item>
     </string-array>
     <string-array name="renderers" translatable="false">
         <item>@string/simple_renderer</item>

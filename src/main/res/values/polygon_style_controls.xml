@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- StyledDialogFragment is an overlay theme; explicitly retain a native checkable widget. -->
+    <style name="Widget.NextGIS.StyleCheckbox" parent="@android:style/Widget.Material.CompoundButton.CheckBox">
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:buttonTint">?android:attr/textColorPrimary</item>
+    </style>
+</resources>

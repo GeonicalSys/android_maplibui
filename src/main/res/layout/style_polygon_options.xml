@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+ <CheckBox style="@style/Widget.NextGIS.StyleCheckbox" android:id="@+id/pattern_configure" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/polygon_pattern_configure"/>
+ <LinearLayout android:id="@+id/pattern_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+ <TextView android:id="@+id/pattern_hint_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_pattern_hint" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <TextView android:id="@+id/pattern_angle_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_pattern_angle" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/pattern_angle" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal|numberSigned"/>
+ <TextView android:id="@+id/pattern_second_angle_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_pattern_second_angle" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/pattern_second_angle" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal|numberSigned"/>
+ <TextView android:id="@+id/pattern_spacing_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_pattern_spacing" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/pattern_spacing" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal"/>
+ <TextView android:id="@+id/pattern_width_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_pattern_width" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/pattern_width" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal"/>
+ <TextView android:id="@+id/pattern_color_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_pattern_color" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <Button android:id="@+id/pattern_color" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:textAllCaps="false"/>
+ <TextView android:id="@+id/pattern_alpha_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_pattern_alpha" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <SeekBar android:id="@+id/pattern_alpha" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:max="255"/>
+ </LinearLayout>
+ <CheckBox style="@style/Widget.NextGIS.StyleCheckbox" android:id="@+id/outline_configure" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/polygon_outline_configure"/>
+ <LinearLayout android:id="@+id/outline_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+ <TextView android:id="@+id/outline_type_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_type" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <Spinner android:id="@+id/outline_type" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:entries="@array/polygon_outline_types"/>
+ <TextView android:id="@+id/outline_custom_dash_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_custom_dash" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/outline_custom_dash" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="text"/>
+ <TextView android:id="@+id/outline_cap_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_cap" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <Spinner android:id="@+id/outline_cap" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:entries="@array/line_caps"/>
+ <TextView android:id="@+id/outline_join_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_join" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <Spinner android:id="@+id/outline_join" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:entries="@array/line_joins"/>
+ <TextView android:id="@+id/outline_miter_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_miter" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/outline_miter" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal"/>
+ <TextView android:id="@+id/outline_gap_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_gap" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/outline_gap" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal"/>
+ <TextView android:id="@+id/outline_offset_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_offset" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/outline_offset" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal|numberSigned"/>
+ <CheckBox style="@style/Widget.NextGIS.StyleCheckbox" android:id="@+id/outline_casing" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/polygon_outline_casing"/>
+ <LinearLayout android:id="@+id/outline_casing_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+ <TextView android:id="@+id/outline_casing_color_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_casing_color" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <Button android:id="@+id/outline_casing_color" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:textAllCaps="false"/>
+ <TextView android:id="@+id/outline_casing_width_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_casing_width" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <EditText android:id="@+id/outline_casing_width" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:inputType="numberDecimal"/>
+ <TextView android:id="@+id/outline_casing_alpha_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/polygon_outline_casing_alpha" android:textAppearance="?android:attr/textAppearanceMedium"/>
+ <SeekBar android:id="@+id/outline_casing_alpha" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:max="255"/>
+ </LinearLayout>
+ </LinearLayout>
+</LinearLayout>
