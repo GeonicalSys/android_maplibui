@@ -129,6 +129,9 @@ public class TrackerService extends Service
     public static final String KEY_RECORDING_MODE = "track_recording_mode";
     private static final String TRACK_MAP = "track_map";
     private static final String PENDING_STOP = "pending_stop";
+    private static final String RECORDING_SESSION = "track_recording_session";
+    public static final String EXTRA_STOP_SESSION = "stop_recording_session";
+    public static final String EXTRA_STOP_SOURCE = "stop_recording_source";
     private static final String PENDING_DELETE = "pending_delete_track";
 //    public static final String HOST = "http://dev.nextgis.com/tracker-dev1-hub";
     public static final String HOST = "https://track.nextgis.com";
@@ -293,22 +296,8 @@ public class TrackerService extends Service
 
         int title = R.string.track_start, icon = R.drawable.ic_action_maps_directions_walk;
         if (hasRecordingSession(context)) {
-            /*
-             * The durable user intent is authoritative.  The service may be temporarily dead
-             * after a crash or because permission was revoked; pressing the menu's Stop item
-             * must still stop, not accidentally start a new track.
-             */
-            boolean checkpointed = context.getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE)
-                    .edit().putString(PENDING_STOP, ACTION_STOP).commit();
-            if (!checkpointed) setTrackFailure(context, true);
-            if (isTrackerServiceRunning(context)) {
-                trackerServiceIntent.setAction(TrackerService.ACTION_STOP);
-                HyperLog.v(Constants.TAG, "TrackerService stop requested source=menu");
-                context.startService(trackerServiceIntent);
-            } else {
-                trackerServiceIntent.setAction(ACTION_STOP);
-                startTrackingService(context, trackerServiceIntent);
-            }
+            // Internal controller API. User entry points request TrackActions.confirmStop first.
+            stopRecording(context, getRecordingSessionId(context), "internal");
         } else if (hasUnfinishedTracks(context)) {
             // The service recovers queued points before restoring the unfinished session.
             setTrackFailure(context, false);
@@ -351,6 +340,41 @@ public class TrackerService extends Service
     public static boolean hasRecordingSession(Context context) {
         return isTrackRecordingEnabled(context) || context.getSharedPreferences(TEMP_PREFERENCES,
                 MODE_PRIVATE).contains(PENDING_STOP);
+    }
+
+    /** Durable user session; unlike track row IDs this survives midnight splits and recovery. */
+    public static synchronized String getRecordingSessionId(Context context) {
+        if (!hasRecordingSession(context)) return null;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String session = preferences.getString(RECORDING_SESSION, null);
+        if (session == null) {
+            session = java.util.UUID.randomUUID().toString();
+            if (!preferences.edit().putString(RECORDING_SESSION, session).commit()) return null;
+        }
+        return session;
+    }
+
+    /** Called after confirmation. A stale dialog or notification cannot stop a newer session. */
+    public static synchronized boolean stopRecording(Context context, String session, String source) {
+        if (session == null || !session.equals(getRecordingSessionId(context))) return false;
+        if (!context.getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE).edit()
+                .putString(PENDING_STOP, ACTION_STOP).commit()) {
+            setTrackFailure(context, true);
+            HyperLog.w(Constants.TAG, "TrackerService Stop checkpoint failed source=" + source);
+            return false;
+        }
+        Intent stop = new Intent(context, TrackerService.class).setAction(ACTION_STOP)
+                .putExtra(EXTRA_STOP_SESSION, session).putExtra(EXTRA_STOP_SOURCE, source);
+        HyperLog.i(Constants.TAG, "TrackerService stop confirmed source=" + source);
+        if (isTrackerServiceRunning(context)) {
+            try { context.startService(stop); return true; }
+            catch (RuntimeException error) {
+                setTrackFailure(context, true);
+                HyperLog.w(Constants.TAG, "TrackerService Stop delivery deferred", error);
+                return false;
+            }
+        }
+        return startTrackingService(context, stop);
     }
 
     private static String recordingTrackId(Context context) {
@@ -433,11 +457,14 @@ public class TrackerService extends Service
             HyperLog.w(Constants.TAG, "Track recording preference checkpoint failed");
     }
 
-    private static boolean checkpointRecordingIntent(Context context, boolean enabled) {
-        boolean saved = PreferenceManager.getDefaultSharedPreferences(context)
-                .edit()
-                .putBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, enabled)
-                .commit();
+    private static synchronized boolean checkpointRecordingIntent(Context context, boolean enabled) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = preferences.edit()
+                .putBoolean(SettingsConstants.KEY_PREF_TRACK_RECORDING_ENABLED, enabled);
+        if (!enabled) editor.remove(RECORDING_SESSION);
+        else if (!isTrackRecordingEnabled(context) || !preferences.contains(RECORDING_SESSION))
+            editor.putString(RECORDING_SESSION, java.util.UUID.randomUUID().toString());
+        boolean saved = editor.commit();
         if (saved && !enabled) setTrackFailure(context, false);
         return saved;
     }
@@ -559,6 +586,11 @@ public class TrackerService extends Service
                         mLocationSenderThread.start();
                         return START_NOT_STICKY;
                     case ACTION_STOP:
+                        String expectedSession = intent.getStringExtra(EXTRA_STOP_SESSION);
+                        if (expectedSession != null && !expectedSession.equals(getRecordingSessionId(this))) {
+                            HyperLog.w(Constants.TAG, "TrackerService ignored stale confirmed Stop");
+                            return START_STICKY;
+                        }
                         initTargetIntent(targetActivity);
                         if (!addStartingNotification()) return START_NOT_STICKY;
                         stopTrack(ACTION_STOP);
@@ -972,10 +1004,11 @@ public class TrackerService extends Service
         }
 
         String title = String.format(getString(R.string.tracks_title), name);
-        Intent intentStop = new Intent(this, TrackerService.class);
-        intentStop.setAction(ACTION_STOP);
+        String session = getRecordingSessionId(this);
+        Intent intentStop = com.nextgis.maplibui.activity.TrackStopConfirmationActivity.intent(
+                this, session);
         int flag = PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE;
-        PendingIntent stopService = PendingIntent.getService(this, 0, intentStop, flag);
+        PendingIntent stopService = PendingIntent.getActivity(this, 0, intentStop, flag);
 
         NotificationCompat.Builder builder = createBuilder(this, R.string.title_edit_by_walk);
         builder.setContentIntent(mOpenActivity)

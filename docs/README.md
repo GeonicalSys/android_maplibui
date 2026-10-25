@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-24
+last_verified: 2026-10-25
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -626,3 +626,9 @@ process snapshot для delayed ANR; UI не подменяет identity пре�
 Перед push выполняется локальный hook; в новом клоне требуется его установка.
 
 Редактор существующей категории открывает effective clone; Cancel не изменяет исходную категорию/Other, а Save закрепляет показанный snapshot. Это проверяется consuming native входом из настоящего списка категорий.
+
+TrackActions.confirmStop — общий FittedDialogs Stop/Cancel. Notification
+открывает private TrackStopConfirmationActivity напрямую. TrackerService
+проверяет durable track_recording_session UUID перед pending_stop; старый ответ
+не завершает новый сеанс. Split/recovery сохраняют UUID, Cancel/Back не меняют
+запись. Внутренний confirmed Stop/retry не открывает повторный диалог.

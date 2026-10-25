@@ -250,6 +250,7 @@
     <string name="counting">Идет подсчет…</string>
     <string name="track_start">Начать запись трека</string>
     <string name="track_stop">Завершить запись трека</string>
+    <string name="track_stop_confirm">Остановить запись трека? Записанные точки сохранятся.</string>
     <string name="track_pending">Запуск записи трека…</string>
     <string name="track_error">Запись трека остановлена из-за ошибки</string>
     <string name="recording_location_disabled_title">Включите геопозицию</string>

@@ -21,6 +21,29 @@ import yuku.ambilwarna.AmbilWarnaDialog;
 public final class TrackActions {
     private TrackActions() { }
 
+    /** Merely opening/dismissing this window never changes recording intent or pending Stop. */
+    public static AlertDialog confirmStop(Context context, String session, String source, Runnable dismissed) {
+        if (session == null || !session.equals(TrackerService.getRecordingSessionId(context))) return null;
+        com.hypertrack.hyperlog.HyperLog.i(com.nextgis.maplib.util.Constants.TAG,
+                "TrackerService Stop confirmation shown source=" + source);
+        AlertDialog dialog = FittedDialogs.compatBuilder(context).setTitle(R.string.track_stop)
+                .setMessage(R.string.track_stop_confirm)
+                .setNegativeButton(R.string.cancel, (ignored, which) ->
+                        com.hypertrack.hyperlog.HyperLog.i(com.nextgis.maplib.util.Constants.TAG,
+                                "TrackerService Stop confirmation cancelled source=" + source))
+                .setPositiveButton(R.string.tracks_stop, (ignored, which) -> {
+                    if (!TrackerService.stopRecording(context, session, source)
+                            && session.equals(TrackerService.getRecordingSessionId(context)))
+                        failed(context, null);
+                }).create();
+        dialog.setOnCancelListener(ignored -> com.hypertrack.hyperlog.HyperLog.i(
+                com.nextgis.maplib.util.Constants.TAG,
+                "TrackerService Stop confirmation dismissed source=" + source));
+        if (dismissed != null) dialog.setOnDismissListener(ignored -> dismissed.run());
+        dialog.show();
+        return dialog;
+    }
+
     public static Uri uri(Context context) {
         return Uri.parse("content://" + ((IGISApplication) context.getApplicationContext()).getAuthority()
                 + "/" + TrackLayer.TABLE_TRACKS);

@@ -2,14 +2,17 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-24
+last_verified: 2026-10-25
 entrypoints:
+  - maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
+    responsibility: Open session-scoped fitted Stop confirmation directly from the recording notification.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackActions.java
-    responsibility: Share rename, color, visibility and confirmed safe deletion between list and map.
+    responsibility: Share rename, color, visibility, safe deletion and session-scoped Stop confirmation between list, map and notification.
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/TrackSelectionPanel.java
     responsibility: Keep selected track actions reachable, including Show after hiding, in a fitted Russian panel.
   - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
@@ -209,6 +212,10 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
     responsibility: Recoverable stroke state and checked atomic signature output.
 public_contracts:
+  - id: track-stop-confirmation
+    symbol: TrackActions.confirmStop and TrackerService.getRecordingSessionId / stopRecording
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackActions.java
+    consumers: [app]
   - id: scrolling-dialog-viewport
     symbol: FittedDialogs.nativeBuilder and compatBuilder preserve nested adapter viewport
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
@@ -237,7 +244,7 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [track_registered_device, track_send, track_send_default_enabled_v1, scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
+settings_refs: [track_recording_session, track_registered_device, track_send, track_send_default_enabled_v1, scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
 storage_contracts:
   - id: track_registered_device
     path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java

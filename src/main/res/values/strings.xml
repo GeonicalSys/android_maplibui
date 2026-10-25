@@ -273,6 +273,7 @@
     <string name="counting">Counting…</string>
     <string name="track_start">Start new track</string>
     <string name="track_stop">Stop track</string>
+    <string name="track_stop_confirm">Stop recording this track? Recorded points will be saved.</string>
     <string name="track_pending">Starting track recording…</string>
     <string name="track_error">Track recording stopped because of an error</string>
     <string name="recording_location_disabled_title">Turn on location</string>

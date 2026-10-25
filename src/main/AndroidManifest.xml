@@ -39,6 +39,13 @@
     <application>
 
         <activity
+            android:name=".activity.TrackStopConfirmationActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:label="@string/track_stop"
+            android:theme="@style/Theme.NextGIS.TrackStop.Light" />
+
+        <activity
             android:name=".activity.NGWLoginActivity"
             android:label="@string/ngw_account_add_item"
             android:windowSoftInputMode="stateHidden"/>
