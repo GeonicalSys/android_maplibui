@@ -8,6 +8,10 @@ entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackActions.java
+    responsibility: Share rename, color, visibility and confirmed safe deletion between list and map.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/view/TrackSelectionPanel.java
+    responsibility: Keep selected track actions reachable, including Show after hiding, in a fitted Russian panel.
   - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
     responsibility: Open a private effective category symbol, preserve the source rule/Other on modal Cancel and replace only the selected category after Save.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/StylePreviewView.java
@@ -15,7 +19,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/PolygonStyleControls.java
     responsibility: Own the polygon pattern, advanced contour or live native preview contract described in polygon-style-controls.md.
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/StyleFragment.java
-    responsibility: Edit ordinary vector styles, including a separate Firefly type, independent core/glow labels and an explicit Field points preset without overwriting settings on type selection.
+    responsibility: Edit ordinary vector styles with a pinned 40 dp landscape or 100 dp portrait sample, preserving complete color actions at large font and independent Firefly core/glow settings.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/NGDialog.java
     responsibility: Restore the dialog theme before constructing its themed context; keep layer choice valid after Activity recreation.
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/BottomToolbar.java

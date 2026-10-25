@@ -611,4 +611,14 @@
     <string name="form_rules_unavailable">Unable to check the form requirements. Update the project and reopen the form.</string>
     <string name="form_cascade_invalid_title">Check your selection</string>
     <string name="form_cascade_invalid">Select again: %1$s. The dictionary or related fields have changed.</string>
+    <string name="track_rename">Rename track</string>
+    <string name="track_name">Track name</string>
+    <string name="track_name_required">Enter a track name</string>
+    <string name="track_delete_confirm">Delete the selected tracks? This cannot be undone.</string>
+    <string name="track_stop_delete_confirm">Stop recording and delete the selected tracks? This cannot be undone.</string>
+    <string name="track_action_failed">Unable to change the track. Please try again.</string>
+    <string name="track_choose">Choose a track</string>
+    <string name="track_color_short">Color</string>
+    <string name="track_rename_short">Rename</string>
+    <string name="track_hidden_name">%1$s (hidden)</string>
 </resources>

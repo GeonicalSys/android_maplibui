@@ -131,7 +131,8 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         LinearLayout main = root.findViewById(R.id.main_view);
         boolean compact = body.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
         main.addView(mPreview, 0, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                Math.round((compact ? 48 : 100) * body.getResources().getDisplayMetrics().density)));
+                // Keep a complete color action inside short landscape scroll viewports at 200% font.
+                Math.round((compact ? 40 : 100) * body.getResources().getDisplayMetrics().density)));
         body.getViewTreeObserver().addOnPreDrawListener(() -> {
             View save = root.findViewById(R.id.button_positive);
             if (save != null) save.setEnabled(!com.nextgis.maplibui.util.PolygonStyleControls.hasInputError(mBody));

@@ -1,1 +1,10 @@
-<resources><item name="style_live_preview" type="id" /></resources>
+<resources>
+    <item name="style_live_preview" type="id" />
+    <item name="track_name_input" type="id" />
+    <item name="track_panel_title" type="id" />
+    <item name="track_panel_close" type="id" />
+    <item name="track_panel_color" type="id" />
+    <item name="track_panel_rename" type="id" />
+    <item name="track_panel_visibility" type="id" />
+    <item name="track_panel_delete" type="id" />
+</resources>

@@ -6,6 +6,14 @@ last_verified: 2026-10-24
 
 # maplibui — GIS UI, layer fill и Collector orchestration
 
+TrackActions объединяет Rename/Color/Visibility/Delete списка и нижней
+TrackSelectionPanel. TrackerService.deleteTracks не останавливает чужой текущий
+сеанс; удаление своего выполняется после durable drain с повторяемым намерением.
+Контракт: consuming `docs/architecture/track-controls.md`.
+
+Низкий альбомный редактор стиля использует закреплённый образец 40 dp, чтобы
+полная кнопка цвета помещалась при шрифте 200%; портретный образец — 100 dp.
+
 ## Штриховки, контуры и живой образец
 
 PolygonStyleControls редактирует независимые параметры узора и контура; неверные числа блокируют Save. StylePreviewView показывает геометрический символ через production MapLibre factories над прокруткой, без сети и изменений рабочей карты. Контракт — consuming docs/architecture/polygon-style-controls.md.

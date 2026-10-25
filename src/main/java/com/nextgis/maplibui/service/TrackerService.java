@@ -129,6 +129,7 @@ public class TrackerService extends Service
     public static final String KEY_RECORDING_MODE = "track_recording_mode";
     private static final String TRACK_MAP = "track_map";
     private static final String PENDING_STOP = "pending_stop";
+    private static final String PENDING_DELETE = "pending_delete_track";
 //    public static final String HOST = "http://dev.nextgis.com/tracker-dev1-hub";
     public static final String HOST = "https://track.nextgis.com";
     public static final String URL = "/ng-mobile";
@@ -350,6 +351,35 @@ public class TrackerService extends Service
     public static boolean hasRecordingSession(Context context) {
         return isTrackRecordingEnabled(context) || context.getSharedPreferences(TEMP_PREFERENCES,
                 MODE_PRIVATE).contains(PENDING_STOP);
+    }
+
+    private static String recordingTrackId(Context context) {
+        TrackerService service = sRecordingService;
+        if (service != null && service.mTrackId != null) return service.mTrackId;
+        String saved = context.getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE).getString(TRACK_URI, null);
+        return saved == null ? null : Uri.parse(saved).getLastPathSegment();
+    }
+
+    public static boolean includesRecordingTrack(Context context, String[] ids) {
+        return hasRecordingSession(context) && java.util.Arrays.asList(ids).contains(recordingTrackId(context));
+    }
+
+    /** Historical deletion never stops another recording. Active deletion drains durable fixes first. */
+    public static boolean deleteTracks(Context context, String[] ids) {
+        if (ids.length == 0) return true;
+        String active = includesRecordingTrack(context, ids) ? recordingTrackId(context) : null;
+        if (active != null) {
+            if (!context.getSharedPreferences(TEMP_PREFERENCES, MODE_PRIVATE).edit()
+                    .putString(PENDING_DELETE, active).putString(PENDING_STOP, ACTION_STOP).commit()) return false;
+            if (!startTrackingService(context, new Intent(context, TrackerService.class).setAction(ACTION_STOP)))
+                return false;
+        }
+        java.util.List<String> historical = new java.util.ArrayList<>();
+        for (String id : ids) if (!id.equals(active)) historical.add(id);
+        if (!historical.isEmpty()) context.getContentResolver().delete(
+                com.nextgis.maplibui.util.TrackActions.uri(context), TrackLayer.getSelection(historical.size()),
+                historical.toArray(new String[0]));
+        return true;
     }
 
     public static TrackRecordingMode getRecordingMode(Context context) {
@@ -819,8 +849,14 @@ public class TrackerService extends Service
                     closed.put(TrackLayer.FIELD_END, System.currentTimeMillis());
                     String unfinished = TrackLayer.FIELD_END + " IS NULL OR " + TrackLayer.FIELD_END + " = ''";
                     // Imported unfinished histories are not part of this Stop request.
-                    mTrackLayer.update(mContentUriTracks, closed, TrackLayer.FIELD_ID + "=? AND (" + unfinished + ")",
-                            new String[]{mTrackId});
+                    com.nextgis.maplib.util.LayerDatabaseTransaction.run(mTrackLayer.getDatabase(false), () -> {
+                        mTrackLayer.update(mContentUriTracks, closed, TrackLayer.FIELD_ID + "=? AND (" + unfinished + ")",
+                                new String[]{mTrackId});
+                        String deleting = mSharedPreferencesTemp.getString(PENDING_DELETE, null);
+                        if (ACTION_STOP.equals(stopping) && mTrackId != null && mTrackId.equals(deleting))
+                            mTrackLayer.delete(mContentUriTracks, TrackLayer.FIELD_ID + "=?", new String[]{mTrackId});
+                        return null;
+                    });
                 } catch (RuntimeException error) { result.failure = error; }
             }
             mPointHandler.post(() -> {
@@ -871,7 +907,7 @@ public class TrackerService extends Service
     private void finishStoppedTrack(String reason) {
         boolean stopped = ACTION_STOP.equals(reason);
         if (stopped && !checkpointRecordingIntent(this, false)
-                || !mSharedPreferencesTemp.edit().remove(PENDING_STOP).remove(TRACK_URI)
+                || !mSharedPreferencesTemp.edit().remove(PENDING_STOP).remove(PENDING_DELETE).remove(TRACK_URI)
                 .remove(TRACK_MAP).remove(ConstantsUI.TARGET_CLASS).commit()) {
             reportTrackPersistenceFailure();
             mPointHandler.postDelayed(mRetryPoints, 5000);

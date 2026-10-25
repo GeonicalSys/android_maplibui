@@ -26,7 +26,6 @@ package com.nextgis.maplibui.activity;
 import android.app.ProgressDialog;
 import android.content.ContentResolver;
 import android.content.ContentValues;
-import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
@@ -43,20 +42,17 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 import com.nextgis.maplib.api.IGISApplication;
 import com.nextgis.maplib.map.TrackLayer;
 import com.nextgis.maplibui.R;
-import com.nextgis.maplibui.service.TrackerService;
 import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.TrackView;
+import com.nextgis.maplibui.util.TrackActions;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import yuku.ambilwarna.AmbilWarnaDialog;
 
 import static com.nextgis.maplib.map.TrackLayer.getSelection;
-import static com.nextgis.maplibui.service.TrackerService.isTrackerServiceRunning;
 import static com.nextgis.maplibui.util.ControlHelper.isDarkTheme;
 
 public class TracksActivity extends NGActivity implements ActionMode.Callback {
@@ -90,8 +86,10 @@ public class TracksActivity extends NGActivity implements ActionMode.Callback {
                 if (count > 0 && mActionMode == null)
                     mActionMode = startSupportActionMode(TracksActivity.this);
 
-                if (mActionMode != null)
+                if (mActionMode != null) {
                     mActionMode.setTitle("" + count);
+                    mActionMode.invalidate();
+                }
             }
         });
 
@@ -226,27 +224,22 @@ public class TracksActivity extends NGActivity implements ActionMode.Callback {
 
     @Override
     public boolean onPrepareActionMode(ActionMode actionMode, Menu menu) {
-        return false;
+        menu.findItem(R.id.menu_track_rename).setVisible(mTracks.getSelectedItemsCount() == 1);
+        return true;
     }
 
     @Override
     public boolean onActionItemClicked(ActionMode actionMode, MenuItem menuItem) {
         int id = menuItem.getItemId();
         if (id == R.id.menu_delete) {
-            Intent trackerService = new Intent(getApplicationContext(), TrackerService.class);
-
-            if (isTrackerServiceRunning(getApplicationContext())) {
-                stopService(trackerService);
-                Toast.makeText(getApplicationContext(), R.string.unclosed_track_deleted, Toast.LENGTH_SHORT).show();
-            }
-
-            String selection = getSelection(mTracks.getSelectedItemsCount());
-            String[] args = mTracks.getSelectedItemsIds();
-            getContentResolver().delete(mContentUriTracks, selection, args);
-            closeActionMode();
+            TrackActions.delete(this, mTracks.getSelectedItemsIds(), this::closeActionMode);
+        } else if (id == R.id.menu_track_rename) {
+            if (mTracks.getSelectedItemsCount() == 1)
+                TrackActions.rename(this, Long.parseLong(mTracks.getSelectedItemsIds()[0]), () -> { });
         } else if (id == R.id.menu_select_all) {
             mTracks.selectAll();
             actionMode.setTitle("" + mTracks.getSelectedItemsCount());
+            actionMode.invalidate();
         } else if (id == R.id.menu_visibility_on) {
             changeVisibility(true);
         } else if (id == R.id.menu_visibility_off) {
@@ -255,20 +248,7 @@ public class TracksActivity extends NGActivity implements ActionMode.Callback {
             String[] args = mTracks.getSelectedItemsIds();
             LayerUtil.shareTrackAsGPX(this, "NextGIS Mobile", args);
         } else if (id == R.id.menu_color) {
-            int initColor = 0;
-            if (mTracks.getSelectedItemsCount() == 1)
-                initColor = TrackLayer.getColor(this, mContentUriTracks, Long.parseLong(mTracks.getSelectedItemsIds()[0]));
-
-            AmbilWarnaDialog dialog = new AmbilWarnaDialog(this, initColor, new AmbilWarnaDialog.OnAmbilWarnaListener() {
-                @Override
-                public void onOk(AmbilWarnaDialog dialog, int color) {
-                    changeColor(color);
-                }
-
-                @Override
-                public void onCancel(AmbilWarnaDialog dialog) { }
-            });
-            dialog.show();
+            TrackActions.color(this, mTracks.getSelectedItemsIds(), () -> { });
         }
 
         return true;
