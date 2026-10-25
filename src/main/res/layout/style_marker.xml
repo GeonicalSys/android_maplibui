@@ -77,15 +77,6 @@
         android:text="@string/firefly_hint"
         android:visibility="gone" />
 
-    <Button
-        android:id="@+id/firefly_preset"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:singleLine="false"
-        android:textAllCaps="false"
-        android:text="@string/firefly_field_points_preset"
-        android:visibility="gone" />
-
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -9,5 +9,4 @@
     <string name="firefly_core_opacity">Непрозрачность ядра</string>
     <string name="firefly_glow_opacity">Непрозрачность свечения</string>
     <string name="firefly_hint">Ядро остаётся чётким. Свечение размывается только наружу и не заполняет ядро, даже если оно прозрачное.</string>
-    <string name="firefly_field_points_preset">Образец «Полевые точки»</string>
 </resources>

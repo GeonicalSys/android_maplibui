@@ -57,7 +57,8 @@ public class TrackSelectionPanel extends FittedPanelLayout {
         LinearLayout actions = new LinearLayout(context);
         content.addView(actions);
         button(actions, R.id.track_panel_color, R.drawable.ic_color_lens_dark, R.string.track_color_short, COLOR);
-        button(actions, R.id.track_panel_rename, R.drawable.ic_action_edit_dark, R.string.track_rename_short, RENAME);
+        // The dark raster has only 48% alpha and looks disabled even after tinting.
+        button(actions, R.id.track_panel_rename, R.drawable.ic_action_edit_light, R.string.track_rename_short, RENAME);
         visibility = button(actions, R.id.track_panel_visibility, R.drawable.ic_action_visibility_off_dark,
                 R.string.menu_visibility_off, VISIBILITY);
         button(actions, R.id.track_panel_delete, R.drawable.ic_action_delete_dark, R.string.menu_delete, DELETE);

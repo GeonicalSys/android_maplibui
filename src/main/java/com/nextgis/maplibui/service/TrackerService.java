@@ -316,6 +316,15 @@ public class TrackerService extends Service
     }
 
     private static boolean startTrackingService(Context context, Intent intent) {
+        // Permissions/power dialogs can outlive the GPS-on state checked by the Activity.
+        // Do not request a location foreground service when its runtime prerequisites are gone.
+        if (ACTION_START.equals(intent.getAction()) && (!PermissionUtil.hasLocationPermissions(context)
+                || !isSystemLocationEnabled(context))) {
+            setTrackFailure(context, true);
+            HyperLog.w(Constants.TAG,"TrackerService start deferred; location unavailable, recording intent retained");
+            Toast.makeText(context,R.string.track_start_failed,Toast.LENGTH_LONG).show();
+            return false;
+        }
         try {
             ContextCompat.startForegroundService(context, intent);
             return true;
@@ -626,10 +635,11 @@ public class TrackerService extends Service
             }
             if (!isSystemLocationEnabled(this)) {
                 HyperLog.w(Constants.TAG,
-                        "TrackerService: system location is disabled, stop startId=" + startId);
-                setTrackRecordingEnabled(this, false);
+                        "TrackerService: system location is disabled; keeping recording intent startId=" + startId);
+                // A rejected resume is not a user-confirmed Stop. Keep durable intent/session.
                 reportTrackStartFailure();
-                stopSelf(startId);
+                // GPS-off rejects the entire startup, including an in-process retry with startId=0.
+                stopSelf();
                 return START_NOT_STICKY;
             }
 

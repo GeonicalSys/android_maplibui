@@ -9,5 +9,4 @@
     <string name="firefly_core_opacity">Core opacity</string>
     <string name="firefly_glow_opacity">Glow opacity</string>
     <string name="firefly_hint">The core stays sharp. The glow fades only outwards, leaving the inside clear even when the core is transparent.</string>
-    <string name="firefly_field_points_preset">Field points example</string>
 </resources>

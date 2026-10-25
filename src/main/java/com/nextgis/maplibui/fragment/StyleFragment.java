@@ -285,19 +285,6 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
             }
         });
         inflateGeometryScale(v);
-        v.findViewById(R.id.firefly_preset).setOnClickListener(button -> {
-            // Explicit preset: choosing a marker type alone never overwrites a user's colours or blur.
-            ((EditText) v.findViewById(R.id.size)).setText("6");
-            ((EditText) v.findViewById(R.id.width)).setText("14");
-            ((Spinner) v.findViewById(R.id.circle_blur)).setSelection(2);
-            ((SimpleMarkerStyle) mStyle).setCircleBlur(2);
-            mFillColor = android.graphics.Color.WHITE;
-            mStrokeColor = android.graphics.Color.rgb(255, 102, 133);
-            mStyle.setColor(mFillColor);
-            mStyle.setOutColor(mStrokeColor);
-            setFillColor(mFillColor);
-            setStrokeColor(mStrokeColor);
-        });
         updateMarkerLabels(v);
     }
 
@@ -314,7 +301,6 @@ public class StyleFragment extends StyledDialogFragment implements View.OnClickL
         ((TextView) body.findViewById(R.id.marker_stroke_label)).setText(firefly ? R.string.firefly_glow_color : R.string.stroke_color);
         ((TextView) body.findViewById(R.id.marker_width_label)).setText(firefly ? R.string.firefly_glow_width : R.string.width);
         body.findViewById(R.id.firefly_hint).setVisibility(firefly ? View.VISIBLE : View.GONE);
-        body.findViewById(R.id.firefly_preset).setVisibility(firefly ? View.VISIBLE : View.GONE);
         updateAlphaLabels();
     }
 
