@@ -1,10 +1,15 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-25
+last_verified: 2026-10-26
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
+
+GISApplication разрешает транспорт SDK MapLibre независимо от внешней сети:
+LocalVectorTileServer использует HTTP loopback и должен работать offline.
+Реальные NetworkUtil/WorkManager guards синхронизации, треков и обновлений
+сохранены. Внешние URL карты без сети получают обычные transport errors/backoff.
 
 TrackActions объединяет Rename/Color/Visibility/Delete списка и нижней
 TrackSelectionPanel. TrackerService.deleteTracks не останавливает чужой текущий
@@ -106,7 +111,9 @@ CurrentLocationOverlay получает display-only Network estimate общег
 `WrappingRow` переносит целые элементы, `FittedPanelLayout` вписывает уже
 скомпонованный блок при оставшемся переполнении и сохраняет touch transform.
 `WrappingLabel` сохраняет целые слова инструкции, уменьшая только слово,
-которое шире доступной области. Фиксированные ячейки таблицы используют
+которое шире доступной области. Подбор измеряет фактические glyph advances:
+на API30 простая пропорция оставляла слово на1px шире строки из-за hinting.
+Фиксированные ячейки таблицы используют
 ограниченный autosize с восстановлением предпочитаемого размера.
 Панель обхода переносит полное название над действиями. Вход в Веб ГИС в landscape
 использует две колонки с компактным логотипом и кратким русским пояснением,

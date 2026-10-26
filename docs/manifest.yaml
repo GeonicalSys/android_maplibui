@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-25
+last_verified: 2026-10-26
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
@@ -48,7 +48,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/ReflowingGuidanceHeader.java
     responsibility: Keep direction and Close visible while moving complete instruction text below them when it cannot fit alongside.
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/WrappingLabel.java
-    responsibility: Preserve complete words when wrapping instructions; fit only a word exceeding available width and restore the preferred system-scaled type when space returns.
+    responsibility: Preserve whole words using measured glyph advances including API30 hinting; shrink only an oversized word and restore the preferred system-scaled size when space returns.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
     responsibility: Provide compatible native/AppCompat dialog builders with complete captions and local content fitting for enlarged-display non-list dialogs, preserving callbacks and normal list viewports.
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/WrappingRow.java

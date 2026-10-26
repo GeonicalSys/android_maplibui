@@ -27,11 +27,30 @@ public final class WrappingLabel extends AppCompatTextView {
             TextPaint paint = new TextPaint(getPaint()); paint.setTextSize(preferredSize);
             CharSequence content = getTransformationMethod() == null ? getText()
                     : getTransformationMethod().getTransformation(getText(), this);
-            float widest = 0;
-            for (String word : content.toString().split("\\s+")) widest = Math.max(widest, paint.measureText(word));
-            if (widest > available) fitted *= (available - 1f) / widest;
+            String[] words = content.toString().split("\\s+");
+            if (widestWord(paint, words) > available) {
+                // Font hinting rounds advances on older Android versions: widths do not
+                // scale exactly with text size. Measure each candidate instead of a ratio.
+                float low = 0f, high = preferredSize;
+                for (int step = 0; step < 16; step++) {
+                    float candidate = (low + high) / 2f;
+                    paint.setTextSize(candidate);
+                    if (widestWord(paint, words) <= available - 1f) low = candidate;
+                    else high = candidate;
+                }
+                fitted = low;
+            }
         }
-        if (fitted > 0 && Math.abs(getTextSize() - fitted) > .5f) super.setTextSize(TypedValue.COMPLEX_UNIT_PX, fitted);
+        // A subpixel size correction can still move a rounded glyph advance by one pixel.
+        // Ignoring it splits a word at large font/display scales on Android 11.
+        if (fitted > 0 && Float.compare(getTextSize(), fitted) != 0)
+            super.setTextSize(TypedValue.COMPLEX_UNIT_PX, fitted);
         super.onMeasure(widthSpec, heightSpec);
+    }
+
+    private static float widestWord(TextPaint paint, String[] words) {
+        float widest = 0f;
+        for (String word : words) widest = Math.max(widest, paint.measureText(word));
+        return widest;
     }
 }

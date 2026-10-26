@@ -355,7 +355,10 @@ public abstract class GISApplication extends Application
 
     private void initializeMapbox() {
         MapLibre.getInstance(this, "sjdkfhjkdshfkjhsdkjf", WellKnownTileServer.MapTiler);
-        //TileLoadingMeasurementUtils.setUpTileLoadingMeasurement();
+        // LocalVectorTileServer serves offline SQLite tiles over HTTP loopback. The SDK's
+        // global Offline status otherwise suspends those requests too. Override only the
+        // SDK transport gate; sync/upload/update workers keep the real Android network state.
+        MapLibre.setConnected(true);
         MapStrictMode.setStrictModeEnabled(true);
     }
 
