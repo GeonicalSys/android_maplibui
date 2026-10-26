@@ -13,6 +13,9 @@ import com.nextgis.maplibui.view.FittedPanelLayout;
 public final class FittedDialogs {
     private FittedDialogs() { }
 
+    /** Third-party pickers own their native builder; apply the same viewport fitting after show. */
+    public static void fitExisting(Dialog dialog) { fit(dialog); }
+
     public static android.app.AlertDialog.Builder nativeBuilder(Context context) {
         return nativeBuilder(context, 0);
     }

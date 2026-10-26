@@ -2,12 +2,27 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-23
+last_verified: 2026-10-26
 entrypoints:
+  - maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
+    responsibility: Open session-scoped fitted Stop confirmation directly from the recording notification.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackActions.java
+    responsibility: Share rename, color, visibility, safe deletion and session-scoped Stop confirmation between list, map and notification.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/view/TrackSelectionPanel.java
+    responsibility: Keep selected track actions reachable, including Show after hiding, in a fitted Russian panel.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java
+    responsibility: Open a private effective category symbol, preserve the source rule/Other on modal Cancel and replace only the selected category after Save.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/StylePreviewView.java
+    responsibility: Own the polygon pattern, advanced contour or live native preview contract described in polygon-style-controls.md.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/PolygonStyleControls.java
+    responsibility: Own the polygon pattern, advanced contour or live native preview contract described in polygon-style-controls.md.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/StyleFragment.java
+    responsibility: Edit ordinary vector styles with a pinned 40 dp landscape or 100 dp portrait sample, preserving complete color actions at large font and independent Firefly core/glow settings.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/NGDialog.java
     responsibility: Restore the dialog theme before constructing its themed context; keep layer choice valid after Activity recreation.
   - path: maplibui/src/main/java/com/nextgis/maplibui/fragment/BottomToolbar.java
@@ -33,7 +48,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/ReflowingGuidanceHeader.java
     responsibility: Keep direction and Close visible while moving complete instruction text below them when it cannot fit alongside.
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/WrappingLabel.java
-    responsibility: Preserve complete words when wrapping instructions; fit only a word exceeding available width and restore the preferred system-scaled type when space returns.
+    responsibility: Preserve whole words using measured glyph advances including API30 hinting; shrink only an oversized word and restore the preferred system-scaled size when space returns.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
     responsibility: Provide compatible native/AppCompat dialog builders with complete captions and local content fitting for enlarged-display non-list dialogs, preserving callbacks and normal list viewports.
   - path: maplibui/src/main/java/com/nextgis/maplibui/view/WrappingRow.java
@@ -55,7 +70,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypeDefaults.java
     responsibility: Resolve style categories to canonical legacy values or pinned cascading keys plus all required parents; inspect only nonempty selector bindings in mixed forms and encode initial values for geometry and form drafts.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureTypePreview.java
-    responsibility: Render a private effective category symbol with project marker assets and polygon fill patterns.
+    responsibility: Render a private effective category symbol with project marker assets, polygon patterns and the same fully fitted Firefly sprite as the native map.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/FormChoiceAdapter.java
     responsibility: Wrap long selected values and native dialog choices with theme-aware placeholder contrast while preserving selection keys and existing cascade listeners.
   - path: maplibui/src/main/java/com/nextgis/maplibui/control/FormScrollView.java
@@ -121,7 +136,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/GpxSharePublisher.java
     responsibility: Share GPX through FileProvider with a text/xml URI MIME while the Intent stays application/gpx+xml.
   - path: maplibui/build.gradle
-    responsibility: Compile MapLibre UI against the same explicit MapLibre 13.0.2 OpenGL artifact as app and maplib so the final runtime does not require Vulkan.
+    responsibility: Compile MapLibre UI against the same explicit MapLibre 13.7.1 OpenGL artifact as app and maplib so the final runtime does not require Vulkan.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/NGWResourcesListAdapter.java
     responsibility: Load NGW resource trees asynchronously, wrap long resource names in the list rows, and report connection failures only through a live Activity window without crashing after lifecycle transitions.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGWLoginActivity.java
@@ -197,6 +212,10 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
     responsibility: Recoverable stroke state and checked atomic signature output.
 public_contracts:
+  - id: track-stop-confirmation
+    symbol: TrackActions.confirmStop and TrackerService.getRecordingSessionId / stopRecording
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackActions.java
+    consumers: [app]
   - id: scrolling-dialog-viewport
     symbol: FittedDialogs.nativeBuilder and compatBuilder preserve nested adapter viewport
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java
@@ -225,7 +244,7 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
-settings_refs: [track_registered_device, track_send, track_send_default_enabled_v1, scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
+settings_refs: [track_recording_session, track_registered_device, track_send, track_send_default_enabled_v1, scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
 storage_contracts:
   - id: track_registered_device
     path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
@@ -253,8 +272,9 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
   - id: geometry_edit_draft
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
-invariant_refs: [INV-FEATURE-COPY, INV-WHOLE-OBJECT-TRANSFORM, INV-SCROLLING-DIALOG-VIEWPORT, INV-MOBILE-PUBLICATION-ACCEPTANCE, INV-LOCAL-LOG-STARTUP, INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
+invariant_refs: [INV-POINT-FIREFLY, INV-FEATURE-COPY, INV-WHOLE-OBJECT-TRANSFORM, INV-SCROLLING-DIALOG-VIEWPORT, INV-MOBILE-PUBLICATION-ACCEPTANCE, INV-LOCAL-LOG-STARTUP, INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN]
 global_docs:
+  - docs/architecture/point-firefly.md
   - docs/architecture/feature-copy-transform.md
   - docs/runbooks/automated-tests.md
   - docs/guides/project-synchronization-user-guide.md
@@ -268,5 +288,5 @@ global_docs:
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [AUTO-FEATURE-EDITING, SMOKE-FEATURE-COPY-TRANSFORM, AUTO-MOBILE-RELATED, AUTO-MOBILE-FULL, AUTO-MOBILE-PUBLICATION-GATE, SMOKE-LAYER-CHOOSER, SMOKE-WALK, SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
-upstream_hotspots: [LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]
+smoke_tests: [AUTO-POLYGON-STYLE-CONTROLS, AUTO-POINT-FIREFLY, AUTO-FEATURE-EDITING, SMOKE-FEATURE-COPY-TRANSFORM, AUTO-MOBILE-RELATED, AUTO-MOBILE-FULL, AUTO-MOBILE-PUBLICATION-GATE, SMOKE-LAYER-CHOOSER, SMOKE-WALK, SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS]
+upstream_hotspots: [POLYGON-STYLE-CONTROLS, LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]

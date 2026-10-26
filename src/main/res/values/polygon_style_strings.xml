@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="style_live_preview">Live symbol preview</string>
+    <string name="polygon_pattern_configure">Configure pattern</string>
+    <string name="polygon_pattern_hint">Built-in patterns: independent of the background. Angle is clockwise from horizontal. Distances are map screen pixels.</string>
+    <string name="polygon_pattern_angle">Angle, degrees</string>
+    <string name="polygon_pattern_second_angle">Second direction, degrees</string>
+    <string name="polygon_pattern_spacing">Spacing, 4–64 px</string>
+    <string name="polygon_pattern_width">Line width / dot size, 0.5–16 px</string>
+    <string name="polygon_pattern_color">Pattern colour</string>
+    <string name="polygon_pattern_alpha">Pattern opacity</string>
+    <string name="polygon_outline_configure">Advanced outline</string>
+    <string name="polygon_outline_type">Outline pattern</string>
+    <string name="polygon_outline_cap">Line ends</string>
+    <string name="polygon_outline_join">Line joins</string>
+    <string name="polygon_outline_miter">Miter limit, 1–10</string>
+    <string name="polygon_outline_gap">Gap between parallel lines, 0–64 px</string>
+    <string name="polygon_outline_offset">Contour offset, −64–64 px</string>
+    <string name="polygon_outline_casing">Secondary outline</string>
+    <string name="polygon_outline_casing_color">Secondary outline colour</string>
+    <string name="polygon_outline_casing_width">Added width on each side, 0–32 px</string>
+    <string name="polygon_outline_casing_alpha">Secondary outline opacity</string>
+    <string name="polygon_outline_custom_dash">Dash and gap lengths, e.g. 4, 2</string>
+    <string name="style_invalid_number">Enter a number from %1$s to %2$s</string>
+    <string-array name="polygon_outline_types">
+        <item>Solid</item>
+        <item>Dashed</item>
+        <item>Dotted</item>
+        <item>Dash-dot</item>
+        <item>Custom</item>
+    </string-array>
+</resources>
