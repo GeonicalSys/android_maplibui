@@ -1,10 +1,24 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-26
+last_verified: 2026-10-28
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
+
+## Закрытие native SQLite запросов при смене проекта
+
+`GISApplication.resetMap/closeMapObj` вызывают terminal
+`MapDrawable.retireSqliteVectorSources()` до замены `mMap`. Вызов безопасен
+с любого потока внутри существующего application monitor: он сразу закрывает
+корутинные запросы/providers и запрещает новые поколения, не вызывает SDK,
+не запрашивает `app.getMap()` и не ждёт Main. Освобождение controller references
+отложено на UI. Это закрывает новый прямой SQLite путь при Collector switch и
+удалении проекта; прежний LocalVectorTileServer сохраняет собственную отмену.
+Обычное пересоздание Activity использует отдельное nonterminal закрытие источников.
+Layer order, sync-workspace owner, deferred reload и recording sessions не меняются.
+Контракт нижней библиотеки: `maplib/docs/sqlite-vector-source-bridge.md`;
+новые pure ownership/dispatcher tests не заменяют native project-switch проверку.
 
 GISApplication разрешает транспорт SDK MapLibre независимо от внешней сети:
 LocalVectorTileServer использует HTTP loopback и должен работать offline.
