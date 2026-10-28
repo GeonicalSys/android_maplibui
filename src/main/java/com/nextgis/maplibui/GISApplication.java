@@ -372,6 +372,7 @@ public abstract class GISApplication extends Application
     public synchronized void resetMap(){
         interceptorNG.clearAuth();
         if (null != mMap) {
+            mMap.retireSqliteVectorSources();
             mMap = null;
             getMap();
         }
@@ -379,6 +380,7 @@ public abstract class GISApplication extends Application
 
     public synchronized void closeMapObj(){
         interceptorNG.clearAuth();
+        if (mMap != null) mMap.retireSqliteVectorSources();
         mMap = null;
     }
 
