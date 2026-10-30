@@ -81,6 +81,46 @@ public final class LayerUtil {
 
         return lookupTableIds;
     }
+    /** Collect only the lookup bindings consumed by supported NGFP layouts. */
+    public static ArrayList<String> fillLookupTableIdsForPrefetch(File path) throws IOException, JSONException {
+        Object form = new org.json.JSONTokener(FileUtil.readFromFile(path)).nextValue();
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        if (form instanceof JSONArray) {
+            collectLookupElements((JSONArray) form, ids);
+        } else if (form instanceof JSONObject) {
+            JSONArray tabs = ((JSONObject) form).getJSONArray(ConstantsUI.JSON_TABS_KEY);
+            for (int i = 0; i < tabs.length(); i++) {
+                JSONObject tab = tabs.getJSONObject(i);
+                if (!tab.isNull(ConstantsUI.JSON_ALBUM_ELEMENTS_KEY))
+                    collectLookupElements(tab.getJSONArray(ConstantsUI.JSON_ALBUM_ELEMENTS_KEY), ids);
+                if (!tab.isNull(ConstantsUI.JSON_PORTRAIT_ELEMENTS_KEY))
+                    collectLookupElements(tab.getJSONArray(ConstantsUI.JSON_PORTRAIT_ELEMENTS_KEY), ids);
+            }
+        } else {
+            throw new JSONException("Expected NGFP array or tabs layout");
+        }
+        return new ArrayList<>(ids);
+    }
+
+    private static void collectLookupElements(JSONArray elements, java.util.LinkedHashSet<String> ids)
+            throws JSONException {
+        for (int i = 0; i < elements.length(); i++) {
+            JSONObject element = elements.getJSONObject(i);
+            String type = element.optString(Constants.JSON_TYPE_KEY);
+            if (ConstantsUI.JSON_COMBOBOX_VALUE.equals(type)) {
+                JSONObject attributes = element.getJSONObject(ConstantsUI.JSON_ATTRIBUTES_KEY);
+                if (attributes.has(ConstantsUI.JSON_NGW_ID_KEY)) {
+                    long id = attributes.getLong(ConstantsUI.JSON_NGW_ID_KEY);
+                    if (id != -1) ids.add(Long.toString(id));
+                }
+            } else if (ConstantsUI.JSON_TABS_KEY.equals(type)) {
+                JSONArray pages = element.getJSONArray(ConstantsUI.JSON_PAGES_KEY);
+                for (int j = 0; j < pages.length(); j++)
+                    collectLookupElements(pages.getJSONObject(j).getJSONArray(ConstantsUI.JSON_ELEMENTS_KEY), ids);
+            }
+        }
+    }
+
 
     public static void showEditForm(VectorLayer layer, Context context, long featureId, GeoGeometry geometry,
                                     long mFormId) {

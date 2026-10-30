@@ -1943,7 +1943,7 @@ public class LayerFillService extends Service implements IProgressor {
                     if (isNgwConnection) {
                         FileUtil.deleteRecursive(dataFile);
                         File form = new File(mLayerPath, formPrefix + FILE_FORM);
-                        ArrayList<String> lookupTableIds = LayerUtil.fillLookupTableIds(form);
+                        ArrayList<String> lookupTableIds = LayerUtil.fillLookupTableIdsForPrefetch(form);
 
                         extra.putInt(KEY_INPUT_TYPE, NGW_LAYER);
                         extra.putStringArrayList(KEY_LOOKUP_ID, lookupTableIds);

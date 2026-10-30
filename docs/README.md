@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-28
+last_verified: 2026-10-30
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -655,3 +655,25 @@ TrackActions.confirmStop — общий FittedDialogs Stop/Cancel. Notification
 запись. Внутренний confirmed Stop/retry не открывает повторный диалог.
 
 Панель трека использует карандаш с той же непрозрачностью, что остальные действия; тема продолжает задавать цвет. Кнопка отдельного пресета «Полевые точки» удалена. В редакторе остаются ручные параметры, сохранение пользовательских цветов и живой образец.
+
+
+## Подготовка справочников вложенной NGFP — 30 октября2026
+
+Новый LayerUtil.fillLookupTableIdsForPrefetch читает combobox lookup в root array,
+вложенных tabs/pages/elements и обоих declared album/portrait layouts. ID возвращаются
+без повторов в первом нормализованном порядке. Только GISApplication.fillMissingLookupTablesForCollectorForm
+и LayerFillService.UnzipForm.execute переведены на него; Android getLong/-1 сохранён.
+Старый public reader и весь NGWVectorLayerUI прежние: shared-cache deletion и
+account-removal safety не расширяются и не принимаются как исправленные.
+
+App actual-method SDK28: baseline12/3 AssertionFAIL/9 PASS, затем12 PASS/0errors/skips,
+XML2.149с, Gradle0/49с; LisaDebug source compile включён. BelkaRelease Java/Kotlin0/41с
+отдельно от NOT_PASS prelaunch classifier/sequence: exact100 и4 Java JAR подтверждены
+post-readback, controlled exit7 проверил исправленный fail-fast без нового JVM.
+Старые cache9/clock19/journal22/storage21 и desktop1117/1192 не перезапускались.
+
+[Центральный контракт и открытые границы](../../docs/architecture/ngw-sync-and-storage.md)
+и новая App internal карточка android-20261030-ngfp-lookup-prefetch-regression содержат
+public recipe. Own-live source не означает поставку с committed UI E66/maplib F61,
+выпуск APK или actual import/native acceptance. Новые metadata official docs/report
+checks после C-интеграции ещё NOT_RUN; общего PASS нет. Library Merge Commit до App pointer.

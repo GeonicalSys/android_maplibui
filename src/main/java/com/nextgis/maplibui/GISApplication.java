@@ -1331,7 +1331,7 @@ public abstract class GISApplication extends Application
         }
         File form = new File(layer.getPath(), formId + "_" + ConstantsUI.FILE_FORM);
         try {
-            ArrayList<String> lookupIds = LayerUtil.fillLookupTableIds(form);
+            ArrayList<String> lookupIds = LayerUtil.fillLookupTableIdsForPrefetch(form);
             boolean added = false;
             for (String id : lookupIds) {
                 if (TextUtils.isEmpty(id) || hasLookupTable(parentGroup, layer.getAccountName(), id)) {

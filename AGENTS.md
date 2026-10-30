@@ -145,3 +145,16 @@ installer сохраняет чужую конфигурацию hooks; её н�
 Сохранение черновика не закрывает ID карточек: `reported/` и `letters/`
 создаются отдельно по команде «зафиксируй отчёт». Правила источников и секретов
 применяются и к приложениям отчёта.
+
+
+## NGFP: prefetch отдельно от удаления
+
+Читать consuming docs/architecture/ngw-sync-and-storage.md и conditional-form-rules.md.
+Только GISApplication и LayerFillService используют новый LayerUtil.fillLookupTableIdsForPrefetch:
+root array, оба declared orientation layouts, рекурсивные tabs/pages/elements и
+first-seen normalized dedup. Сохранять Android getLong/-1 и malformed-present errors.
+Старый public fillLookupTableIds и оба NGWVectorLayerUI delete reader сохраняют
+прежние bytes/duplicates/errors; не переключать destructive readers на новый walker.
+Missing-cache/hash-retry, межзадачные дубли, shared deletion и backup/account policy
+вести в центральном контракте. Двенадцать consuming App JVM не проверяют actual
+import/cache availability, account deletion, disk durability или native Save.
