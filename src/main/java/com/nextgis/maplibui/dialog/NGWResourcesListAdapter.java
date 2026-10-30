@@ -824,6 +824,20 @@ public class NGWResourcesListAdapter
     }
 
 
+    /** Render only owned copy; failed loads are distinct from successful empty groups. */
+    static String childLoadError(Context context, ResourceGroup.ChildrenLoadResult result) {
+        if (context == null || result != null && result.isSuccessful()) return "";
+        if (result != null) {
+            if (result.getResponseCode() == 401)
+                return context.getString(com.nextgis.maplib.R.string.error_401);
+            if (result.getResponseCode() == 403)
+                return context.getString(com.nextgis.maplib.R.string.error_403);
+            if (result.isTemporaryServerFailure())
+                return context.getString(com.nextgis.maplib.R.string.error_server_temporarily_unavailable);
+        }
+        return context.getString(R.string.resource_list_load_failed);
+    }
+
     /**
      * A async task to execute resources functions (connect, loadChildren, etc.) asynchronously.
      */
@@ -874,13 +888,13 @@ public class NGWResourcesListAdapter
             if (resource instanceof Connection) {
                 final Connection connection = (Connection) resource;
                 if (connection.connect(NGW_ACCOUNT_GUEST.equals(connection.getLogin()))) {
-                    connection.loadChildren(skipSubLoad);
+                    return childLoadError(mContext.get(), connection.loadChildrenWithResult(skipSubLoad));
                 } else {
                     return mContext.get().getString(com.nextgis.maplib.R.string.error_connect_failed);
                 }
             } else if (resource instanceof ResourceGroup) {
                 final ResourceGroup resourceGroup = (ResourceGroup) resource;
-                resourceGroup.loadChildren(skipSubLoad);
+                return childLoadError(mContext.get(), resourceGroup.loadChildrenWithResult(skipSubLoad));
             }
             return "";
         }

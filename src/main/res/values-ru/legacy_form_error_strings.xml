@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="error_invalid_column">Не удалось открыть список формы.</string>
+    <string name="error_invalid_row">Ранее выбранная строка формы больше недоступна.</string>
+    <string name="error_empty_list">В списке формы нет доступных строк.</string>
+</resources>

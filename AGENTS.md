@@ -158,3 +158,20 @@ first-seen normalized dedup. Сохранять Android getLong/-1 и malformed-
 Missing-cache/hash-retry, межзадачные дубли, shared deletion и backup/account policy
 вести в центральном контракте. Двенадцать consuming App JVM не проверяют actual
 import/cache availability, account deletion, disk durability или native Save.
+
+
+## Сообщения загрузки и выбора ресурсов
+
+Проверять причину → owning task → progress/dialog/toast по исходникам.
+NGWResourcesListAdapter принимает per-invocation ChildrenLoadResult, отличая
+failed request от successful empty; legacy void callers и parcel layout прежние.
+Сохранять live Activity gate. Для known server failure брать общий Core RU/EN
+error_server_temporarily_unavailable, отдельно сохранять login/rights/offline.
+
+LayerFillService передаёт исключения через LayerFillErrorMessage: только typed
+HTTP provenance либо owned human resources. Raw Throwable text, URL, SQL/column
+details и parser dumps остаются в диагностике. Сравнение owned текста — allowlist
+содержимого, не способ угадывать HTTP status. No value for fields не доказывает403.
+POINTZ marker/flag/особый dialog route сохраняются. FormBuilder list errors используют
+resource IDs, а row reset, callback и Save остаются прежними. Native fit/lifecycle,
+реальный server/import и device acceptance выполняются отдельно от source/JVM.

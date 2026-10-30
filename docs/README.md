@@ -677,3 +677,40 @@ post-readback, controlled exit7 проверил исправленный fail-f
 public recipe. Own-live source не означает поставку с committed UI E66/maplib F61,
 выпуск APK или actual import/native acceptance. Новые metadata official docs/report
 checks после C-интеграции ещё NOT_RUN; общего PASS нет. Library Merge Commit до App pointer.
+
+
+## Понятные сообщения форм, списка ресурсов и загрузки — source-срез30 октября2026
+
+Три legacy ошибки FormBuilder теперь используют localized resource IDs вместо
+буквального R.string.*. Нет новой проверки данных: mColumn/mRow reset, callback,
+metadata и Save прежние. Actual no-lifecycle SDK28 literal4 baseline дал3 comparison
+FAIL/1 control/0 errors (3.180с); same4/6eb9 GREEN0.434с включён в actual89,
+не добавляется к89 повторно.
+
+NGWResourcesListAdapter получает structured ChildrenLoadResult: known HTTP server
+failure → общий Core текст о возможных техработах/перегрузке и повторе позже;
+401/403 → прежние разные login/rights; unknown IO/JSON → human retry text.
+Успешный empty[] не является ошибкой. Post-execute live Activity gate, sort/cache/
+legacy void API/Parcelable прежние. Connection.connect(false) пока сохраняет
+общий connect-failed outcome, а partial child parse/retry policy не исправляется.
+
+LayerFillErrorMessage пропускает только positively typed HTTP cause либо owned
+human resource copy; прочие IOException/SQLite/JSON/NGException получают безопасный
+fallback, technical детали остаются в логах. No value for fields больше не выдаётся
+за403. Numeric-only owned count mismatch сохраняет числа без arbitrary suffix.
+POINTZ flag/особый dialog и отмена coordinate import остаются в своих handlers.
+Разные Core IOException/NGException subtype сохраняют old retry/catch policy.
+
+App resource9/presentation10 и Core typed5+5 прошли в actual89 source checks:
+Core46/App43,0fail/errors/skips,11 XML10.995с, Gradle0/BUILD50с. Первый85 остаётся
+NOT_PASS81/4: реальный408 classifier исправлен централизованно body-only422 guard,
+retry unchanged; один Producer stale integer oracle8→12 скорректирован вручную
+по исходному known-prefix|OTHER контракту, не ослаблением UI или сменой API.
+BelkaRelease source compile0/59с;4 Java JAR28/535/670/45 classes,100taskSET exact/
+order different,68 inputs неизменны и unit15/compile13 процессов завершились.
+Физический импорт/SQL/server/device/GUI fitting/native не запускались. Raw response,
+URL, SQL columns или private path не должны становиться пользовательским объяснением.
+Source delivery не означает library Merge Commit, App pointer update или выпуск APK.
+Карточки: [формы](../update-reports/entries/maplibui-20261030-form-list-messages.md),
+[список ресурсов](../update-reports/entries/maplibui-20261030-resource-load-messages.md),
+[загрузка слоёв](../update-reports/entries/maplibui-20261030-layer-fill-messages.md).

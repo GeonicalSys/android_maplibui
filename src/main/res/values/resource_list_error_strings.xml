@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="resource_list_load_failed">The resource list could not be loaded. Please try again.</string>
+</resources>

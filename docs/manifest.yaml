@@ -138,7 +138,7 @@ key_components:
   - path: maplibui/build.gradle
     responsibility: Compile MapLibre UI against the same explicit MapLibre 13.7.1 OpenGL artifact as app and maplib so the final runtime does not require Vulkan.
   - path: maplibui/src/main/java/com/nextgis/maplibui/dialog/NGWResourcesListAdapter.java
-    responsibility: Load NGW resource trees asynchronously, wrap long resource names in the list rows, and report connection failures only through a live Activity window without crashing after lifecycle transitions.
+    responsibility: "Load NGW resource trees asynchronously, wrap long resource names in the list rows, and report connection failures only through a live Activity window without crashing after lifecycle transitions. Consume structured child outcome with owned server/login/rights/generic copy and retain genuine empty success plus existing live Activity gate."
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/NGWLoginActivity.java
     responsibility: Complete Web GIS login only after Android AccountManager returns the created variant-specific account; keep recoverable local failures visible.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/RebuildCacheService.java
@@ -146,7 +146,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
     responsibility: Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; backup-gated pre-sync collapse of duplicate managed layer identities with one map commit; resume a durable Collector journal only in its matching project, clean only app-marked unpublished layer stages, defer heavy account-sync reloads, keep post-fill map reload pending until MapLibre confirms style/source application, and start or stop ExternalGnssService while an external NMEA endpoint is configured.
   - path: maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
-    responsibility: Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, keep the caller-supplied underlay display name instead of a SAF document id, accept an atomically handed-off project-preparation lease before import metadata mutates, target-project identity verification before file or SQLite access, early parent binding to the owning workspace, Collector-item edit policy application, crash-tracked fail-fast cleanup of incomplete layers, durable timeout recovery, one-commit main-thread replacement scoped by account/project/resource with post-commit storage retirement, and ordered local-underlay insertion above OSM and below the user stack.
+    responsibility: "Non-sticky foreground NGW/Collector layer download and local GeoJSON/KML/GPX/raster MBTiles fill, keep the caller-supplied underlay display name instead of a SAF document id, accept an atomically handed-off project-preparation lease before import metadata mutates, target-project identity verification before file or SQLite access, early parent binding to the owning workspace, Collector-item edit policy application, crash-tracked fail-fast cleanup of incomplete layers, durable timeout recovery, one-commit main-thread replacement scoped by account/project/resource with post-commit storage retirement, and ordered local-underlay insertion above OSM and below the user stack. Route caught failures through owned safe presentation for progress/toasts, preserving diagnostic logs and POINTZ; missing JSON fields are not evidence of403."
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/LayerFactoryUI.java
     responsibility: Route local GeoJSON, KML, GPX, NGRc and raster MBTiles documents to their matching fill task; raster underlays that classify as NGRc/MBTiles go through SharedUnderlayStore with a human layer name.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/LoadLisaCollectorProject.java
@@ -211,6 +211,10 @@ key_components:
     responsibility: Locale-independent normalization of NextGIS ID identifiers only.
   - path: maplibui/src/main/java/com/nextgis/maplibui/formcontrol/Sign.java
     responsibility: Recoverable stroke state and checked atomic signature output.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/activity/FormBuilderModifyAttributesActivity.java
+    responsibility: Use localized resources for legacy missing-list/saved-row/empty-choice errors while keeping metadata, row reset, callbacks and Save unchanged.
+  - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerFillErrorMessage.java
+    responsibility: Render typed HTTP provenance or exact owned human resources; reject raw exception/URL/SQL text, preserve bounded numeric-only count mismatch and existing coordinate-import fallback.
 public_contracts:
   - id: ngfp-lookup-prefetch
     symbol: LayerUtil.fillLookupTableIdsForPrefetch(File); legacy fillLookupTableIds(File) remains unchanged
@@ -250,6 +254,12 @@ public_contracts:
     symbol: NGWResourceImportHelper
     path: maplibui/src/main/java/com/nextgis/maplibui/util/NGWResourceImportHelper.java
     consumers: [app]
+  - id: layer-fill-error-presentation
+    symbol: LayerFillErrorMessage.forException(Context, Exception[, fallbackResource])
+    path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerFillErrorMessage.java
+    consumers:
+    - maplibui
+    - app
 settings_refs: [track_recording_session, track_registered_device, track_send, track_send_default_enabled_v1, scriptReference, track_recording_mode, feature_label_field, photo_overlay_enabled, photo_overlay_use_object_coords, keep_screen_on, collector-registry, collector-workspaces, collector-initial-local-project, collector-import-journal, collector-form-transaction, ngw-schema-rebuild-guard, layer-backups, track_recording_enabled, background_recording_sound, walkedit_temp, geometry_edit_draft, feature_form_draft, tracks_temp, pending-track-points, feature-save-journal]
 storage_contracts:
   - id: track_registered_device
@@ -278,7 +288,7 @@ storage_contracts:
     path: maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java
   - id: geometry_edit_draft
     path: maplibui/src/main/java/com/nextgis/maplibui/util/GeometryEditDraftStore.java
-invariant_refs: [INV-SQLITE-NATIVE-VECTORS, INV-POINT-FIREFLY, INV-FEATURE-COPY, INV-WHOLE-OBJECT-TRANSFORM, INV-SCROLLING-DIALOG-VIEWPORT, INV-MOBILE-PUBLICATION-ACCEPTANCE, INV-LOCAL-LOG-STARTUP, INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN, INV-NGFP-LOOKUP-PREFETCH-SCOPE]
+invariant_refs: [INV-SQLITE-NATIVE-VECTORS, INV-POINT-FIREFLY, INV-FEATURE-COPY, INV-WHOLE-OBJECT-TRANSFORM, INV-SCROLLING-DIALOG-VIEWPORT, INV-MOBILE-PUBLICATION-ACCEPTANCE, INV-LOCAL-LOG-STARTUP, INV-TRACK-DELIVERY, INV-CONDITIONAL-REQUIRED, INV-PROJECT-SCRIPTS, INV-REQUIRED-FIELDS, INV-NGW-ACCOUNT-IDENTITY, INV-NGW-RESOURCE-DIALOG-LIFECYCLE, INV-LAYER-ORDER, INV-TRACK-LAYER-TOP, INV-HOT-ADD-CONSISTENCY, INV-MAPLIBRE-BACKEND-COMPATIBILITY, INV-COLLECTOR-RESOURCE, INV-COLLECTOR-LAYER-IDENTITY, INV-COLLECTOR-RASTER-STYLES, INV-COLLECTOR-ISOLATION, INV-COLLECTOR-EDITABILITY, INV-COLLECTOR-RESUMABLE, INV-COLLECTOR-FORM-ATOMIC, INV-PROJECT-OPERATION-EXCLUSION, INV-NGRC-PRESERVE, INV-LEGACY-UNDERLAY-MIGRATION, INV-SYNC-ACCOUNT-ISOLATION, INV-BACKUP-BEFORE-DESTRUCTION, INV-NO-TRACK-FLAGS, INV-CRASH-DRAFT-RECOVERY, INV-MULTIPOLYGON-REPAIR, INV-GEOMETRY-SKETCH-WORKFLOW, INV-GPS-TRACK-FILTER, INV-LOCAL-VECTOR-LAYERS, INV-LOCAL-WRITE-COMMIT, INV-TRACK-RETRY, INV-NGID-LOGIN, INV-NGFP-LOOKUP-PREFETCH-SCOPE, INV-NGW-USER-MESSAGES]
 global_docs:
   - docs/architecture/point-firefly.md
   - docs/architecture/feature-copy-transform.md
@@ -294,5 +304,5 @@ global_docs:
   - docs/architecture/collector-projects.md
   - docs/architecture/ngw-sync-and-storage.md
   - docs/architecture/crash-recovery.md
-smoke_tests: [AUTO-SQLITE-NATIVE-VECTORS, AUTO-POLYGON-STYLE-CONTROLS, AUTO-POINT-FIREFLY, AUTO-FEATURE-EDITING, SMOKE-FEATURE-COPY-TRANSFORM, AUTO-MOBILE-RELATED, AUTO-MOBILE-FULL, AUTO-MOBILE-PUBLICATION-GATE, SMOKE-LAYER-CHOOSER, SMOKE-WALK, SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS, AUTO-NGFP-LOOKUP-PREFETCH, SMOKE-NGFP-LOOKUP-PREFETCH]
+smoke_tests: [AUTO-SQLITE-NATIVE-VECTORS, AUTO-POLYGON-STYLE-CONTROLS, AUTO-POINT-FIREFLY, AUTO-FEATURE-EDITING, SMOKE-FEATURE-COPY-TRANSFORM, AUTO-MOBILE-RELATED, AUTO-MOBILE-FULL, AUTO-MOBILE-PUBLICATION-GATE, SMOKE-LAYER-CHOOSER, SMOKE-WALK, SMOKE-TRACK-DELIVERY, SMOKE-FORM-APPEARANCE, SMOKE-CONDITIONAL-REQUIRED, SMOKE-FORM-NAVIGATION, SMOKE-PROJECT-SCRIPTS, SMOKE-REQUIRED-FIELDS, AUTO-MAPLIBUI-UNIT, AUTO-MAPLIBUI-ASSEMBLE, SMOKE-MAP-OPENGL-COMPATIBILITY, SMOKE-NGW-ACCOUNT-ADD, SMOKE-NGW-CONNECTION-FAILURE, SMOKE-NGW-IMPORT-BACK, SMOKE-NGRC-ORDER, SMOKE-NGRC-PRESERVE, SMOKE-UPDATE-DATA-PRESERVE, SMOKE-DEBUG-UNDERLAY-MIGRATION, SMOKE-HOT-RASTER, SMOKE-LAYER-REORDER, SMOKE-LAYER-VISIBILITY-ICON, SMOKE-COLLECTOR-IMPORT, SMOKE-LAYER-SYNC-SETTINGS, SMOKE-COLLECTOR-IDENTITY, SMOKE-COLLECTOR-RESUME, SMOKE-COLLECTOR-INCOMPLETE, SMOKE-FORM-ROLLBACK, SMOKE-MULTI-ACCOUNT-SYNC, SMOKE-NGW-URL-IMPORT, SMOKE-LOCAL-VECTOR-LAYERS, SMOKE-COLLECTOR-SWITCH, SMOKE-PROJECT-MANAGEMENT, SMOKE-SCHEMA-REBUILD-GUARD, SMOKE-BACKUP-GATE, SMOKE-SYNC-OFF-CONFIG, SMOKE-SYNC-INTERRUPT-ACTION, SMOKE-CRASH-DRAFT-RECOVERY, SMOKE-MULTIPOLYGON-REPAIR, SMOKE-GEOMETRY-SKETCH-WORKFLOW, SMOKE-GPS-RECORDING, AUTO-RELIABILITY-NATIVE, SMOKE-RELIABILITY-FAILURES, SMOKE-TOOL-TAP, SMOKE-NGID-AND-RESOURCE-ICONS, AUTO-NGFP-LOOKUP-PREFETCH, SMOKE-NGFP-LOOKUP-PREFETCH, AUTO-NGW-USER-MESSAGES]
 upstream_hotspots: [POLYGON-STYLE-CONTROLS, LAYER-FILL, RASTER-MBTILES, MAP-HOST, MAPLIBRE-BACKEND, GEOMETRY-EDIT-HISTORY, COLLECTOR-RESOURCE]
