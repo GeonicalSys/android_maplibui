@@ -99,8 +99,21 @@ public final class NgwResourceSelectionState {
         for (int i = 0; i < selected.length(); i++) {
             JSONObject check = selected.getJSONObject(i);
             INGWResource resource = resolve(connections, check, skipSubLoad, false);
-            restored.checks.add(new CheckState(resource.getId(), check.getBoolean("raster"),
-                    check.getBoolean("vector")));
+            boolean raster = check.getBoolean("raster");
+            boolean vector = check.getBoolean("vector");
+            CheckState previous = null;
+            for (CheckState selectedCheck : restored.checks) {
+                if (selectedCheck.getId() == resource.getId()) {
+                    previous = selectedCheck;
+                    break;
+                }
+            }
+            if (previous == null) {
+                restored.checks.add(new CheckState(resource.getId(), raster, vector));
+            } else {
+                previous.setCheckState1(previous.isCheckState1() || raster);
+                previous.setCheckState2(previous.isCheckState2() || vector);
+            }
         }
         restored.current = resolve(connections, state.getJSONObject("current"), skipSubLoad, true);
         return restored;

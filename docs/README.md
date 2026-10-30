@@ -714,3 +714,17 @@ Source delivery не означает library Merge Commit, App pointer update �
 Карточки: [формы](../update-reports/entries/maplibui-20261030-form-list-messages.md),
 [список ресурсов](../update-reports/entries/maplibui-20261030-resource-load-messages.md),
 [загрузка слоёв](../update-reports/entries/maplibui-20261030-layer-fill-messages.md).
+
+
+## Resource selector: checkbox projection and compact restore
+
+Contract `UI-NGW-RESOURCE-CHECKBOX-SELECTION` / invariant `INV-NGW-RESOURCE-CHECKBOX-SELECTION` traces row XML and adapter mode binding,
+process-local CheckState identity, Activity/Dialog import and compact JSON/legacy
+parcel boundaries. Both modes and every recycled label must agree with the
+bound resource; binding itself must not alter checks. Callback duplicate handling
+and owned JSON OR merge are different operations, with external setter/Parcel
+and generic import multiplicity intentionally unchanged. See central
+docs/architecture/ui-contracts.md and ngw-sync-and-storage.md; unresolved refresh
+questions remain in the canonical resource-browser refresh investigation linked from the consuming UI contract. User card `maplibui-20261030-ngw-resource-checkbox-binding` owns product source; App
+`android-20261030-ngw-resource-checkbox-selection` owns28 new +9 protected browser technical models, actual37 PASS; Belka source compile0/BUILD47s. No native/device/
+real-server/import acceptance or replay of historical89 is implied.

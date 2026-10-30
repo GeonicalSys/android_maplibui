@@ -175,3 +175,19 @@ details и parser dumps остаются в диагностике. Сравне
 POINTZ marker/flag/особый dialog route сохраняются. FormBuilder list errors используют
 resource IDs, а row reset, callback и Save остаются прежними. Native fit/lifecycle,
 реальный server/import и device acceptance выполняются отдельно от source/JVM.
+
+
+## Флажки NGW resource selector
+
+Перед изменением NGWResourcesListAdapter/NgwResourceSelectionState/CheckState
+читать `UI-NGW-RESOURCE-CHECKBOX-SELECTION`, invariant `INV-NGW-RESOURCE-CHECKBOX-SELECTION` и central ngw-sync-and-storage.md. Physical
+checkbox1 не равен raster mode1: vector без style/Collector передают checkNo2.
+Bind снимает listener, устанавливает ANY requested mode по matching localID,
+затем возвращает listener, не меняя owner list. False очищает requested flag
+у всех matching записей, true не размножает уже positive mode; другие flags/
+IDs/order/object identity сохраняются. Recycled label устанавливается явно.
+Owned JSON restore OR-merges same resolved localID firstorder лишь после каждого
+прежнего resolve/boolean parse; failure не скрывать. Не переносить эту нормализацию
+на public setter/Parcel и не обещать generic import dedup. Refresh policy —
+единый Root `AUDIT-TODO-NGW-RESOURCE-BROWSER-REFRESH`. App fixtures22+6 и protected browser9 прошли actual37 source checks;
+исторические message89 не принимают изменённый Adapter, F61 clock row не repin.

@@ -480,6 +480,7 @@ public class NGWResourcesListAdapter
 
                     tvDesc = v.findViewById(R.id.tvDesc);
                     tvDesc.setText(mActivity.get().getString(R.string.raster_layer));
+                    ((TextView) v.findViewById(R.id.type1)).setText(R.string.raster);
 
                     //add check listener
                     checkBox1 = v.findViewById(R.id.checkBox1);
@@ -539,6 +540,7 @@ public class NGWResourcesListAdapter
 
                     tvDesc = v.findViewById(R.id.tvDesc);
                     tvDesc.setText(mActivity.get().getString(R.string.web_map));
+                    ((TextView) v.findViewById(R.id.type1)).setText(R.string.raster);
 
                     //add check listener
                     checkBox1 = v.findViewById(R.id.checkBox1);
@@ -599,31 +601,18 @@ public class NGWResourcesListAdapter
 //            Log.e("CRVV", "state 2 " + state.isCheckState2()) ;
 //        }
 //        Log.e("CRVV", "mCheckStates ----- END");
-        for (CheckState state : mCheckState) {
-            if (checkNo == 1) {
-//                Log.e("CRVV", "setCheckBox checkNo" + checkNo);
-                if (state.getId() == id && state.isCheckState1()) {
-//                    Log.e("CRVV", "checkBox.setChecked(true)");
-                    checkBox.setChecked(true);
-                } else {
-                    checkBox.setChecked(false);
-//                    Log.e("CRVV", "checkBox.setChecked(false)");
+        if (checkNo == 1 || checkNo == 2) {
+            boolean checked = false;
+            for (CheckState state : mCheckState) {
+                if (state.getId() == id
+                        && ((checkNo == 1 && state.isCheckState1())
+                        || (checkNo == 2 && state.isCheckState2()))) {
+                    checked = true;
+                    break;
                 }
-            } else if (checkNo == 2) {
-//                Log.e("CRVV", "setCheckBox checkNo" + checkNo);
-                if (state.getId() == id && state.isCheckState2()) {
-                    checkBox.setChecked(true);
-//                    Log.e("CRVV", "checkBox.setChecked(true)");
-                } else {
-                    checkBox.setChecked(false);
-//                    Log.e("CRVV", "checkBox.setChecked(false)");
-                }
-    //            } else if (checkNo == 3) {
-    //                if (state.getId() == id && state.isCheckState3()) {
-    //                    checkBox.setChecked(true);
-    //                }
             }
-    }
+            checkBox.setChecked(checked);
+        }
 
         checkBox.setOnCheckedChangeListener(
                 new CompoundButton.OnCheckedChangeListener()
@@ -647,29 +636,50 @@ public class NGWResourcesListAdapter
                             }
                         }
 
-                        switch (checkNo) {
-                            case 1:
-                                if (checkedState != null)
-                                    checkedState.setCheckState1(b);
-                                else
-                                    mCheckState.add(new CheckState(id, true, false));//, false));
-                                break;
-                            case 2:
-                                if (checkedState != null)
-                                    checkedState.setCheckState2(b);
-                                else
-                                    mCheckState.add(new CheckState(id, false, true));//, false));
-                                break;
-//                            case 3:
-//                                if (checkedState != null)
-//                                    checkedState.setCheckState3(b);
-//                                else
-//                                    mCheckState.add(new CheckState(id, false, false, true));
-//                                break;
+                        if (checkNo != 1 && checkNo != 2) {
+                            if (checkedState != null && !checkedState.isCheckState1()
+                                    && !checkedState.isCheckState2()) {
+                                mCheckState.remove(checkedState);
+                            }
+                            return;
                         }
 
-                        if (checkedState != null && !checkedState.isCheckState1() && !checkedState.isCheckState2())// && !checkedState.isCheckState3())
-                            mCheckState.remove(checkedState);
+                        if (b) {
+                            boolean modeSelected = false;
+                            for (CheckState state : mCheckState) {
+                                if (state.getId() == id
+                                        && ((checkNo == 1 && state.isCheckState1())
+                                        || (checkNo == 2 && state.isCheckState2()))) {
+                                    modeSelected = true;
+                                    break;
+                                }
+                            }
+                            if (!modeSelected) {
+                                if (checkedState == null) {
+                                    mCheckState.add(new CheckState(id, checkNo == 1, checkNo == 2));
+                                } else if (checkNo == 1) {
+                                    checkedState.setCheckState1(true);
+                                } else {
+                                    checkedState.setCheckState2(true);
+                                }
+                            }
+                        } else {
+                            java.util.Iterator<CheckState> states = mCheckState.iterator();
+                            while (states.hasNext()) {
+                                CheckState state = states.next();
+                                if (state.getId() != id) {
+                                    continue;
+                                }
+                                if (checkNo == 1) {
+                                    state.setCheckState1(false);
+                                } else {
+                                    state.setCheckState2(false);
+                                }
+                                if (!state.isCheckState1() && !state.isCheckState2()) {
+                                    states.remove();
+                                }
+                            }
+                        }
                     }
                 });
     }
