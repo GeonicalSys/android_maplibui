@@ -84,6 +84,7 @@ import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ConstantsUI;
 import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.LayerFillStaging;
+import com.nextgis.maplibui.util.LayerFillErrorMessage;
 import com.nextgis.maplibui.util.ProjectOperationCoordinator;
 import com.hypertrack.hyperlog.HyperLog;
 
@@ -1714,7 +1715,7 @@ public class LayerFillService extends Service implements IProgressor {
                 vectorLayer.createFromGeoJson(mUri, progressor);
             } catch (IOException | JSONException | SQLiteException | NGException | ClassCastException e) {
                 e.printStackTrace();
-                setError(e.getLocalizedMessage(), progressor);
+                setError(LayerFillErrorMessage.forException(LayerFillService.this, e), progressor);
                 notifyError(mProgressMessage);
                 return false;
             }
@@ -1747,9 +1748,8 @@ public class LayerFillService extends Service implements IProgressor {
                 if (progressor != null && progressor.isCanceled()) {
                     return false;
                 }
-                String userMessage = exception instanceof NGException
-                        ? exception.getLocalizedMessage()
-                        : getString(com.nextgis.maplib.R.string.error_coordinate_file_import);
+                String userMessage = LayerFillErrorMessage.forException(LayerFillService.this,
+                        exception, com.nextgis.maplib.R.string.error_coordinate_file_import);
                 setError(userMessage, progressor);
                 notifyError(userMessage);
                 return false;
@@ -1808,7 +1808,7 @@ public class LayerFillService extends Service implements IProgressor {
                             connection.setRequestProperty ("Authorization", basicAuth);
                     } catch (IllegalStateException e) {
                         e.printStackTrace();
-                        setError(e.getLocalizedMessage(), progressor);
+                        setError(LayerFillErrorMessage.forException(LayerFillService.this, e), progressor);
                         notifyError(mProgressMessage);
                         return false;
                     }
@@ -1943,7 +1943,7 @@ public class LayerFillService extends Service implements IProgressor {
                     if (isNgwConnection) {
                         FileUtil.deleteRecursive(dataFile);
                         File form = new File(mLayerPath, formPrefix + FILE_FORM);
-                        ArrayList<String> lookupTableIds = LayerUtil.fillLookupTableIds(form);
+                        ArrayList<String> lookupTableIds = LayerUtil.fillLookupTableIdsForPrefetch(form);
 
                         extra.putInt(KEY_INPUT_TYPE, NGW_LAYER);
                         extra.putStringArrayList(KEY_LOOKUP_ID, lookupTableIds);
@@ -1994,7 +1994,7 @@ public class LayerFillService extends Service implements IProgressor {
                 }
             } catch (AccountsException | JSONException | IOException | URISyntaxException | RuntimeException e) {
                 e.printStackTrace();
-                setError(e.getLocalizedMessage(), progressor);
+                setError(LayerFillErrorMessage.forException(LayerFillService.this, e), progressor);
                 notifyError(mProgressMessage);
                 return false;
             }
@@ -2046,7 +2046,7 @@ public class LayerFillService extends Service implements IProgressor {
                     vectorLayer.createFromGeoJson(mPath, progressor); // should never get there
             } catch (IOException | JSONException | SQLiteException | NGException | ClassCastException e) {
                 e.printStackTrace();
-                setError(e.getLocalizedMessage(), progressor);
+                setError(LayerFillErrorMessage.forException(LayerFillService.this, e), progressor);
                 notifyError(mProgressMessage);
                 return false;
             }
@@ -2099,7 +2099,7 @@ public class LayerFillService extends Service implements IProgressor {
                     tmsLayer.fillFromZip(mUri, progressor);
             } catch (IOException | NGException | RuntimeException e) {
                 e.printStackTrace();
-                setError(e.getLocalizedMessage(), progressor);
+                setError(LayerFillErrorMessage.forException(LayerFillService.this, e), progressor);
                 notifyError(mProgressMessage);
                 return false;
             }
@@ -2276,13 +2276,7 @@ public class LayerFillService extends Service implements IProgressor {
             HyperLog.w(Constants.TAG, ProdLogUtil.withStack(context + ": "
                     + ProdLogUtil.truncateForLog(e.getMessage(), 500), e));
 
-            String error = e.getLocalizedMessage();
-            if (TextUtils.isEmpty(error)) {
-                error = e.getClass().getSimpleName();
-            }
-            if (e instanceof JSONException && e.getMessage().equals("No value for fields")){
-                error = getResources().getString(com.nextgis.maplib.R.string.error_forbidden);
-            }
+            String error = LayerFillErrorMessage.forException(LayerFillService.this, e);
             if ("POINTZ".equals(e.getMessage())){
                 error = getBaseContext().getString(R.string.pointz_alert);
                 isPointz = true;
@@ -2372,7 +2366,7 @@ public class LayerFillService extends Service implements IProgressor {
                         Thread.sleep(1000L * attempt);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        setError(ie.getLocalizedMessage(), progressor);
+                        setError(LayerFillErrorMessage.forException(LayerFillService.this, ie), progressor);
                         notifyError(mProgressMessage);
                         return false;
                     }

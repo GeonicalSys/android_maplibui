@@ -330,7 +330,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                     mColumn = metaJson.getString(JSON_KEY_LIST_KEY);
                     List<String> columnList = mTable.get(mColumn);
                     if (mColumn == null || columnList == null || columnList.isEmpty()) {
-                        Toast.makeText(this, "R.string.error_invalid_column", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, R.string.error_invalid_column, Toast.LENGTH_SHORT).show();
                         mColumn = null; // Сбрасываем mColumn, чтобы избежать ошибок
                         fillControls(layout, savedState);
                         return;
@@ -339,7 +339,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
                     if (metaJson.has(JSON_KEY_LIST_SAVED_KEY)) {
                         mRow = metaJson.getInt(JSON_KEY_LIST_SAVED_KEY);
                         if (mRow >= columnList.size() || mRow < 0) {
-                            Toast.makeText(this, "R.string.error_invalid_row", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(this, R.string.error_invalid_row, Toast.LENGTH_SHORT).show();
                             mRow = -1;
                         }
                     } else {
@@ -401,7 +401,7 @@ public class FormBuilderModifyAttributesActivity extends ModifyAttributesActivit
         List<String> items = mTable.get(mColumn);
         if (items == null || items.isEmpty()) {
             Log.e("FormBuilder", "Empty or null list for column: " + mColumn);
-            Toast.makeText(this, "R.string.error_empty_list", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_empty_list, Toast.LENGTH_SHORT).show();
             mRow = -1;
             listener.onRowChosen();
             return;

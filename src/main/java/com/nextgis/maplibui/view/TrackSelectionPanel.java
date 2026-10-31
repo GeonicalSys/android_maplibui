@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -19,11 +20,13 @@ import com.nextgis.maplibui.R;
 
 /** A compact, fitted map panel. Hiding a selected track keeps its Show action reachable. */
 public class TrackSelectionPanel extends FittedPanelLayout {
-    public static final int COLOR = 1, RENAME = 2, VISIBILITY = 3, DELETE = 4, CLOSE = 5;
+    public static final int COLOR = 1, RENAME = 2, VISIBILITY = 3, DELETE = 4, CLOSE = 5, SHARE = 6;
     public interface Listener { void onAction(int action); }
     private final TextView title, visibility;
     private final int foreground;
     private Listener listener;
+    private final LinearLayout[] actionRows;
+    private final View[] actionButtons;
 
     public TrackSelectionPanel(Context context) { this(context, null); }
     public TrackSelectionPanel(Context context, AttributeSet attrs) {
@@ -54,15 +57,44 @@ public class TrackSelectionPanel extends FittedPanelLayout {
         ViewCompat.setTooltipText(close, close.getContentDescription());
         close.setOnClickListener(view -> action(CLOSE));
         header.addView(close, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        LinearLayout actions = new LinearLayout(context);
-        content.addView(actions);
+        actionRows = new LinearLayout[5];
+        for (int i = 0; i < actionRows.length; i++) {
+            actionRows[i] = new LinearLayout(context);
+            actionRows[i].setBaselineAligned(false);
+            actionRows[i].setVisibility(i == 0 ? VISIBLE : GONE);
+            content.addView(actionRows[i]);
+        }
+        LinearLayout actions = actionRows[0];
         button(actions, R.id.track_panel_color, R.drawable.ic_color_lens_dark, R.string.track_color_short, COLOR);
         // The dark raster has only 48% alpha and looks disabled even after tinting.
         button(actions, R.id.track_panel_rename, R.drawable.ic_action_edit_light, R.string.track_rename_short, RENAME);
         visibility = button(actions, R.id.track_panel_visibility, R.drawable.ic_action_visibility_off_dark,
                 R.string.menu_visibility_off, VISIBILITY);
+        button(actions, R.id.track_panel_share, R.drawable.ic_action_social_share_dark, R.string.menu_share, SHARE);
         button(actions, R.id.track_panel_delete, R.drawable.ic_action_delete_dark, R.string.menu_delete, DELETE);
+        actionButtons = new View[actions.getChildCount()];
+        for (int i = 0; i < actionButtons.length; i++) actionButtons[i] = actions.getChildAt(i);
         setVisibility(GONE);
+    }
+
+    @Override protected void onMeasure(int widthSpec, int heightSpec) {
+        // The map control rail also consumes width: wrap before actions shrink below 48 dp.
+        int available = Math.max(0, MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight());
+        int columns = MeasureSpec.getMode(widthSpec) == MeasureSpec.UNSPECIFIED ? actionButtons.length
+                : Math.max(1, Math.min(actionButtons.length, available / dp(48)));
+        for (int i = 0; i < actionButtons.length; i++) {
+            LinearLayout target = actionRows[i / columns];
+            View button = actionButtons[i];
+            int index = i % columns;
+            if (button.getParent() != target || target.indexOfChild(button) != index) {
+                ((LinearLayout) button.getParent()).removeView(button);
+                target.addView(button, index);
+            }
+        }
+        int rowCount = (actionButtons.length + columns - 1) / columns;
+        for (int i = 0; i < actionRows.length; i++)
+            actionRows[i].setVisibility(i < rowCount ? VISIBLE : GONE);
+        super.onMeasure(widthSpec, heightSpec);
     }
 
     public void bind(TrackLayer.TrackInfo info, Listener listener) {

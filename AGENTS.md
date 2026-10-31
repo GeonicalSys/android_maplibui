@@ -145,3 +145,69 @@ installer сохраняет чужую конфигурацию hooks; её н�
 Сохранение черновика не закрывает ID карточек: `reported/` и `letters/`
 создаются отдельно по команде «зафиксируй отчёт». Правила источников и секретов
 применяются и к приложениям отчёта.
+
+
+## NGFP: prefetch отдельно от удаления
+
+Читать consuming docs/architecture/ngw-sync-and-storage.md и conditional-form-rules.md.
+Только GISApplication и LayerFillService используют новый LayerUtil.fillLookupTableIdsForPrefetch:
+root array, оба declared orientation layouts, рекурсивные tabs/pages/elements и
+first-seen normalized dedup. Сохранять Android getLong/-1 и malformed-present errors.
+Старый public fillLookupTableIds и оба NGWVectorLayerUI delete reader сохраняют
+прежние bytes/duplicates/errors; не переключать destructive readers на новый walker.
+Missing-cache/hash-retry, межзадачные дубли, shared deletion и backup/account policy
+вести в центральном контракте. Двенадцать consuming App JVM не проверяют actual
+import/cache availability, account deletion, disk durability или native Save.
+
+
+## Сообщения загрузки и выбора ресурсов
+
+Проверять причину → owning task → progress/dialog/toast по исходникам.
+NGWResourcesListAdapter принимает per-invocation ChildrenLoadResult, отличая
+failed request от successful empty; legacy void callers и parcel layout прежние.
+Сохранять live Activity gate. Для known server failure брать общий Core RU/EN
+error_server_temporarily_unavailable, отдельно сохранять login/rights/offline.
+
+LayerFillService передаёт исключения через LayerFillErrorMessage: только typed
+HTTP provenance либо owned human resources. Raw Throwable text, URL, SQL/column
+details и parser dumps остаются в диагностике. Сравнение owned текста — allowlist
+содержимого, не способ угадывать HTTP status. No value for fields не доказывает403.
+POINTZ marker/flag/особый dialog route сохраняются. FormBuilder list errors используют
+resource IDs, а row reset, callback и Save остаются прежними. Native fit/lifecycle,
+реальный server/import и device acceptance выполняются отдельно от source/JVM.
+
+
+## Флажки NGW resource selector
+
+Перед изменением NGWResourcesListAdapter/NgwResourceSelectionState/CheckState
+читать `UI-NGW-RESOURCE-CHECKBOX-SELECTION`, invariant `INV-NGW-RESOURCE-CHECKBOX-SELECTION` и central ngw-sync-and-storage.md. Physical
+checkbox1 не равен raster mode1: vector без style/Collector передают checkNo2.
+Bind снимает listener, устанавливает ANY requested mode по matching localID,
+затем возвращает listener, не меняя owner list. False очищает requested flag
+у всех matching записей, true не размножает уже positive mode; другие flags/
+IDs/order/object identity сохраняются. Recycled label устанавливается явно.
+Owned JSON restore OR-merges same resolved localID firstorder лишь после каждого
+прежнего resolve/boolean parse; failure не скрывать. Не переносить эту нормализацию
+на public setter/Parcel и не обещать generic import dedup. Refresh policy —
+единый Root `AUDIT-TODO-NGW-RESOURCE-BROWSER-REFRESH`. App fixtures22+6 и protected browser9 прошли actual37 source checks;
+исторические message89 не принимают изменённый Adapter, F61 clock row не repin.
+
+
+## Полная строка выбора ресурса и повторное измерение
+
+Читать `UI-NGW-RESOURCE-CHECKBOX-SELECTION`/`INV-NGW-RESOURCE-ROW-TEXT-FIT` в consuming App. Три caption width=wrap_content сохраняют полный owned RU/EN текст. NgwResourceRowLayout сначала измеряет обычную горизонтальную строку; лишь фактический glyph clipping имени переводит две статические header/mode группы друг под друга. Перед обычным и full-width измерением локально forceLayout для каждого descendant обновляет getLayout до решения о размещении; parent requestLayout/reparent нет. При расширении та же строка возвращается в горизонтальную компоновку. Шрифт, IDs, порядок controls, listeners/CheckState/local-vs-remote identity/JSON/Parcel/import/refresh прежние. Shared breadcrumb layout переносит5dp child margin в5dp padding HorizontalScrollView: API28 clamp учитывает padding, а child margin не учитывает. Визуальный отступ сохранён, конец пути достижим в технической модели.
+Измерять полные line ends/ellipsis/height/glyph bounds и неперекрытие имени/caption/checkbox;
+getText и XML hash этого не доказывают. Не переключать parent/list viewport на unbounded fitting.
+Фактически5 caption layout methods PASS/0 failures/errors/skips, XML10.06s. Ораклы и whole fixture SHA256 cc1fb961f2459d6b9e71097f403f5898b82aaa2425093b6157ee76edf03d06ac неизменны относительно предыдущего4PASS/1FAIL. Finalized Root receipt SHA256 68f7f6bdc072f9f25fd2af02e0584ac467a4dbb1a0c1b1e1959341b2126630ef. В этом запуске общий cohort10 НЕ PASS: 6 PASS/4 отдельные Panel assertion FAIL, Gradle exit1; 120 входов без drift, все13 owned processes settled absent, наблюдалось110.0625s. Это технические API28 CPU native Paint/text measurements, без Android device/OEM/GPU/display/GIS native/touch/rotation acceptance. Исторический cohort10 checkpoint предшествовал consumer compile. Финальная consumer source compile Belka: Gradle exit0, BUILD SUCCESSFUL in 1m 23s, 86.8108238s observed, 100 source-only tasks,120 inputs unchanged/all12 owned processes naturally stopped. Java/Kotlin source compilation; no APK/AAB/AAR/dex/NDK/install/publish or native Android/GPU/device acceptance. Receipt Q:\Codex\Scratch\lisa-ecosystem-depth-audit-20261029\evidence\resume-20261031-source-checkpoint\belka-resume-compile\final-result-source-stop.json SHA256 be7f54baa369662c2cd44a509c745fbc099f357a0df91c9a30a7d69a12008d1c. Полная owned copy и CPU glyph bounds не принимают фактическое число доступных строк, touch targets/scroll/OEM/font/theme/rotation/display-size/installed APK/phone performance. font1.3 и реальные orientation/display combinations не исполнены. Единственный narrow Root risk AUDIT-TODO-MOBILE-RESOURCE-ROW-LAYOUT; broader UI audit продолжается, не all-screens PASS. F61 clock/Wiki/pointer blockers прежние. User card `maplibui-20261030-resource-caption-layout`, App recipe `android-20261030-resource-caption-layout-regression`.
+
+
+Общие документы действия «Поделиться» находятся в корне Android-репозитория:
+`docs/architecture/track-controls.md` и `docs/architecture/shared-tracks.md`.
+Из каталогов `app/` и `maplibui/` к ним ведёт `../docs/architecture/`.
+Использовать LayerUtil.shareTrackAsGPX, захватив ровно выбранный shared track ID;
+не подменять его feature FID, map-layer ID, Hub UID или recording session.
+Сохранять текущие Activity/view/selection/mode launch guards, multiselect списка,
+GPX metadata/segment order, FileProvider roots/MIME/read grants и отсутствие Stop.
+CPU-font JVM не заменяет whole-window/device/touch/recipient acceptance.
+Неразрешённые cache/snapshot/concurrency/lifetime вопросы — в единой Root очереди;
+не создавать второй exporter или локальный параллельный список рисков.

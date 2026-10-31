@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и Collector orchestration
 module_id: maplibui
-last_verified: 2026-10-28
+last_verified: 2026-10-30
 ---
 
 # maplibui — GIS UI, layer fill и Collector orchestration
@@ -655,3 +655,97 @@ TrackActions.confirmStop — общий FittedDialogs Stop/Cancel. Notification
 запись. Внутренний confirmed Stop/retry не открывает повторный диалог.
 
 Панель трека использует карандаш с той же непрозрачностью, что остальные действия; тема продолжает задавать цвет. Кнопка отдельного пресета «Полевые точки» удалена. В редакторе остаются ручные параметры, сохранение пользовательских цветов и живой образец.
+
+
+## Подготовка справочников вложенной NGFP — 30 октября2026
+
+Новый LayerUtil.fillLookupTableIdsForPrefetch читает combobox lookup в root array,
+вложенных tabs/pages/elements и обоих declared album/portrait layouts. ID возвращаются
+без повторов в первом нормализованном порядке. Только GISApplication.fillMissingLookupTablesForCollectorForm
+и LayerFillService.UnzipForm.execute переведены на него; Android getLong/-1 сохранён.
+Старый public reader и весь NGWVectorLayerUI прежние: shared-cache deletion и
+account-removal safety не расширяются и не принимаются как исправленные.
+
+App actual-method SDK28: baseline12/3 AssertionFAIL/9 PASS, затем12 PASS/0errors/skips,
+XML2.149с, Gradle0/49с; LisaDebug source compile включён. BelkaRelease Java/Kotlin0/41с
+отдельно от NOT_PASS prelaunch classifier/sequence: exact100 и4 Java JAR подтверждены
+post-readback, controlled exit7 проверил исправленный fail-fast без нового JVM.
+Старые cache9/clock19/journal22/storage21 и desktop1117/1192 не перезапускались.
+
+[Центральный контракт и открытые границы](../../docs/architecture/ngw-sync-and-storage.md)
+и новая App internal карточка android-20261030-ngfp-lookup-prefetch-regression содержат
+public recipe. Own-live source не означает поставку с committed UI E66/maplib F61,
+выпуск APK или actual import/native acceptance. Новые metadata official docs/report
+checks после C-интеграции ещё NOT_RUN; общего PASS нет. Library Merge Commit до App pointer.
+
+
+## Понятные сообщения форм, списка ресурсов и загрузки — source-срез30 октября2026
+
+Три legacy ошибки FormBuilder теперь используют localized resource IDs вместо
+буквального R.string.*. Нет новой проверки данных: mColumn/mRow reset, callback,
+metadata и Save прежние. Actual no-lifecycle SDK28 literal4 baseline дал3 comparison
+FAIL/1 control/0 errors (3.180с); same4/6eb9 GREEN0.434с включён в actual89,
+не добавляется к89 повторно.
+
+NGWResourcesListAdapter получает structured ChildrenLoadResult: known HTTP server
+failure → общий Core текст о возможных техработах/перегрузке и повторе позже;
+401/403 → прежние разные login/rights; unknown IO/JSON → human retry text.
+Успешный empty[] не является ошибкой. Post-execute live Activity gate, sort/cache/
+legacy void API/Parcelable прежние. Connection.connect(false) пока сохраняет
+общий connect-failed outcome, а partial child parse/retry policy не исправляется.
+
+LayerFillErrorMessage пропускает только positively typed HTTP cause либо owned
+human resource copy; прочие IOException/SQLite/JSON/NGException получают безопасный
+fallback, technical детали остаются в логах. No value for fields больше не выдаётся
+за403. Numeric-only owned count mismatch сохраняет числа без arbitrary suffix.
+POINTZ flag/особый dialog и отмена coordinate import остаются в своих handlers.
+Разные Core IOException/NGException subtype сохраняют old retry/catch policy.
+
+App resource9/presentation10 и Core typed5+5 прошли в actual89 source checks:
+Core46/App43,0fail/errors/skips,11 XML10.995с, Gradle0/BUILD50с. Первый85 остаётся
+NOT_PASS81/4: реальный408 classifier исправлен централизованно body-only422 guard,
+retry unchanged; один Producer stale integer oracle8→12 скорректирован вручную
+по исходному known-prefix|OTHER контракту, не ослаблением UI или сменой API.
+BelkaRelease source compile0/59с;4 Java JAR28/535/670/45 classes,100taskSET exact/
+order different,68 inputs неизменны и unit15/compile13 процессов завершились.
+Физический импорт/SQL/server/device/GUI fitting/native не запускались. Raw response,
+URL, SQL columns или private path не должны становиться пользовательским объяснением.
+Source delivery не означает library Merge Commit, App pointer update или выпуск APK.
+Карточки: [формы](../update-reports/entries/maplibui-20261030-form-list-messages.md),
+[список ресурсов](../update-reports/entries/maplibui-20261030-resource-load-messages.md),
+[загрузка слоёв](../update-reports/entries/maplibui-20261030-layer-fill-messages.md).
+
+
+## Resource selector: checkbox projection and compact restore
+
+Contract `UI-NGW-RESOURCE-CHECKBOX-SELECTION` / invariant `INV-NGW-RESOURCE-CHECKBOX-SELECTION` traces row XML and adapter mode binding,
+process-local CheckState identity, Activity/Dialog import and compact JSON/legacy
+parcel boundaries. Both modes and every recycled label must agree with the
+bound resource; binding itself must not alter checks. Callback duplicate handling
+and owned JSON OR merge are different operations, with external setter/Parcel
+and generic import multiplicity intentionally unchanged. See central
+docs/architecture/ui-contracts.md and ngw-sync-and-storage.md; unresolved refresh
+questions remain in the canonical resource-browser refresh investigation linked from the consuming UI contract. User card `maplibui-20261030-ngw-resource-checkbox-binding` owns product source; App
+`android-20261030-ngw-resource-checkbox-selection` owns28 new +9 protected browser technical models, actual37 PASS; Belka source compile0/BUILD47s. No native/device/
+real-server/import acceptance or replay of historical89 is implied.
+
+
+## Полные подписи, имя и путь выбора ресурсов
+
+Три caption width=wrap_content сохраняют полный owned RU/EN текст. NgwResourceRowLayout сначала измеряет обычную горизонтальную строку; лишь фактический glyph clipping имени переводит две статические header/mode группы друг под друга. Перед обычным и full-width измерением локально forceLayout для каждого descendant обновляет getLayout до решения о размещении; parent requestLayout/reparent нет. При расширении та же строка возвращается в горизонтальную компоновку. Шрифт, IDs, порядок controls, listeners/CheckState/local-vs-remote identity/JSON/Parcel/import/refresh прежние. Shared breadcrumb layout переносит5dp child margin в5dp padding HorizontalScrollView: API28 clamp учитывает padding, а child margin не учитывает. Визуальный отступ сохранён, конец пути достижим в технической модели.
+Actual App5 source regression: полные glyph bounds, обе темы/RU-EN/font1x-2x/280-320dp,
+recycling и тот же Collector wide640→narrow280→wide640; assertions сохраняются.
+Фактически5 caption layout methods PASS/0 failures/errors/skips, XML10.06s. Ораклы и whole fixture SHA256 cc1fb961f2459d6b9e71097f403f5898b82aaa2425093b6157ee76edf03d06ac неизменны относительно предыдущего4PASS/1FAIL. Finalized Root receipt SHA256 68f7f6bdc072f9f25fd2af02e0584ac467a4dbb1a0c1b1e1959341b2126630ef. В этом запуске общий cohort10 НЕ PASS: 6 PASS/4 отдельные Panel assertion FAIL, Gradle exit1; 120 входов без drift, все13 owned processes settled absent, наблюдалось110.0625s. Это технические API28 CPU native Paint/text measurements, без Android device/OEM/GPU/display/GIS native/touch/rotation acceptance. Исторический cohort10 checkpoint предшествовал consumer compile. Финальная consumer source compile Belka: Gradle exit0, BUILD SUCCESSFUL in 1m 23s, 86.8108238s observed, 100 source-only tasks,120 inputs unchanged/all12 owned processes naturally stopped. Java/Kotlin source compilation; no APK/AAB/AAR/dex/NDK/install/publish or native Android/GPU/device acceptance. Receipt Q:\Codex\Scratch\lisa-ecosystem-depth-audit-20261029\evidence\resume-20261031-source-checkpoint\belka-resume-compile\final-result-source-stop.json SHA256 be7f54baa369662c2cd44a509c745fbc099f357a0df91c9a30a7d69a12008d1c.
+Оставшийся viewport/touch/OEM вопрос описан в consuming UI contract и едином внешнем risk registry;
+это не device/native GIS/весь UI или выпуск APK. Historical selector37/message89 source pins сохранены.
+Карточки `maplibui-20261030-resource-caption-layout` / `android-20261030-resource-caption-layout-regression`.
+
+
+### Поделиться треком с карты
+
+Нижняя панель выбранного трека использует прежний GPX exporter списка с одним
+shared track ID. Скрытие трека не убирает действие; запись не останавливается,
+а GPX содержит сохранённые точки и сегменты. Панель переносит действия по
+доступной ширине. Полное имя остаётся XML-текстом; basename не является путём.
+Согласованность snapshot, конкурентные экспорты, жизнь cache/recipient и
+короткие окна остаются отдельными границами проверки.

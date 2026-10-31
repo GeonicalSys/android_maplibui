@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="error_invalid_column">The form list could not be opened.</string>
+    <string name="error_invalid_row">The previously selected form row is no longer available.</string>
+    <string name="error_empty_list">There are no available rows in the form list.</string>
+</resources>
