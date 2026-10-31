@@ -7,4 +7,5 @@
     <item name="track_panel_rename" type="id" />
     <item name="track_panel_visibility" type="id" />
     <item name="track_panel_delete" type="id" />
+    <item name="track_panel_share" type="id" />
 </resources>

@@ -728,3 +728,24 @@ docs/architecture/ui-contracts.md and ngw-sync-and-storage.md; unresolved refres
 questions remain in the canonical resource-browser refresh investigation linked from the consuming UI contract. User card `maplibui-20261030-ngw-resource-checkbox-binding` owns product source; App
 `android-20261030-ngw-resource-checkbox-selection` owns28 new +9 protected browser technical models, actual37 PASS; Belka source compile0/BUILD47s. No native/device/
 real-server/import acceptance or replay of historical89 is implied.
+
+
+## Полные подписи, имя и путь выбора ресурсов
+
+Три caption width=wrap_content сохраняют полный owned RU/EN текст. NgwResourceRowLayout сначала измеряет обычную горизонтальную строку; лишь фактический glyph clipping имени переводит две статические header/mode группы друг под друга. Перед обычным и full-width измерением локально forceLayout для каждого descendant обновляет getLayout до решения о размещении; parent requestLayout/reparent нет. При расширении та же строка возвращается в горизонтальную компоновку. Шрифт, IDs, порядок controls, listeners/CheckState/local-vs-remote identity/JSON/Parcel/import/refresh прежние. Shared breadcrumb layout переносит5dp child margin в5dp padding HorizontalScrollView: API28 clamp учитывает padding, а child margin не учитывает. Визуальный отступ сохранён, конец пути достижим в технической модели.
+Actual App5 source regression: полные glyph bounds, обе темы/RU-EN/font1x-2x/280-320dp,
+recycling и тот же Collector wide640→narrow280→wide640; assertions сохраняются.
+Фактически5 caption layout methods PASS/0 failures/errors/skips, XML10.06s. Ораклы и whole fixture SHA256 cc1fb961f2459d6b9e71097f403f5898b82aaa2425093b6157ee76edf03d06ac неизменны относительно предыдущего4PASS/1FAIL. Finalized Root receipt SHA256 68f7f6bdc072f9f25fd2af02e0584ac467a4dbb1a0c1b1e1959341b2126630ef. В этом запуске общий cohort10 НЕ PASS: 6 PASS/4 отдельные Panel assertion FAIL, Gradle exit1; 120 входов без drift, все13 owned processes settled absent, наблюдалось110.0625s. Это технические API28 CPU native Paint/text measurements, без Android device/OEM/GPU/display/GIS native/touch/rotation acceptance. Исторический cohort10 checkpoint предшествовал consumer compile. Финальная consumer source compile Belka: Gradle exit0, BUILD SUCCESSFUL in 1m 23s, 86.8108238s observed, 100 source-only tasks,120 inputs unchanged/all12 owned processes naturally stopped. Java/Kotlin source compilation; no APK/AAB/AAR/dex/NDK/install/publish or native Android/GPU/device acceptance. Receipt Q:\Codex\Scratch\lisa-ecosystem-depth-audit-20261029\evidence\resume-20261031-source-checkpoint\belka-resume-compile\final-result-source-stop.json SHA256 be7f54baa369662c2cd44a509c745fbc099f357a0df91c9a30a7d69a12008d1c.
+Оставшийся viewport/touch/OEM вопрос описан в consuming UI contract и едином внешнем risk registry;
+это не device/native GIS/весь UI или выпуск APK. Historical selector37/message89 source pins сохранены.
+Карточки `maplibui-20261030-resource-caption-layout` / `android-20261030-resource-caption-layout-regression`.
+
+
+### Поделиться треком с карты
+
+Нижняя панель выбранного трека использует прежний GPX exporter списка с одним
+shared track ID. Скрытие трека не убирает действие; запись не останавливается,
+а GPX содержит сохранённые точки и сегменты. Панель переносит действия по
+доступной ширине. Полное имя остаётся XML-текстом; basename не является путём.
+Согласованность snapshot, конкурентные экспорты, жизнь cache/recipient и
+короткие окна остаются отдельными границами проверки.

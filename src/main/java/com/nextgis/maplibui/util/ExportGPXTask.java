@@ -32,6 +32,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.SystemClock;
+import android.text.TextUtils;
 import androidx.core.app.ShareCompat;
 import androidx.appcompat.app.AlertDialog;
 import android.widget.Toast;
@@ -156,7 +157,7 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
 
                 if (track != null && track.moveToFirst()) {
                     if (mSeparateFiles) {
-                        temp = new File(parent, track.getString(0) + ".gpx");
+                        temp = separateTrackFile(parent, track.getString(0));
                         FileUtil.writeToFile(temp, mHeader);
                     }
 
@@ -185,6 +186,15 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
         }
 
         return mFiles;
+    }
+
+    private static File separateTrackFile(File parent, String name) throws IOException {
+        // A track name is metadata, never a relative path beneath the export cache.
+        String basename = String.valueOf(name).replace('/', '_').replace('\\', '_');
+        File file = new File(parent, basename + ".gpx");
+        if (!parent.getCanonicalFile().equals(file.getCanonicalFile().getParentFile()))
+            throw new IOException("Track export path is outside cache");
+        return file;
     }
 
     private void addExported(Context app, File temp) {
@@ -225,7 +235,8 @@ public class ExportGPXTask extends AsyncTask<Void, Integer, Object>
 
         if (name != null) {
             sb.append(GPX_TAG_NAME);
-            sb.append(name);
+            // XML normalizes literal CR; retain it as a character reference in text.
+            sb.append(TextUtils.htmlEncode(name).replace("\r", "&#13;"));
             sb.append(GPX_TAG_NAME_CLOSE);
         }
 
