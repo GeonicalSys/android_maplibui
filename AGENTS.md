@@ -211,3 +211,14 @@ GPX metadata/segment order, FileProvider roots/MIME/read grants и отсутс�
 CPU-font JVM не заменяет whole-window/device/touch/recipient acceptance.
 Неразрешённые cache/snapshot/concurrency/lifetime вопросы — в единой Root очереди;
 не создавать второй exporter или локальный параллельный список рисков.
+
+## Название мобильного проекта
+
+Целевой клиент — наше Mobile. Его пользовательские подписи называют серверный
+проект «Мобильный проект» / «Mobile project»; отдельное приложение Collector
+не является частью этого маршрута. NGW `collector_project`, классы
+`CollectorResource`/`CollectorProject*`, resource keys и persisted identities —
+технический протокол и сохраняются. Смена текста не меняет resource selection,
+импорт, permissions, repair/lease/cancel или совместимость legacy API.
+Проверять реальные resource bindings и placeholders; сборка ресурсов в consuming
+App не заменяет native/window/device приёмку.
