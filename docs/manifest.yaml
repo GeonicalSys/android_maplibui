@@ -2,13 +2,17 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-10-30
+last_verified: 2026-11-01
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
   - maplibui/src/main/java/com/nextgis/maplibui/service/LayerFillService.java
   - maplibui/src/main/java/com/nextgis/maplibui/activity/SelectNGWResourceActivity.java
 key_components:
+  - path: maplibui/src/main/res/values/strings.xml
+    responsibility: English Mobile project labels and messages for the existing NGW project import/repair/read-only routes; protocol keys, placeholders and all callbacks remain unchanged.
+  - path: maplibui/src/main/res/values-ru/strings.xml
+    responsibility: Russian Мобильный проект labels and messages for our Mobile consuming server collector_project resources, without requiring the separate Collector application or changing resource identity.
   - path: maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
     responsibility: Open session-scoped fitted Stop confirmation directly from the recording notification.
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/TrackActions.java
@@ -224,6 +228,10 @@ key_components:
   - path: maplibui/src/main/res/layout/layout_resources.xml
     responsibility: "Keep the shared resource window breadcrumb scroller padding at5dp so the current path tail is reachable, preserving the weighted bounded ListView. The separate activity Add button remains outside this list; descendant row remeasurement belongs to NgwResourceRowLayout."
 public_contracts:
+  - id: mobile-project-wording
+    symbol: R.string.ngw_collector_project and existing project import/repair/read-only message keys
+    path: maplibui/src/main/res/values/strings.xml
+    consumers: [app, maplibui]
   - id: ngfp-lookup-prefetch
     symbol: LayerUtil.fillLookupTableIdsForPrefetch(File); legacy fillLookupTableIds(File) remains unchanged
     path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerUtil.java

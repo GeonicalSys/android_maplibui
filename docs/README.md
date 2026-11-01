@@ -1,10 +1,33 @@
 ---
-title: maplibui — GIS UI, layer fill и Collector orchestration
+title: maplibui — GIS UI, layer fill и мобильные проекты
 module_id: maplibui
-last_verified: 2026-10-30
+last_verified: 2026-11-01
 ---
 
-# maplibui — GIS UI, layer fill и Collector orchestration
+# maplibui — GIS UI, layer fill и мобильные проекты
+
+## Мобильные проекты в нашем приложении — 1 ноября 2026
+
+Названия и сообщения RU/EN используют «Мобильный проект» / «Mobile project».
+Это серверный ресурс NGW `collector_project`, который читает наше Mobile;
+отдельное приложение Collector в этот маршрут не входит. Протокольные имена,
+resource keys, классы `CollectorResource`/`CollectorProject*` и сохранённые
+идентификаторы не переименованы.
+
+`NGWResourcesListAdapter` связывает подпись типа с прежним импортом проекта;
+`LoadLisaCollectorProject` получает выбранный серверный проект и передаёт его
+собственному workspace/import pipeline. Сообщения неполного состава, отсутствия
+поддержанных слоёв, повторной загрузки и запрета редактирования получили тот же
+термин. Причины отказа, счётчик `%d`, лимит попыток, permissions, callbacks,
+saved state и обычные пользовательские имена проектов сохранены.
+
+Проверки этого изменения — source binding review и структурный XML/readback:
+по 8 значений в RU/EN, остальные узлы, ключи, атрибуты, порядок и placeholders
+сохранены. Это не GUI/device acceptance. Resource build выполняется через
+consuming App отдельно; источник сам по себе не подтверждает library merge,
+App gitlink adoption или выпуск APK.
+
+[Карточка](../update-reports/entries/maplibui-20261101-mobile-project-wording.md).
 
 ## Закрытие native SQLite запросов при смене проекта
 
