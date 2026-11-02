@@ -2,7 +2,7 @@ schema_version: 1
 module_id: maplibui
 repository_id: maplibui
 maturity: maintained
-last_verified: 2026-11-01
+last_verified: 2026-11-02
 entrypoints:
   - maplibui/src/main/java/com/nextgis/maplibui/activity/TrackStopConfirmationActivity.java
   - maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
@@ -62,7 +62,7 @@ key_components:
   - path: maplibui/src/main/java/com/nextgis/maplibui/util/ToolbarTextFit.java
     responsibility: Retain the preferred toolbar text size and locally fit overflowing titles within the actual toolbar bounds, restoring their preferred size when space returns.
   - path: maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java
-    responsibility: Reuse process-wide local HyperLog without overwriting the app format or preparing remote uploads; retain Collector form hash and recoverable installation gates; terminally retire old SQLite native source work before resetMap/closeMapObj publishes a replacement, without SDK calls or Main waits under the application monitor.
+    responsibility: Reuse process-wide local HyperLog without overwriting the app format or preparing remote uploads; retain Collector form hash and recoverable installation gates; terminally retire old SQLite native source work before resetMap/closeMapObj publishes a replacement, without SDK calls or Main waits under the application monitor. SDK connectivity follows actual Android networking after removal of the obsolete local HTTP server; project retirement still uses closeMapObj.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackRegistrationState.java
     responsibility: Scope persisted positive registration to the exact server and UID, hide pending track badges before confirmation or after explicit revocation and retain known registration across transport failures without changing upload intent.
   - path: maplibui/src/main/java/com/nextgis/maplibui/mapui/TrackUploader.java

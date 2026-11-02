@@ -1,7 +1,7 @@
 ---
 title: maplibui — GIS UI, layer fill и мобильные проекты
 module_id: maplibui
-last_verified: 2026-11-01
+last_verified: 2026-11-02
 ---
 
 # maplibui — GIS UI, layer fill и мобильные проекты
@@ -37,16 +37,16 @@ App gitlink adoption или выпуск APK.
 корутинные запросы/providers и запрещает новые поколения, не вызывает SDK,
 не запрашивает `app.getMap()` и не ждёт Main. Освобождение controller references
 отложено на UI. Это закрывает новый прямой SQLite путь при Collector switch и
-удалении проекта; прежний LocalVectorTileServer сохраняет собственную отмену.
+удалении проекта. Старый HTTP tile server удалён; его clearLayers больше не вызывается.
 Обычное пересоздание Activity использует отдельное nonterminal закрытие источников.
 Layer order, sync-workspace owner, deferred reload и recording sessions не меняются.
 Контракт нижней библиотеки: `maplib/docs/sqlite-vector-source-bridge.md`;
 новые pure ownership/dispatcher tests не заменяют native project-switch проверку.
 
-GISApplication разрешает транспорт SDK MapLibre независимо от внешней сети:
-LocalVectorTileServer использует HTTP loopback и должен работать offline.
-Реальные NetworkUtil/WorkManager guards синхронизации, треков и обновлений
-сохранены. Внешние URL карты без сети получают обычные transport errors/backoff.
+GISApplication больше не принуждает SDK к connected: прямой SQLite
+CustomVectorSource не использует HTTP. Реальные NetworkUtil/WorkManager guards
+синхронизации, треков и обновлений сохранены. Offline direct rendering,
+project switch/retirement и native full acceptance после правки NOT_RUN.
 
 TrackActions объединяет Rename/Color/Visibility/Delete списка и нижней
 TrackSelectionPanel. TrackerService.deleteTracks не останавливает чужой текущий
@@ -772,3 +772,8 @@ shared track ID. Скрытие трека не убирает действие;
 доступной ширине. Полное имя остаётся XML-текстом; basename не является путём.
 Согласованность snapshot, конкурентные экспорты, жизнь cache/recipient и
 короткие окна остаются отдельными границами проверки.
+
+Для2ноября consuming app подготовил phase-aware progress переноса Debug;
+shared-underlay/catalog/operation coordinator API не менялся. Unit/native
+source compile подтверждает consumers, но project switch, offline direct
+rendering и actual Debug transfer после удаления loopback ещё NOT_RUN.
