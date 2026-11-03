@@ -1,0 +1,764 @@
+{
+  "format": "lisa.agent-system.policy-migration.v1",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "review": "Individually authored source boundaries and dispositions. Complete original text/metadata/conditions retained; semantic duplicates and product/task acceptance require their own evidence. No date, heading, status or size classifier; no client cutover.",
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "revision": "69cccf208689c2e443994aca123c4b5ebeab0a50",
+      "blob": "60d26af988dbfaf4599c43d271930a6909c62b53",
+      "sha256_utf8_lf": "ac9f4789fc6875202965d172bdcfb641b6450a3f9a968cedc421fc32a6865a04",
+      "layout": [
+        {
+          "lines": [
+            1,
+            1
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            2,
+            2
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            6,
+            6
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            10,
+            10
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            29,
+            29
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            35,
+            35
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            40,
+            40
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            45,
+            45
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            51,
+            51
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            52,
+            52
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            53,
+            53
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            60,
+            60
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            61,
+            61
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            62,
+            62
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            67,
+            67
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            68,
+            68
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            69,
+            69
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            89,
+            89
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            93,
+            93
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            95,
+            95
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            101,
+            101
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            102,
+            102
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            103,
+            103
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            116,
+            116
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            117,
+            117
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            118,
+            118
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            119,
+            119
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            135,
+            135
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            136,
+            136
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            137,
+            137
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            138,
+            138
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            148,
+            148
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            149,
+            149
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            150,
+            150
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            151,
+            151
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            161,
+            161
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            162,
+            162
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            163,
+            163
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            164,
+            164
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            170,
+            170
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            178,
+            178
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            179,
+            179
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            180,
+            180
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            181,
+            181
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            194,
+            194
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            195,
+            195
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            196,
+            196
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            197,
+            197
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            202,
+            202
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            203,
+            203
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            214,
+            214
+          ],
+          "reason": "blank_separator"
+        },
+        {
+          "lines": [
+            215,
+            215
+          ],
+          "reason": "heading"
+        },
+        {
+          "lines": [
+            216,
+            216
+          ],
+          "reason": "blank_separator"
+        }
+      ],
+      "units": [
+        {
+          "id": "lisa:maplibui:instruction:workspace.prerequisites",
+          "spans": [
+            [
+              40,
+              271
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Complete local pack, parent impact/invariant/smoke entry and standalone missing-central disclosure.",
+          "record_sha256": "650426108d1415c73929728e8d20a081fd25588c94387bafafdd58e03c773021"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.ui-orchestration-owner",
+          "spans": [
+            [
+              272,
+              480
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "UI/orchestration responsibilities and lower-library interfaces remain separate from an app dependency.",
+          "record_sha256": "5dccfa851b38a375faec4f03465d10c6191c1edd94cb684c7344c4f859a564c5"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.complete-ui-acceptance",
+          "spans": [
+            [
+              481,
+              1834
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "One complete conditional shared-UI rule preserves Russian/matrix/native window type, bounded lists, actual touches, fitting order, system settings, closed-keyboard insets, IME and geometric/native versus text/build evidence.",
+          "record_sha256": "c9d493396a545816490d129c9268386501b876a4e036d857f63727e1dc67e831"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.cascade-snapshot-retention",
+          "spans": [
+            [
+              1835,
+              2223
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Keep large tables out of Bundle, exact SHA snapshot/owning-layer pin, hash-checked fail-closed recovery and retained historical draft values/snapshots.",
+          "record_sha256": "c097845be5ff342895490864c1774b70b5b9c9795e77a7c86e53f8ec653b9eda"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.pending-changes-owner",
+          "spans": [
+            [
+              2224,
+              2523
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "App-provided background snapshot, no row-bind SQL, recycled reset, screen listener lifetime and foreign-map response rejection.",
+          "record_sha256": "bb0e5f974b0e19819b28a5706e4d800c78ee26d62f37f7c2e4f2ae5a9d956b86"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.backup-and-cross-module-dod",
+          "spans": [
+            [
+              2524,
+              2798
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Destructive paths require backup; named lifecycle/fill/registry/reorder changes retain order/isolation/deferred reload and local/central documentation.",
+          "record_sha256": "441160002cb199d8eaf5a3a68441c18da9023608c73d2d8094b5f0d8613d9e1d"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.collector-import-helpers",
+          "spans": [
+            [
+              2799,
+              3174
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Both initial screens share one import helper; initial/composition raster styles use one helper with mixed project order and read-only identity.",
+          "record_sha256": "aff0b778a04905ceb4e5f00d5c570b59c093e91c4fd9705995421e6c29f7eb75"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.git-delivery",
+          "spans": [
+            [
+              3192,
+              3653
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Complete change/read-only authorization, restricted operations, library Merge Commit and consumer pointer only after merge; no stored present permission.",
+          "record_sha256": "e7637a8172621e897db74b424897865cccbcb43113b9aa18edd84036e4ee5e54"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.report-owner-and-boundary",
+          "spans": [
+            [
+              3687,
+              3972
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Same-PR customer/internal report card, maplibui prefix, central slices and ID-based cutoff.",
+          "record_sha256": "a22c687e14c5782ecdc1e0e9402985418fdccf7ec17945304d36b6cf02612fa8"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.conditional-form-and-navigation",
+          "spans": [
+            [
+              3993,
+              5446
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Complete shared snapshot, v2 field/element visibility, pinned Tabs, hidden versus inactive semantics, Save/pin/listener/no-SQL gates, paired metadata/default forms, exact swipe ownership and legacy cascade field/pin/layout conditions.",
+          "record_sha256": "676f31ceacd146d136a9314a932ef0fb6572860709cc449986728473cfe7e117"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.cascading-list-controller",
+          "spans": [
+            [
+              5447,
+              5677
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Existing ordinary/double Spinners retain required/Back Save/draft pin/explicitNULL; no separate fixed three-level widget.",
+          "record_sha256": "91aa3f1e94c08c3470daa7036be163677440938f0b066905c00efb0b24d72678"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.project-script-ui-owner",
+          "spans": [
+            [
+              5678,
+              5897
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "One import/controller/pinned-version/stale/debounce/warning/Save owner; native interpreter/host APIs stay in maplib.",
+          "record_sha256": "4e5611ae6380d1eaf091acb32fff2a78ce0af57a444bb57bc1e6c8ab2cd93983"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.project-script-api-admission",
+          "spans": [
+            [
+              5898,
+              6286
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Exact architecture/guide, APK-first typed granted budgeted/tested API, no arbitrary external privileges, retained pinned packages and coordinated desktop/schema owners.",
+          "record_sha256": "74eeb33a88187ff786db899426b3221bd4c066d4947cf452bfa9e3b9fca0b072"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.project-sync",
+          "spans": [
+            [
+              6320,
+              7089
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Complete default/manual/scheduled ownership, no global map/prefs switch, async/service/provider propagation, expired-token refusal, lease/drain/pending plan/canonical journals and isolated verification.",
+          "record_sha256": "208352169795b868810504efe14fc430b5bad8a4bdccc880c5a26c6aa9793028"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.split-list-label-source",
+          "spans": [
+            [
+              7089,
+              7239
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Preserve metadata display name, layer alias and only then field-key fallback for split legacy lists.",
+          "record_sha256": "69804e336d323f38543ec37e60909b245a0047d9d1c2124c78b693a9062bc7ac"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.independent-change-card",
+          "spans": [
+            [
+              7286,
+              7560
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "New independent ID and exact changed source/test/script coverage; separate narrowly reasoned exemption.",
+          "record_sha256": "981310272ae24302fd216c337b4c3878d8459d3dafb2c5d963bac16526a00d40"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.report-hook-admission",
+          "spans": [
+            [
+              7560,
+              8176
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Before commit/push check, per-clone setup/PyYAML recovery and preserved existing hooks; agent owns installation.",
+          "record_sha256": "f99ce22d44e13a8770a22a50e3815df26d52d10ed836aa797a17304f45112cc5"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.report-hook-enforcement",
+          "spans": [
+            [
+              8176,
+              8402
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Normal push blocks missing/broken admission; no bypass/weakened policy/fake exemption, and semantic card review remains separate.",
+          "record_sha256": "16713e985ff3fd1dacb25883c93b5b5b02da4101944f7bc4ed90cedb71b0f08e"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.requested-report-persistence",
+          "spans": [
+            [
+              8441,
+              8896
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Every requested draft/audit/reconciliation is delivered in owner Git/PR and correct central location with direct final links.",
+          "record_sha256": "c73ffac282efeb9084cf8de67d47375da03082ac9f022573fbef9e4f77154bcd"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.report-acceptance",
+          "spans": [
+            [
+              8896,
+              9084
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Saving never closes report IDs; explicit reported/letters action and source/secrecy constraints include attachments.",
+          "record_sha256": "81fa1dc97cbc909160ec5c8fff0ebad912d9e3c9237bb53e62e9352fecb4822f"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.prefetch-versus-delete",
+          "spans": [
+            [
+              9126,
+              9887
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Preserve exact two prefetch consumers, all declared layouts/recursive traversal/normalized order and Android errors; destructive public/delete readers keep their bytes and central cache/account UNKNOWN; twelve JVM cases cannot certify actual import/disk/native.",
+          "record_sha256": "35133fd4f51b1311567f23140eb65e5a0421efc4f930a422e8460be293e1545b"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.resource-list-error-owner",
+          "spans": [
+            [
+              9930,
+              10316
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Source-traced reason/task/UI chain, invocation child outcome versus successful empty, legacy API/parcel/live Activity and independent server/login/rights/offline copy.",
+          "record_sha256": "1d39b64f0a0c917e55bbfc045ace66ca5c3f8ff795c4ef8bb95ba4d0cb2befb5"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.layer-fill-safe-presentation",
+          "spans": [
+            [
+              10317,
+              10892
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Only typed HTTP or owned human messages, diagnostics-only raw details, no inferred403, retained POINTZ/form callbacks and separate native/server/import/device acceptance.",
+          "record_sha256": "6f7afc3ea5f0813a5fc6b656263fa0b09662dab1b2578a4679ef195d6443fab7"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.resource-checkbox-binding",
+          "spans": [
+            [
+              10927,
+              11824
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Complete source-trace entry, physical-checkbox versus requested-mode identity, nonmutating bind/ANY, exact callback and owned JSON rules, unchanged public boundaries and canonical refresh queue; former execution claims are separate.",
+          "record_sha256": "ddf2fe727ba86917160b56992b274ed90d026ac6163c17c2571a8c5899925b0d"
+        },
+        {
+          "id": "lisa:maplibui:evidence:workspace.selector37-source-receipt",
+          "spans": [
+            [
+              11824,
+              11973
+            ]
+          ],
+          "classification": "historical_receipt",
+          "review": "Former22+6 fixtures and9 protected browser actual37 receipt plus historical message/pin limits; no current execution, native acceptance, adoption or authority.",
+          "record_sha256": "5bd643fa837fc54489d38be6fbb4c83889361f92d271e3ea9638bc081deb42d6"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.caption-layout-contract",
+          "spans": [
+            [
+              12030,
+              12918
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Preserve exact source-qualified ordinary/fallback remeasurement, glyph trigger, descendant refresh/no reparent, widening reversal, unchanged identities/listeners/state and breadcrumb padding versus technical-model reachability.",
+          "record_sha256": "a6dc57a54fc5b7340d93427712e942d906a87d95e1e11de53145488ed2c5c35e"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.caption-measurement-acceptance",
+          "spans": [
+            [
+              12918,
+              13110
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Complete text ends/ellipsis/height/glyph/nonoverlap oracle; text/hash alone and unbounded parent/list fitting cannot substitute.",
+          "record_sha256": "cc4532a34ae0e5eb956314a55c73a2001ee289e885aa22019de2ea593a23dedb"
+        },
+        {
+          "id": "lisa:maplibui:evidence:workspace.caption-source-receipt",
+          "spans": [
+            [
+              13110,
+              14325
+            ],
+            [
+              14500,
+              14850
+            ]
+          ],
+          "classification": "historical_receipt",
+          "review": "One complete former caption/Panel/compile/evidence subject preserves all earlier PASS and FAIL, hashes/timings/stopped processes, missing states, owning risk and old audit continuation statement as historical data; not current authority or final client/product acceptance.",
+          "record_sha256": "d5dea054d6be407890e8653906d52baa3c3f125ac7297836d828b719521813e3"
+        },
+        {
+          "id": "lisa:maplibui:instruction:workspace.cpu-versus-window-acceptance",
+          "spans": [
+            [
+              14325,
+              14500
+            ]
+          ],
+          "classification": "permanent_rule",
+          "review": "Individually separated complete lasting prohibition on treating owned copies or CPU glyph bounds as actual row/touch/scroll/OEM/font/theme/rotation/display/installed-app/phone-performance acceptance, despite sharing a line with a former receipt.",
+          "record_sha256": "7b83151f97de5f4f974eb1121a1bada55d8c6735bb99dc6908660d0e618dc5dd"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.selected-track-share",
+          "spans": [
+            [
+              14852,
+              15627
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Exact common documentation, selected shared track identity versus other IDs, live launch guards/multiselect, GPX segments/provider/MIME/grants/no Stop, actual-recipient acceptance and one owning UNKNOWN queue/exporter.",
+          "record_sha256": "5e080b55fffd29eca008b647765e402f3eef6338af62164cf9547455ad385ec3"
+        },
+        {
+          "id": "lisa:maplibui:contract:workspace.mobile-project-identity",
+          "spans": [
+            [
+              15660,
+              16239
+            ]
+          ],
+          "classification": "standing_contract",
+          "review": "Our Mobile consumes the named server project; no separate Collector client requirement. Preserve protocol/resource/persisted identities, selection/permission/import/cancel/legacy behavior and real binding/placeholders versus device acceptance.",
+          "record_sha256": "fa0aac014e42ceed2b2abb1a01cc97808aaf0fb71752ebcf79d0c5bd1864610e"
+        }
+      ]
+    }
+  ]
+}

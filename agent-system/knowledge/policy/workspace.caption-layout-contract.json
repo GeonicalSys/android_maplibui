@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:contract:workspace.caption-layout-contract",
+  "kind": "contract",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "policy-workspace",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [
+      {
+        "repository": "android_projects/android_gisapp/maplibui",
+        "include": [
+          "."
+        ],
+        "exclude": []
+      }
+    ],
+    "scope_refs": [],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "source_verification": "NOT_APPLICABLE",
+    "merge": "not_applicable",
+    "runtime_verification": "NOT_APPLICABLE",
+    "release": "not_applicable",
+    "retention": "Retain editable logical subject and pinned provenance; product implementation/acceptance are separate records."
+  },
+  "facets": {
+    "body": {
+      "role": "standing_contract",
+      "value": "Читать `UI-NGW-RESOURCE-CHECKBOX-SELECTION`/`INV-NGW-RESOURCE-ROW-TEXT-FIT` в consuming App. Три caption width=wrap_content сохраняют полный owned RU/EN текст. NgwResourceRowLayout сначала измеряет обычную горизонтальную строку; лишь фактический glyph clipping имени переводит две статические header/mode группы друг под друга. Перед обычным и full-width измерением локально forceLayout для каждого descendant обновляет getLayout до решения о размещении; parent requestLayout/reparent нет. При расширении та же строка возвращается в горизонтальную компоновку. Шрифт, IDs, порядок controls, listeners/CheckState/local-vs-remote identity/JSON/Parcel/import/refresh прежние. Shared breadcrumb layout переносит5dp child margin в5dp padding HorizontalScrollView: API28 clamp учитывает padding, а child margin не учитывает. Визуальный отступ сохранён, конец пути достижим в технической модели.\n"
+    },
+    "classification": {
+      "role": "reviewed_knowledge_class",
+      "value": "standing_contract"
+    },
+    "review": {
+      "role": "classification_reason",
+      "value": "Preserve exact source-qualified ordinary/fallback remeasurement, glyph trigger, descendant refresh/no reparent, widening reversal, unchanged identities/listeners/state and breadcrumb padding versus technical-model reachability."
+    },
+    "source_section": {
+      "role": "source_document_context",
+      "value": [
+        "# maplibui — инструкции для ИИ-агентов",
+        "## Полная строка выбора ресурса и повторное измерение"
+      ]
+    },
+    "authority_limit": {
+      "role": "authority_and_acceptance_boundary",
+      "value": "Path applicability is reviewed separately from the rule's textual triggers. Every source condition and heading remains attached; no automatic predicate or lifecycle inference. Stored commands and dates do not grant current execution, freshness or product acceptance. Existing instruction clients/checkers remain effective until measured cutover."
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/policy-migration.json",
+    "scopes": [
+      "lisa:maplibui:contract:workspace.caption-layout-contract"
+    ]
+  }
+}

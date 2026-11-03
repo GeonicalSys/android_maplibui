@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:contract:workspace.prefetch-versus-delete",
+  "kind": "contract",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "policy-workspace",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [
+      {
+        "repository": "android_projects/android_gisapp/maplibui",
+        "include": [
+          "."
+        ],
+        "exclude": []
+      }
+    ],
+    "scope_refs": [],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "source_verification": "NOT_APPLICABLE",
+    "merge": "not_applicable",
+    "runtime_verification": "NOT_APPLICABLE",
+    "release": "not_applicable",
+    "retention": "Retain editable logical subject and pinned provenance; product implementation/acceptance are separate records."
+  },
+  "facets": {
+    "body": {
+      "role": "standing_contract",
+      "value": "Читать consuming docs/architecture/ngw-sync-and-storage.md и conditional-form-rules.md.\nТолько GISApplication и LayerFillService используют новый LayerUtil.fillLookupTableIdsForPrefetch:\nroot array, оба declared orientation layouts, рекурсивные tabs/pages/elements и\nfirst-seen normalized dedup. Сохранять Android getLong/-1 и malformed-present errors.\nСтарый public fillLookupTableIds и оба NGWVectorLayerUI delete reader сохраняют\nпрежние bytes/duplicates/errors; не переключать destructive readers на новый walker.\nMissing-cache/hash-retry, межзадачные дубли, shared deletion и backup/account policy\nвести в центральном контракте. Двенадцать consuming App JVM не проверяют actual\nimport/cache availability, account deletion, disk durability или native Save.\n"
+    },
+    "classification": {
+      "role": "reviewed_knowledge_class",
+      "value": "standing_contract"
+    },
+    "review": {
+      "role": "classification_reason",
+      "value": "Preserve exact two prefetch consumers, all declared layouts/recursive traversal/normalized order and Android errors; destructive public/delete readers keep their bytes and central cache/account UNKNOWN; twelve JVM cases cannot certify actual import/disk/native."
+    },
+    "source_section": {
+      "role": "source_document_context",
+      "value": [
+        "# maplibui — инструкции для ИИ-агентов",
+        "## NGFP: prefetch отдельно от удаления"
+      ]
+    },
+    "authority_limit": {
+      "role": "authority_and_acceptance_boundary",
+      "value": "Path applicability is reviewed separately from the rule's textual triggers. Every source condition and heading remains attached; no automatic predicate or lifecycle inference. Stored commands and dates do not grant current execution, freshness or product acceptance. Existing instruction clients/checkers remain effective until measured cutover."
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/policy-migration.json",
+    "scopes": [
+      "lisa:maplibui:contract:workspace.prefetch-versus-delete"
+    ]
+  }
+}

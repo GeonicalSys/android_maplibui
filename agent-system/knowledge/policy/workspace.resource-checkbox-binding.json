@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:contract:workspace.resource-checkbox-binding",
+  "kind": "contract",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "policy-workspace",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [
+      {
+        "repository": "android_projects/android_gisapp/maplibui",
+        "include": [
+          "."
+        ],
+        "exclude": []
+      }
+    ],
+    "scope_refs": [],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "source_verification": "NOT_APPLICABLE",
+    "merge": "not_applicable",
+    "runtime_verification": "NOT_APPLICABLE",
+    "release": "not_applicable",
+    "retention": "Retain editable logical subject and pinned provenance; product implementation/acceptance are separate records."
+  },
+  "facets": {
+    "body": {
+      "role": "standing_contract",
+      "value": "Перед изменением NGWResourcesListAdapter/NgwResourceSelectionState/CheckState\nчитать `UI-NGW-RESOURCE-CHECKBOX-SELECTION`, invariant `INV-NGW-RESOURCE-CHECKBOX-SELECTION` и central ngw-sync-and-storage.md. Physical\ncheckbox1 не равен raster mode1: vector без style/Collector передают checkNo2.\nBind снимает listener, устанавливает ANY requested mode по matching localID,\nзатем возвращает listener, не меняя owner list. False очищает requested flag\nу всех matching записей, true не размножает уже positive mode; другие flags/\nIDs/order/object identity сохраняются. Recycled label устанавливается явно.\nOwned JSON restore OR-merges same resolved localID firstorder лишь после каждого\nпрежнего resolve/boolean parse; failure не скрывать. Не переносить эту нормализацию\nна public setter/Parcel и не обещать generic import dedup. Refresh policy —\nединый Root `AUDIT-TODO-NGW-RESOURCE-BROWSER-REFRESH`. "
+    },
+    "classification": {
+      "role": "reviewed_knowledge_class",
+      "value": "standing_contract"
+    },
+    "review": {
+      "role": "classification_reason",
+      "value": "Complete source-trace entry, physical-checkbox versus requested-mode identity, nonmutating bind/ANY, exact callback and owned JSON rules, unchanged public boundaries and canonical refresh queue; former execution claims are separate."
+    },
+    "source_section": {
+      "role": "source_document_context",
+      "value": [
+        "# maplibui — инструкции для ИИ-агентов",
+        "## Флажки NGW resource selector"
+      ]
+    },
+    "authority_limit": {
+      "role": "authority_and_acceptance_boundary",
+      "value": "Path applicability is reviewed separately from the rule's textual triggers. Every source condition and heading remains attached; no automatic predicate or lifecycle inference. Stored commands and dates do not grant current execution, freshness or product acceptance. Existing instruction clients/checkers remain effective until measured cutover."
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/policy-migration.json",
+    "scopes": [
+      "lisa:maplibui:contract:workspace.resource-checkbox-binding"
+    ]
+  }
+}

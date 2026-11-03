@@ -1,0 +1,25 @@
+{
+  "format": "lisa.agent-system.source-dispositions.v1",
+  "entries": [
+    {
+      "path": "agent-system/policy-migration.json",
+      "sha256": "a2e4a94705cebb78d332909c5df92f28fa22663dd4a9d6d490c7f400c8e921d2",
+      "sha256_scope": "utf8_lf",
+      "category": "retained_evidence",
+      "applies_to": [
+        "."
+      ],
+      "reason": "Individually authored complete original Git/source/character and logical-unit inverse map, including selector and caption receipt/policy boundaries; retained provenance without active-prose or deletion authority."
+    },
+    {
+      "path": "agent-system/README.md",
+      "sha256": "66991fb1c40a3570d6622976e21ad93dea8882ab71ba8c1e0bfba6037eaa27a3",
+      "sha256_scope": "utf8_lf",
+      "category": "working_bridge",
+      "applies_to": [
+        "."
+      ],
+      "reason": "Reviewed physical identity, full source projection, historical failure/authority boundary, shared compiler/live basis, existing clients and complete remaining six-owner objective; no product execution/acceptance."
+    }
+  ]
+}
