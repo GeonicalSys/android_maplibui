@@ -1,0 +1,45 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "definition": {
+      "role": "module_manifest_definition",
+      "value": {
+        "path": "maplibui/src/main/java/com/nextgis/maplibui/util/NgwResourceSelectionState.java",
+        "responsibility": "Encode account/server plus remote resource paths and selected flags without trees or credentials, and resolve new process-local IDs off the main thread using current accounts. After each original resolve/flag parse, OR duplicate same newly-resolved localIDs into first owned check; preserve account separation, first order and late failure. Public setters and Parcel remain unnormalized."
+      }
+    },
+    "manifest-field": {
+      "role": "module_manifest_manifest_field",
+      "value": "key_components"
+    }
+  },
+  "id": "lisa:maplibui:contract:manifest-key-components-ngwresourceselectionstate-c44efe511b",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "unknown",
+    "implementation": "unknown",
+    "merge": "unknown",
+    "release": "unknown",
+    "retention": "Preserve this ordered module manifest value and its original Git source.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "UNKNOWN"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/maplibui-module-manifest.json",
+    "scopes": [
+      "lisa:maplibui:contract:manifest-key-components-ngwresourceselectionstate-c44efe511b"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "historical",
+  "topic": "maplibui-module-manifest"
+}

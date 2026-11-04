@@ -1,0 +1,1309 @@
+{
+  "consumer_source_witnesses": [
+    {
+      "blob": "846afc11fb076659c41e08b411d5d9d6da9eb12d",
+      "line": 24,
+      "marker": "include ':app', ':maplib', ':maplibui'",
+      "meaning": "App includes both consuming library modules",
+      "owner": "android_projects/android_gisapp",
+      "path": "settings.gradle",
+      "revision": "045ec87c048c69b02f696dc35f27bbc66a80637c",
+      "source_sha256": "51ef1a71d62047d7de59be52f5fb2f531049825d29e68e6a3e10c0258c46cc8c"
+    },
+    {
+      "blob": "0314dd521fcbffec11b090e31db3df1ad004c0ca",
+      "line": 277,
+      "marker": "implementation project(':maplibui')",
+      "meaning": "App consumes maplibui directly",
+      "owner": "android_projects/android_gisapp",
+      "path": "app/build.gradle",
+      "revision": "045ec87c048c69b02f696dc35f27bbc66a80637c",
+      "source_sha256": "e8fc159c55b02741b0a78bd92426a9da71b5e1b9d8ef50e639f0192991900ccf"
+    }
+  ],
+  "dependency_plan": {
+    "compressed_sha256": "b5000dfee6634aba3ded9b4e47862d66d498f9b9e6d0cb861964699ff295f8fe",
+    "coverage": "UNKNOWN",
+    "library_path_count": 390,
+    "path_count": 394,
+    "review_links": 4067192,
+    "source_context": {
+      "repositories": {
+        ".": {
+          "basis": "working_tree"
+        },
+        "android_projects/android_gisapp": {
+          "basis": "working_tree"
+        },
+        "android_projects/android_gisapp/easypicker": {
+          "basis": "working_tree"
+        },
+        "android_projects/android_gisapp/maplib": {
+          "basis": "working_tree"
+        },
+        "android_projects/android_gisapp/maplibui": {
+          "basis": "working_tree"
+        },
+        "android_projects/upload_mobile": {
+          "basis": "working_tree"
+        }
+      },
+      "schema_version": 1
+    },
+    "source_sha256": "25736afb96bbafc6e99d134d627e086a50fab4591b6253b5a5d701e651e98c25"
+  },
+  "format": "lisa.agent-system.module-manifest-preservation.v1",
+  "layout_id": "lisa:maplibui:metadata:maplibui-module-manifest",
+  "ordered_records": [
+    "lisa:maplibui:metadata:maplibui-module-manifest",
+    "lisa:maplibui:resource:manifest-entrypoints",
+    "lisa:maplibui:contract:manifest-key-components-strings-fddf045add",
+    "lisa:maplibui:contract:manifest-key-components-strings-6c78bc6a3d",
+    "lisa:maplibui:contract:manifest-key-components-trackstopconfirmationactivity-9610414303",
+    "lisa:maplibui:contract:manifest-key-components-trackactions-245b1f0ff8",
+    "lisa:maplibui:contract:manifest-key-components-trackselectionpanel-91cbed5da0",
+    "lisa:maplibui:contract:manifest-key-components-rulefeaturerendererui-6ddc6cbc4d-a17cd6bb9d",
+    "lisa:maplibui:contract:manifest-key-components-stylepreviewview-dea7f44450",
+    "lisa:maplibui:contract:manifest-key-components-polygonstylecontrols-495a115682",
+    "lisa:maplibui:contract:manifest-key-components-stylefragment-4f98e38b30",
+    "lisa:maplibui:contract:manifest-key-components-ngdialog-d6b593efa1",
+    "lisa:maplibui:contract:manifest-key-components-bottomtoolbar-e38ff7ef15",
+    "lisa:maplibui:contract:manifest-key-components-featurecopydefaults-31c2b8a19d",
+    "lisa:maplibui:contract:manifest-key-components-compassfragment-0df1d87e4f",
+    "lisa:maplibui:contract:manifest-key-components-tabs-e7fa9dc7d7",
+    "lisa:maplibui:contract:manifest-key-components-sharedtrackprojects-e492726c05",
+    "lisa:maplibui:contract:manifest-key-components-projectscriptclient-e00d585a2d-7d917b0809",
+    "lisa:maplibui:contract:manifest-key-components-fitteddialogs-c469dd3db8-1e0a8f3d26",
+    "lisa:maplibui:contract:manifest-key-components-localchangesworker-a35dfa2f42",
+    "lisa:maplibui:contract:manifest-key-components-fragment-ngw-login-0a9ee04893",
+    "lisa:maplibui:contract:manifest-key-components-ngpreferenceactivity-53c592daa6",
+    "lisa:maplibui:contract:manifest-key-components-reflowingguidanceheader-8da8744457",
+    "lisa:maplibui:contract:manifest-key-components-wrappinglabel-3c7b2f6b97",
+    "lisa:maplibui:contract:manifest-key-components-fitteddialogs-c469dd3db8-708c66c422",
+    "lisa:maplibui:contract:manifest-key-components-wrappingrow-b0ace18b29",
+    "lisa:maplibui:contract:manifest-key-components-fittedpanellayout-3ecd63c663",
+    "lisa:maplibui:contract:manifest-key-components-toolbartextfit-839ead15c2",
+    "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-ef0bdb7680",
+    "lisa:maplibui:contract:manifest-key-components-trackregistrationstate-28b865419a",
+    "lisa:maplibui:contract:manifest-key-components-trackuploader-34536e3e47",
+    "lisa:maplibui:contract:manifest-key-components-trackworker-565e49d4e5",
+    "lisa:maplibui:contract:manifest-key-components-choosefeaturetypedialog-190977a8c3",
+    "lisa:maplibui:contract:manifest-key-components-featuretypedefaults-de27b3cf3d",
+    "lisa:maplibui:contract:manifest-key-components-featuretypepreview-2f8fe0735b",
+    "lisa:maplibui:contract:manifest-key-components-formchoiceadapter-2e2d80cd96",
+    "lisa:maplibui:contract:manifest-key-components-formscrollview-599e849398",
+    "lisa:maplibui:contract:manifest-key-components-cascadingformelements-33402aee34",
+    "lisa:maplibui:contract:manifest-key-components-formfieldlayout-df59bb5c73",
+    "lisa:maplibui:contract:manifest-key-components-layerutil-8b9efda97f",
+    "lisa:maplibui:contract:manifest-key-components-conditionalrequiredcontroller-2c434aaab4",
+    "lisa:maplibui:contract:manifest-key-components-formmetadatasnapshot-6bdc22c0aa",
+    "lisa:maplibui:contract:manifest-key-components-layerslistadapter-de50273428-07ca9b35a0",
+    "lisa:maplibui:contract:manifest-key-components-cascadingformcontroller-9e5e90820f",
+    "lisa:maplibui:contract:manifest-key-components-projectscriptformcontroller-ea62af3c3c",
+    "lisa:maplibui:contract:manifest-key-components-projectscriptclient-e00d585a2d-f89634301c",
+    "lisa:maplibui:contract:manifest-key-components-featureformdraftstore-0c4ca609f1-ad34f25c4d",
+    "lisa:maplibui:contract:manifest-key-components-requiredfieldvalidation-399779fd54",
+    "lisa:maplibui:contract:manifest-key-components-requiredfieldui-00b69fdbfa",
+    "lisa:maplibui:contract:manifest-key-components-trackrecordingmode-5bdd40d1cd",
+    "lisa:maplibui:contract:manifest-key-components-trackspeedgate-35f4ce0ffb",
+    "lisa:maplibui:contract:manifest-key-components-build-fe1b9dd4e2-000c8acaec",
+    "lisa:maplibui:contract:manifest-key-components-layerslistadapter-de50273428-e51ea41bd4",
+    "lisa:maplibui:contract:manifest-key-components-selectngwresourcedialog-685e3dc9aa",
+    "lisa:maplibui:contract:manifest-key-components-ngwresourceselectionstate-c44efe511b",
+    "lisa:maplibui:contract:manifest-key-components-sharedunderlayprojects-529f9fe633",
+    "lisa:maplibui:contract:manifest-key-components-walksessionstore-7705e45bc3",
+    "lisa:maplibui:contract:manifest-key-components-walksessionrecoverypolicy-3d9b60c788",
+    "lisa:maplibui:contract:manifest-key-components-walksessionpolicy-0009ba4e67",
+    "lisa:maplibui:contract:manifest-key-components-walkgeometrysnapshot-22d56b51e6",
+    "lisa:maplibui:contract:manifest-key-components-walkrecordingpanel-e029b2d852",
+    "lisa:maplibui:contract:manifest-key-components-controlhelper-74645662e3",
+    "lisa:maplibui:contract:manifest-key-components-walkgeometryinsertion-e666482266",
+    "lisa:maplibui:contract:manifest-key-components-currenttrackoverlay-1605098cb0",
+    "lisa:maplibui:contract:manifest-key-components-currentlocationoverlay-119a4d7d45",
+    "lisa:maplibui:contract:manifest-key-components-exportgpxtask-3eb774fc41",
+    "lisa:maplibui:contract:manifest-key-components-gpxsharepublisher-e57db533bc",
+    "lisa:maplibui:contract:manifest-key-components-build-fe1b9dd4e2-9a4c3b94fa",
+    "lisa:maplibui:contract:manifest-key-components-ngwresourceslistadapter-543c31a56c",
+    "lisa:maplibui:contract:manifest-key-components-ngwloginactivity-a9dca455a5",
+    "lisa:maplibui:contract:manifest-key-components-rebuildcacheservice-0e25951174",
+    "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-2ebb1d9b39",
+    "lisa:maplibui:contract:manifest-key-components-layerfillservice-75e709fca5",
+    "lisa:maplibui:contract:manifest-key-components-layerfactoryui-df1a2ac79c",
+    "lisa:maplibui:contract:manifest-key-components-loadlisacollectorproject-041b61a975",
+    "lisa:maplibui:contract:manifest-key-components-ngwresourceimporthelper-e7e5a52016",
+    "lisa:maplibui:contract:manifest-key-components-collectorprojectregistry-dccdbfee68",
+    "lisa:maplibui:contract:manifest-key-components-legacymapworkspacecopier-13bc6e86e7",
+    "lisa:maplibui:contract:manifest-key-components-selectngwresourceactivity-4ba97a1fb8",
+    "lisa:maplibui:contract:manifest-key-components-projectoperationcoordinator-8d693eb63f",
+    "lisa:maplibui:contract:manifest-key-components-projectsyncinterruption-d829f1db64",
+    "lisa:maplibui:contract:manifest-key-components-schemarebuildretryguard-7ced36b6b8",
+    "lisa:maplibui:contract:manifest-key-components-collectorprojectimporthelper-68f00cadfe",
+    "lisa:maplibui:contract:manifest-key-components-collectorrasterlayerhelper-30afcc328c",
+    "lisa:maplibui:contract:manifest-key-components-collectorimportjournal-c339a522c6",
+    "lisa:maplibui:contract:manifest-key-components-layerfillstaging-96d3a77008",
+    "lisa:maplibui:contract:manifest-key-components-collectorformfiletransaction-57d8808933",
+    "lisa:maplibui:contract:manifest-key-components-layerbackupmanager-507cd6bedc",
+    "lisa:maplibui:contract:manifest-key-components-trackerservice-4a3003287a",
+    "lisa:maplibui:contract:manifest-key-components-externalgnssservice-20a5c54c50",
+    "lisa:maplibui:contract:manifest-key-components-walkeditservice-ff39ae1950",
+    "lisa:maplibui:contract:manifest-key-components-backgroundrecordingsoundmonitor-d8ab61e959",
+    "lisa:maplibui:contract:manifest-key-components-backgroundrecordingsoundpolicy-b55157fd28",
+    "lisa:maplibui:contract:manifest-key-components-featureformdraftstore-0c4ca609f1-644c413e39",
+    "lisa:maplibui:contract:manifest-key-components-geometryeditdraftstore-9ad3633d53",
+    "lisa:maplibui:contract:manifest-key-components-editlayeroverlay-1749032b77",
+    "lisa:maplibui:contract:manifest-key-components-undoredooverlay-3184935fe5",
+    "lisa:maplibui:contract:manifest-key-components-ruleroverlay-800e039202",
+    "lisa:maplibui:contract:manifest-key-components-modifyattributesactivity-6967debbaa",
+    "lisa:maplibui:contract:manifest-key-components-vectorlayersettingsactivity-2fdf52ac72",
+    "lisa:maplibui:contract:manifest-key-components-edit-polygon-e41a03250b",
+    "lisa:maplibui:contract:manifest-key-components-rulefeaturerendererui-6ddc6cbc4d-b84eae778c",
+    "lisa:maplibui:contract:manifest-key-components-syncaccountworker-13e7d7d245",
+    "lisa:maplibui:contract:manifest-key-components-ngidloginname-ed425b8919",
+    "lisa:maplibui:contract:manifest-key-components-sign-67242ca954",
+    "lisa:maplibui:contract:manifest-key-components-formbuildermodifyattributesactivity-f8966218f8",
+    "lisa:maplibui:contract:manifest-key-components-layerfillerrormessage-69d6cc23c9",
+    "lisa:maplibui:contract:manifest-key-components-ngwresourcerowlayout-06d8f1e1a0",
+    "lisa:maplibui:contract:manifest-key-components-row-ngwlayer-check-7e19aa3ae2",
+    "lisa:maplibui:contract:manifest-key-components-row-ngwlayer-doublecheck-95ce244cce",
+    "lisa:maplibui:contract:manifest-key-components-layout-resources-ef9b472db5",
+    "lisa:maplibui:contract:manifest-public-contracts-mobile-project-wording-08aa8f759a",
+    "lisa:maplibui:contract:manifest-public-contracts-ngfp-lookup-prefetch-9e1335826f",
+    "lisa:maplibui:contract:manifest-public-contracts-track-stop-confirmation-45bb4673fd",
+    "lisa:maplibui:contract:manifest-public-contracts-scrolling-dialog-viewport-65e916ec65",
+    "lisa:maplibui:contract:manifest-public-contracts-track-registration-indication-290ee20624",
+    "lisa:maplibui:contract:manifest-public-contracts-project-script-form-hooks-94cb881ec9",
+    "lisa:maplibui:contract:manifest-public-contracts-track-recording-mode-a5a475923a",
+    "lisa:maplibui:contract:manifest-public-contracts-independent-walk-session-e415598ca3",
+    "lisa:maplibui:contract:manifest-public-contracts-gis-application-b33dc451d3",
+    "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-url-import-2c2e4fd9d1",
+    "lisa:maplibui:contract:manifest-public-contracts-layer-fill-error-presentation-838218a309",
+    "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-checkbox-selection-d3cac13dc9",
+    "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-caption-layout-01117bb58d",
+    "lisa:maplibui:contract:manifest-public-contracts-selected-track-share-action-56037b9e1b",
+    "lisa:maplibui:resource:manifest-settings-refs",
+    "lisa:maplibui:contract:manifest-storage-contracts-track-registered-device-fb25c88942",
+    "lisa:maplibui:contract:manifest-storage-contracts-tracks-temp-16fb2aa89d",
+    "lisa:maplibui:contract:manifest-storage-contracts-ngw-resource-selection-state-3b6dd9c79e",
+    "lisa:maplibui:contract:manifest-storage-contracts-collector-registry-2c8b43a666",
+    "lisa:maplibui:contract:manifest-storage-contracts-collector-initial-local-project-64b078e5ad",
+    "lisa:maplibui:contract:manifest-storage-contracts-collector-import-journal-3787cc78c2",
+    "lisa:maplibui:contract:manifest-storage-contracts-layer-fill-staging-04c5a9be07",
+    "lisa:maplibui:contract:manifest-storage-contracts-ngw-schema-rebuild-guard-c055c34bb3",
+    "lisa:maplibui:contract:manifest-storage-contracts-collector-form-transaction-2dd1a85765",
+    "lisa:maplibui:contract:manifest-storage-contracts-layer-backups-49de2a2dac",
+    "lisa:maplibui:contract:manifest-storage-contracts-walkedit-temp-16f086f057",
+    "lisa:maplibui:contract:manifest-storage-contracts-feature-form-draft-d5547fd901",
+    "lisa:maplibui:contract:manifest-storage-contracts-geometry-edit-draft-7c51b5d7f0",
+    "lisa:maplibui:resource:manifest-invariant-refs",
+    "lisa:maplibui:resource:manifest-global-docs",
+    "lisa:maplibui:resource:manifest-smoke-tests",
+    "lisa:maplibui:resource:manifest-upstream-hotspots"
+  ],
+  "ordered_records_sha256": "25c600341cd83cba71ddb78cafb2d1d4bc4cdc15c462e63dd055dd4ee3b637de",
+  "original": {
+    "blob": "5bb6078f9f9d872652cb3220382d9692c4a2ea62",
+    "bytes": 41352,
+    "fields": [
+      {
+        "end_byte": 18,
+        "key": "schema_version",
+        "sha256": "5c9536c0f64193f535c425baf9f2c7431b89eb46bab5fb85d4bfcffabb565f43",
+        "start_byte": 0
+      },
+      {
+        "end_byte": 38,
+        "key": "module_id",
+        "sha256": "c0b66743a7a2b4b7757fa105a5424dbf80526cb8814d9bddea71a1aab569c4ed",
+        "start_byte": 18
+      },
+      {
+        "end_byte": 62,
+        "key": "repository_id",
+        "sha256": "2aa54a35c7c8e7892cc71db3feca169f333e1872f103cd785562ccadfa01b1a6",
+        "start_byte": 38
+      },
+      {
+        "end_byte": 83,
+        "key": "maturity",
+        "sha256": "4a5426b15627f803f4ed5a207530e9b88a6253192b7bb78c4a67925fdf99dcc2",
+        "start_byte": 62
+      },
+      {
+        "end_byte": 109,
+        "key": "last_verified",
+        "sha256": "6d8dca772370985c7bc3565ef60a1ccca24c69c98fb0d133421826d476b892a9",
+        "start_byte": 83
+      },
+      {
+        "end_byte": 448,
+        "key": "entrypoints",
+        "sha256": "d3eb1dfac7ee338609d354d39f569073fc4ae12502cb28f479b92c62e41c5e10",
+        "start_byte": 109
+      },
+      {
+        "end_byte": 32510,
+        "key": "key_components",
+        "sha256": "1a2ca1d83c5f3939e9add39511e009ea5a57df0b66bf06c254492953f92b6ffc",
+        "start_byte": 448
+      },
+      {
+        "end_byte": 35642,
+        "key": "public_contracts",
+        "sha256": "ff4b5b2ad92e8c2a2567b8db5b66543a09d45611453a9ffd7995203273e3c8f8",
+        "start_byte": 32510
+      },
+      {
+        "end_byte": 36219,
+        "key": "settings_refs",
+        "sha256": "82d8940e3e9e012bcd66db6abe1628c7337b73a198d51766af021063be2ddc4b",
+        "start_byte": 35642
+      },
+      {
+        "end_byte": 37747,
+        "key": "storage_contracts",
+        "sha256": "e4bfa83180495b7d7a47968dd6bd0b3a08052a1906e16329698fe315433b56ea",
+        "start_byte": 36219
+      },
+      {
+        "end_byte": 38966,
+        "key": "invariant_refs",
+        "sha256": "437ef63322dedb03d91ac4a456f5d3b5012c41ba7bc16af794411bfcde6a9bc7",
+        "start_byte": 37747
+      },
+      {
+        "end_byte": 39625,
+        "key": "global_docs",
+        "sha256": "325c673671eeced6e65eedb9195ccaabb719a5a0df4852bb2db6e60c6bd599e6",
+        "start_byte": 38966
+      },
+      {
+        "end_byte": 41209,
+        "key": "smoke_tests",
+        "sha256": "7a62c33ae291cea81e00d0f107939b8fb52a398d26cb5bf2f4bfd77a59fed66b",
+        "start_byte": 39625
+      },
+      {
+        "end_byte": 41352,
+        "key": "upstream_hotspots",
+        "sha256": "2eb1afc3970cdcb32488580bb04236e9ccf6667e793a0916b3ae7b8d23510f18",
+        "start_byte": 41209
+      }
+    ],
+    "path": "docs/manifest.yaml",
+    "revision": "99e0013f1efd56747c92a1ca2ee118b9605028b7",
+    "sha256": "d38897ed26677a0cbf8f169153903c0c773fc7a897c16765fe153432f333be58"
+  },
+  "original_record_spans": [
+    {
+      "end_byte": 109,
+      "id": "lisa:maplibui:metadata:maplibui-module-manifest",
+      "pointer": "/",
+      "sha256": "fe9826076ecc44fe2f489c68710c83dcc5a6cdea41e63b398973e6aaf04510d4",
+      "start_byte": 0
+    },
+    {
+      "end_byte": 448,
+      "id": "lisa:maplibui:resource:manifest-entrypoints",
+      "pointer": "/entrypoints",
+      "sha256": "9e401f41536915fb57fee6c9c46e954a570f0fb98ce70a63e084a3c1d10eca19",
+      "start_byte": 124
+    },
+    {
+      "end_byte": 705,
+      "id": "lisa:maplibui:contract:manifest-key-components-strings-fddf045add",
+      "pointer": "/key_components/0",
+      "sha256": "7b4a80aa3452a03a041ef28c2dd56f1c601dd8bf53fbb304af55b7ed2ff9df9c",
+      "start_byte": 468
+    },
+    {
+      "end_byte": 984,
+      "id": "lisa:maplibui:contract:manifest-key-components-strings-6c78bc6a3d",
+      "pointer": "/key_components/1",
+      "sha256": "076304b40b491ceeb12a3568676814c8c4e5e8fee585b85329088c68062da9d6",
+      "start_byte": 707
+    },
+    {
+      "end_byte": 1189,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackstopconfirmationactivity-9610414303",
+      "pointer": "/key_components/2",
+      "sha256": "785af2a72474d77bc6ac332f73f00dd9df51e3fdb07ae298a07bc00f60e63fcb",
+      "start_byte": 986
+    },
+    {
+      "end_byte": 1406,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackactions-245b1f0ff8",
+      "pointer": "/key_components/3",
+      "sha256": "5304eeea77768f37ce1aa08d4050f8869e80aae9aa9ba1447eb8e4851aa9cfcf",
+      "start_byte": 1191
+    },
+    {
+      "end_byte": 1776,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackselectionpanel-91cbed5da0",
+      "pointer": "/key_components/4",
+      "sha256": "fa4c812c000cc9fa35124a7b5fc1e0950c6efaf222cadafcd1ce68a842147507",
+      "start_byte": 1408
+    },
+    {
+      "end_byte": 2025,
+      "id": "lisa:maplibui:contract:manifest-key-components-rulefeaturerendererui-6ddc6cbc4d-a17cd6bb9d",
+      "pointer": "/key_components/5",
+      "sha256": "b7e451f735264bc44ac74a7c9c8f1ce7a1976545aa9fd665eadf4f0a4d4f788f",
+      "start_byte": 1778
+    },
+    {
+      "end_byte": 2240,
+      "id": "lisa:maplibui:contract:manifest-key-components-stylepreviewview-dea7f44450",
+      "pointer": "/key_components/6",
+      "sha256": "76ef47abd730e9a969450a29462bb2342d0553b30f8083bbca34db3cf8d5c279",
+      "start_byte": 2027
+    },
+    {
+      "end_byte": 2459,
+      "id": "lisa:maplibui:contract:manifest-key-components-polygonstylecontrols-495a115682",
+      "pointer": "/key_components/7",
+      "sha256": "c22c149ef81ba7e2d17e2f0cfae5532be8372a7e95518e474b3cee353cbf89b0",
+      "start_byte": 2242
+    },
+    {
+      "end_byte": 2738,
+      "id": "lisa:maplibui:contract:manifest-key-components-stylefragment-4f98e38b30",
+      "pointer": "/key_components/8",
+      "sha256": "24ff7e0b5836bc55b6797f389d145dae9b4b8d7cbd408fa07cac50f486d52cc5",
+      "start_byte": 2461
+    },
+    {
+      "end_byte": 2949,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngdialog-d6b593efa1",
+      "pointer": "/key_components/9",
+      "sha256": "14018a96904cf045bf3932dd160891e54865f8bffb7072a7c0aa5542c269303f",
+      "start_byte": 2740
+    },
+    {
+      "end_byte": 3194,
+      "id": "lisa:maplibui:contract:manifest-key-components-bottomtoolbar-e38ff7ef15",
+      "pointer": "/key_components/10",
+      "sha256": "de12eb8101eb1d11a367ab4d37b6eb74a29fa0282089f8b1b1c6d5ff94dd845f",
+      "start_byte": 2951
+    },
+    {
+      "end_byte": 3440,
+      "id": "lisa:maplibui:contract:manifest-key-components-featurecopydefaults-31c2b8a19d",
+      "pointer": "/key_components/11",
+      "sha256": "03efa6af49aed15dc28528433ac3947b44754e7c4c70974c36d02e9761019104",
+      "start_byte": 3196
+    },
+    {
+      "end_byte": 3712,
+      "id": "lisa:maplibui:contract:manifest-key-components-compassfragment-0df1d87e4f",
+      "pointer": "/key_components/12",
+      "sha256": "97f14e1d8583867da62b5d4bc3736e974d6d19b65dc15cf7771097d70bd9e3ac",
+      "start_byte": 3442
+    },
+    {
+      "end_byte": 4027,
+      "id": "lisa:maplibui:contract:manifest-key-components-tabs-e7fa9dc7d7",
+      "pointer": "/key_components/13",
+      "sha256": "99fa7bbc7e7ba5143237198df8e8120ef46b9ec2e43c580bcd335d643f59773f",
+      "start_byte": 3714
+    },
+    {
+      "end_byte": 4245,
+      "id": "lisa:maplibui:contract:manifest-key-components-sharedtrackprojects-e492726c05",
+      "pointer": "/key_components/14",
+      "sha256": "689030b400f8c9f5b3c7c417a45b70bb38674e2a0615f519f15da34466453571",
+      "start_byte": 4029
+    },
+    {
+      "end_byte": 4509,
+      "id": "lisa:maplibui:contract:manifest-key-components-projectscriptclient-e00d585a2d-7d917b0809",
+      "pointer": "/key_components/15",
+      "sha256": "90685408ec5cf3ea1346273501341f0c14239690c2a54ad98d2724084952e9f3",
+      "start_byte": 4247
+    },
+    {
+      "end_byte": 4739,
+      "id": "lisa:maplibui:contract:manifest-key-components-fitteddialogs-c469dd3db8-1e0a8f3d26",
+      "pointer": "/key_components/16",
+      "sha256": "8604006891d3a769fa98ce18201d09734ed17b6eecf845581e444f406b4f14ec",
+      "start_byte": 4511
+    },
+    {
+      "end_byte": 4999,
+      "id": "lisa:maplibui:contract:manifest-key-components-localchangesworker-a35dfa2f42",
+      "pointer": "/key_components/17",
+      "sha256": "d193e61ea49e65070fb6d060ead6da5b1cd0818bd1f22b1e7b34be08ae0437f6",
+      "start_byte": 4741
+    },
+    {
+      "end_byte": 5250,
+      "id": "lisa:maplibui:contract:manifest-key-components-fragment-ngw-login-0a9ee04893",
+      "pointer": "/key_components/18",
+      "sha256": "bb81a0d8b09fe90a3bdd266c4bfdcb9df8877e2750e86875c72fc92d30efa976",
+      "start_byte": 5001
+    },
+    {
+      "end_byte": 5482,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngpreferenceactivity-53c592daa6",
+      "pointer": "/key_components/19",
+      "sha256": "91a9b04de4eabdf0fc5e26991d3eea6c4b64afeef21e9f7d641e4f54d878e25b",
+      "start_byte": 5252
+    },
+    {
+      "end_byte": 5703,
+      "id": "lisa:maplibui:contract:manifest-key-components-reflowingguidanceheader-8da8744457",
+      "pointer": "/key_components/20",
+      "sha256": "5adda6a3e83762576b286ef07133d3553e19fc851fe015f7446ccbcbf1476535",
+      "start_byte": 5484
+    },
+    {
+      "end_byte": 5972,
+      "id": "lisa:maplibui:contract:manifest-key-components-wrappinglabel-3c7b2f6b97",
+      "pointer": "/key_components/21",
+      "sha256": "022401959dca7ac67b41a6d700921ab6e0f8a988459c617317bcb80110673c25",
+      "start_byte": 5705
+    },
+    {
+      "end_byte": 6258,
+      "id": "lisa:maplibui:contract:manifest-key-components-fitteddialogs-c469dd3db8-708c66c422",
+      "pointer": "/key_components/22",
+      "sha256": "f5e3a7bd29a4f7c5b8fa1aa2f3d14457e9778a771c47b2acbbbfa78411538a32",
+      "start_byte": 5974
+    },
+    {
+      "end_byte": 6456,
+      "id": "lisa:maplibui:contract:manifest-key-components-wrappingrow-b0ace18b29",
+      "pointer": "/key_components/23",
+      "sha256": "504130ef06b636590959c854d1d8993569328651fc53ed976e48f891e5aef56e",
+      "start_byte": 6260
+    },
+    {
+      "end_byte": 6710,
+      "id": "lisa:maplibui:contract:manifest-key-components-fittedpanellayout-3ecd63c663",
+      "pointer": "/key_components/24",
+      "sha256": "cab9ff5c832ee2c1dfbe1825235afd3382c5d49a4dfdcf53f73918164b0a88f3",
+      "start_byte": 6458
+    },
+    {
+      "end_byte": 6968,
+      "id": "lisa:maplibui:contract:manifest-key-components-toolbartextfit-839ead15c2",
+      "pointer": "/key_components/25",
+      "sha256": "469e1e7570de4ef7941e9f3680fef53f20b5f97ddaf0b5ea2a3bb55da84a1ede",
+      "start_byte": 6712
+    },
+    {
+      "end_byte": 7530,
+      "id": "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-ef0bdb7680",
+      "pointer": "/key_components/26",
+      "sha256": "04c59f4bde5d41d4284ded2c8eee8d201806be7a6909c206bab84fe8ba3e26b4",
+      "start_byte": 6970
+    },
+    {
+      "end_byte": 7868,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackregistrationstate-28b865419a",
+      "pointer": "/key_components/27",
+      "sha256": "5487206c5541d9666140c09163c37112df8a31d44ad3dc45df7ff88f7e68844e",
+      "start_byte": 7532
+    },
+    {
+      "end_byte": 8186,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackuploader-34536e3e47",
+      "pointer": "/key_components/28",
+      "sha256": "c2fa01b04d8c7bf25d9a61563ac6553693681e7140e9675624d58198f8874c2c",
+      "start_byte": 7870
+    },
+    {
+      "end_byte": 8515,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackworker-565e49d4e5",
+      "pointer": "/key_components/29",
+      "sha256": "71b53801629413407fd7554a9452740874c272850f008477daa73f06e3e7c69f",
+      "start_byte": 8188
+    },
+    {
+      "end_byte": 8904,
+      "id": "lisa:maplibui:contract:manifest-key-components-choosefeaturetypedialog-190977a8c3",
+      "pointer": "/key_components/30",
+      "sha256": "41b50629c20795abe04be43174eb69ecf6db9f935531eae0b3513f24c322def5",
+      "start_byte": 8517
+    },
+    {
+      "end_byte": 9223,
+      "id": "lisa:maplibui:contract:manifest-key-components-featuretypedefaults-de27b3cf3d",
+      "pointer": "/key_components/31",
+      "sha256": "dff73361daeefad76643b0c265a1a6c9d2e4347af4f9d15787b64cb7c3acf1c4",
+      "start_byte": 8906
+    },
+    {
+      "end_byte": 9474,
+      "id": "lisa:maplibui:contract:manifest-key-components-featuretypepreview-2f8fe0735b",
+      "pointer": "/key_components/32",
+      "sha256": "3c428bd286fdc13b2cec10da163a9e046f8fc74a143e7862ccc78eaf530a656f",
+      "start_byte": 9225
+    },
+    {
+      "end_byte": 9730,
+      "id": "lisa:maplibui:contract:manifest-key-components-formchoiceadapter-2e2d80cd96",
+      "pointer": "/key_components/33",
+      "sha256": "34a337dd925d812fb76cf3661a72db46a5f30ec9c65aa5427ea5ecd14c3230a0",
+      "start_byte": 9476
+    },
+    {
+      "end_byte": 10051,
+      "id": "lisa:maplibui:contract:manifest-key-components-formscrollview-599e849398",
+      "pointer": "/key_components/34",
+      "sha256": "58507023cc138044b9edc2fe3e75a80800b8a797bab4ca9735f71853e53dca4e",
+      "start_byte": 9732
+    },
+    {
+      "end_byte": 10385,
+      "id": "lisa:maplibui:contract:manifest-key-components-cascadingformelements-33402aee34",
+      "pointer": "/key_components/35",
+      "sha256": "80ac55129b6e3d94b21eed6e51e66b960bb42ddaaff9b2796067a585f8ce27b6",
+      "start_byte": 10053
+    },
+    {
+      "end_byte": 10673,
+      "id": "lisa:maplibui:contract:manifest-key-components-formfieldlayout-df59bb5c73",
+      "pointer": "/key_components/36",
+      "sha256": "87f9c967508221b3149452fd77bdc8f20279c7b92194a47326c5a086c319bbc7",
+      "start_byte": 10387
+    },
+    {
+      "end_byte": 10875,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerutil-8b9efda97f",
+      "pointer": "/key_components/37",
+      "sha256": "3c7a84335e2adcf45adf474eaadde160b038af0d723adbb2c00601a737df0ce1",
+      "start_byte": 10675
+    },
+    {
+      "end_byte": 11191,
+      "id": "lisa:maplibui:contract:manifest-key-components-conditionalrequiredcontroller-2c434aaab4",
+      "pointer": "/key_components/38",
+      "sha256": "7ca1fe909f536dc39bf099d92cda0a366919a2e870ae85552a5f38612531e241",
+      "start_byte": 10877
+    },
+    {
+      "end_byte": 11408,
+      "id": "lisa:maplibui:contract:manifest-key-components-formmetadatasnapshot-6bdc22c0aa",
+      "pointer": "/key_components/39",
+      "sha256": "40ec0771d637992aea23c9b62201a35ac9c4236e5ee3e46f97d1cfd7e2c13111",
+      "start_byte": 11193
+    },
+    {
+      "end_byte": 11673,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerslistadapter-de50273428-07ca9b35a0",
+      "pointer": "/key_components/40",
+      "sha256": "190bf1124961cc3605fef8ea2b021014c8a25bc3b9ec731ba0254b151af2ba9a",
+      "start_byte": 11410
+    },
+    {
+      "end_byte": 12045,
+      "id": "lisa:maplibui:contract:manifest-key-components-cascadingformcontroller-9e5e90820f",
+      "pointer": "/key_components/41",
+      "sha256": "9a0db59759b92a1de499e0913b0fafcb0ed0e9281d28076e0d9a63226cc40d0b",
+      "start_byte": 11675
+    },
+    {
+      "end_byte": 12227,
+      "id": "lisa:maplibui:contract:manifest-key-components-projectscriptformcontroller-ea62af3c3c",
+      "pointer": "/key_components/42",
+      "sha256": "714b432dbdbf0e23eebdffa2b0a9f2824290e0c6b179954fd2b183d99e4b9b64",
+      "start_byte": 12047
+    },
+    {
+      "end_byte": 12390,
+      "id": "lisa:maplibui:contract:manifest-key-components-projectscriptclient-e00d585a2d-f89634301c",
+      "pointer": "/key_components/43",
+      "sha256": "d80a882fda5984fba99e6fb69b0deb84547e7b4991d968b46defaf8bf483a283",
+      "start_byte": 12229
+    },
+    {
+      "end_byte": 12631,
+      "id": "lisa:maplibui:contract:manifest-key-components-featureformdraftstore-0c4ca609f1-ad34f25c4d",
+      "pointer": "/key_components/44",
+      "sha256": "5363acfbeb71d8219993d77c587990f6ac837639dbc19f1c01c91b3c93b7d25b",
+      "start_byte": 12392
+    },
+    {
+      "end_byte": 12872,
+      "id": "lisa:maplibui:contract:manifest-key-components-requiredfieldvalidation-399779fd54",
+      "pointer": "/key_components/45",
+      "sha256": "4a6ee901ebe02db9f4bd52a887cc6ebae05fb5c22d34bc201f753b06e27111d8",
+      "start_byte": 12633
+    },
+    {
+      "end_byte": 13096,
+      "id": "lisa:maplibui:contract:manifest-key-components-requiredfieldui-00b69fdbfa",
+      "pointer": "/key_components/46",
+      "sha256": "510512877ae2b9c9cd802d1391a3cf4f9b63123ec5afc8306c5e51293670ac21",
+      "start_byte": 12874
+    },
+    {
+      "end_byte": 13295,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackrecordingmode-5bdd40d1cd",
+      "pointer": "/key_components/47",
+      "sha256": "5ae5944d5c4f45b6256487cf81d32a504939ca5c41456db6db983333dbe2ffea",
+      "start_byte": 13098
+    },
+    {
+      "end_byte": 13537,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackspeedgate-35f4ce0ffb",
+      "pointer": "/key_components/48",
+      "sha256": "41e920c0f1494fa624a68b9762ec3843742a61082f3d05499b065d1b9328bc82",
+      "start_byte": 13297
+    },
+    {
+      "end_byte": 13766,
+      "id": "lisa:maplibui:contract:manifest-key-components-build-fe1b9dd4e2-000c8acaec",
+      "pointer": "/key_components/49",
+      "sha256": "d55798e78c0a543405280793600ed6176b956c277ba50f6a5608353e6e8106a3",
+      "start_byte": 13539
+    },
+    {
+      "end_byte": 13978,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerslistadapter-de50273428-e51ea41bd4",
+      "pointer": "/key_components/50",
+      "sha256": "51a99495e8a339884be2b68a978d9b8b45ea2b609d96ca8549fd47b63838985d",
+      "start_byte": 13768
+    },
+    {
+      "end_byte": 14252,
+      "id": "lisa:maplibui:contract:manifest-key-components-selectngwresourcedialog-685e3dc9aa",
+      "pointer": "/key_components/51",
+      "sha256": "cf8beca298086a275fbb18360db89021625db351764ee78c92e1d10cebec71d2",
+      "start_byte": 13980
+    },
+    {
+      "end_byte": 14752,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngwresourceselectionstate-c44efe511b",
+      "pointer": "/key_components/52",
+      "sha256": "0c8bba5a0d4397c8931069ccb45f87f7bdd5e8e65544267aca27314f0c7de52f",
+      "start_byte": 14254
+    },
+    {
+      "end_byte": 15037,
+      "id": "lisa:maplibui:contract:manifest-key-components-sharedunderlayprojects-529f9fe633",
+      "pointer": "/key_components/53",
+      "sha256": "c00d1214904ec64d17dbf51a3dfd5a130468015c26b602ec9e42b383f2fc2a34",
+      "start_byte": 14754
+    },
+    {
+      "end_byte": 15361,
+      "id": "lisa:maplibui:contract:manifest-key-components-walksessionstore-7705e45bc3",
+      "pointer": "/key_components/54",
+      "sha256": "e1b155ed1df70e96b6cdb7b90fb0bfaf4070e718624b6fff243c80ad084cb1d6",
+      "start_byte": 15039
+    },
+    {
+      "end_byte": 15607,
+      "id": "lisa:maplibui:contract:manifest-key-components-walksessionrecoverypolicy-3d9b60c788",
+      "pointer": "/key_components/55",
+      "sha256": "4a8482d6dd2d2270a2e1b44ac65c7d6863e6248ec9ce7aa63997c1ac19215e5b",
+      "start_byte": 15363
+    },
+    {
+      "end_byte": 15812,
+      "id": "lisa:maplibui:contract:manifest-key-components-walksessionpolicy-0009ba4e67",
+      "pointer": "/key_components/56",
+      "sha256": "25d9edf74bd3f05541a67546b5396ab59b22e1ce7a30bc763ebad478535476cd",
+      "start_byte": 15609
+    },
+    {
+      "end_byte": 16131,
+      "id": "lisa:maplibui:contract:manifest-key-components-walkgeometrysnapshot-22d56b51e6",
+      "pointer": "/key_components/57",
+      "sha256": "2c7bdc37c225149ed4020c61118cc7f0b4f4254a66d8103b82a65d978c407897",
+      "start_byte": 15814
+    },
+    {
+      "end_byte": 16482,
+      "id": "lisa:maplibui:contract:manifest-key-components-walkrecordingpanel-e029b2d852",
+      "pointer": "/key_components/58",
+      "sha256": "c8510ac4afe815a8493b1759caa2904d4721d2262cea9530536358b9f0dba76c",
+      "start_byte": 16133
+    },
+    {
+      "end_byte": 16696,
+      "id": "lisa:maplibui:contract:manifest-key-components-controlhelper-74645662e3",
+      "pointer": "/key_components/59",
+      "sha256": "fb0b313fef1d33a4df86d988c2d45eabe5022a8e790f85e4d6b6f4785a79877e",
+      "start_byte": 16484
+    },
+    {
+      "end_byte": 16930,
+      "id": "lisa:maplibui:contract:manifest-key-components-walkgeometryinsertion-e666482266",
+      "pointer": "/key_components/60",
+      "sha256": "3e9407ff3d52e3bbd869aae4e1fc38dec68f1475efd90d9dd31bc16c20de6d58",
+      "start_byte": 16698
+    },
+    {
+      "end_byte": 17109,
+      "id": "lisa:maplibui:contract:manifest-key-components-currenttrackoverlay-1605098cb0",
+      "pointer": "/key_components/61",
+      "sha256": "836ca9f6f3facff8c4dcfe3c5fcb4c357a2d5efdd0f938f10268fda5a9becdd6",
+      "start_byte": 16932
+    },
+    {
+      "end_byte": 17379,
+      "id": "lisa:maplibui:contract:manifest-key-components-currentlocationoverlay-119a4d7d45",
+      "pointer": "/key_components/62",
+      "sha256": "5bba8108da75044f36baf163da8e1ca1936725be996b146dda195c028e76cb9a",
+      "start_byte": 17111
+    },
+    {
+      "end_byte": 17784,
+      "id": "lisa:maplibui:contract:manifest-key-components-exportgpxtask-3eb774fc41",
+      "pointer": "/key_components/63",
+      "sha256": "942deaeaa43539a409256ee4dc9717b08f5e4b1a326bbc5b478a4d44df23e41c",
+      "start_byte": 17381
+    },
+    {
+      "end_byte": 17986,
+      "id": "lisa:maplibui:contract:manifest-key-components-gpxsharepublisher-e57db533bc",
+      "pointer": "/key_components/64",
+      "sha256": "37a712a0e588018b206887c5e3f2ba58c8c59e47c0ecd6b4c852a7bb3693525d",
+      "start_byte": 17786
+    },
+    {
+      "end_byte": 18180,
+      "id": "lisa:maplibui:contract:manifest-key-components-build-fe1b9dd4e2-9a4c3b94fa",
+      "pointer": "/key_components/65",
+      "sha256": "d19eabd0766fc1d14b4bcc607db274b94b74c3c2e0d3a341d3470d7f63ac108b",
+      "start_byte": 17988
+    },
+    {
+      "end_byte": 18794,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngwresourceslistadapter-543c31a56c",
+      "pointer": "/key_components/66",
+      "sha256": "92c87ff822576326f2e65c3d940f924a4b97c8ee69af69537d055007647d27ee",
+      "start_byte": 18182
+    },
+    {
+      "end_byte": 19043,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngwloginactivity-a9dca455a5",
+      "pointer": "/key_components/67",
+      "sha256": "47ad1dbbe0ff1c28d26d131d22a8a9a56130220d66f49b8c82443544a6c71b78",
+      "start_byte": 18796
+    },
+    {
+      "end_byte": 19281,
+      "id": "lisa:maplibui:contract:manifest-key-components-rebuildcacheservice-0e25951174",
+      "pointer": "/key_components/68",
+      "sha256": "48a0760a4e38be6e83a9d43f2e123afcbe67036401c0f08ed842c9739591c489",
+      "start_byte": 19045
+    },
+    {
+      "end_byte": 19895,
+      "id": "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-2ebb1d9b39",
+      "pointer": "/key_components/69",
+      "sha256": "05078b930f693d04c4785bc62ff6f025d804a5ebffc48046bbdf8b991bf3ffcb",
+      "start_byte": 19283
+    },
+    {
+      "end_byte": 20837,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerfillservice-75e709fca5",
+      "pointer": "/key_components/70",
+      "sha256": "c4dcabcfa15573bd2da248f806127502b9ee894c23518078118d8c64c2b8cf84",
+      "start_byte": 19897
+    },
+    {
+      "end_byte": 21134,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerfactoryui-df1a2ac79c",
+      "pointer": "/key_components/71",
+      "sha256": "7faf289abdd31bd1a75d85c8d955e8e5b6ee66300769faf5bda73a2ff26cd5dc",
+      "start_byte": 20839
+    },
+    {
+      "end_byte": 21432,
+      "id": "lisa:maplibui:contract:manifest-key-components-loadlisacollectorproject-041b61a975",
+      "pointer": "/key_components/72",
+      "sha256": "0898b9e97d2a9bb8f63199eb792c7a6362b89b178edc64445800f5ea41f9a468",
+      "start_byte": 21136
+    },
+    {
+      "end_byte": 21635,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngwresourceimporthelper-e7e5a52016",
+      "pointer": "/key_components/73",
+      "sha256": "8657f259aaebd5e03922c4f63b3d8ae4eee841f27110cc7ec4e6450d3e7d6bc3",
+      "start_byte": 21434
+    },
+    {
+      "end_byte": 22115,
+      "id": "lisa:maplibui:contract:manifest-key-components-collectorprojectregistry-dccdbfee68",
+      "pointer": "/key_components/74",
+      "sha256": "cb7eb8f7ce98f7a395b5deaca4d84d4568beb62484eb71f756636140d685348a",
+      "start_byte": 21637
+    },
+    {
+      "end_byte": 22410,
+      "id": "lisa:maplibui:contract:manifest-key-components-legacymapworkspacecopier-13bc6e86e7",
+      "pointer": "/key_components/75",
+      "sha256": "671a229984b4c68c2a68de3af03d16568551f122c71f4925a9ba0f09988bffb4",
+      "start_byte": 22117
+    },
+    {
+      "end_byte": 22704,
+      "id": "lisa:maplibui:contract:manifest-key-components-selectngwresourceactivity-4ba97a1fb8",
+      "pointer": "/key_components/76",
+      "sha256": "34af9fe14355448709cfcecda2cf2df9b4a2c50b6f461cafe2664f615be53ea6",
+      "start_byte": 22412
+    },
+    {
+      "end_byte": 23120,
+      "id": "lisa:maplibui:contract:manifest-key-components-projectoperationcoordinator-8d693eb63f",
+      "pointer": "/key_components/77",
+      "sha256": "363d6a6e337e80943dba50c6ddb5ca6ee12ee4a166b5ea9680330df5cae829fa",
+      "start_byte": 22706
+    },
+    {
+      "end_byte": 23465,
+      "id": "lisa:maplibui:contract:manifest-key-components-projectsyncinterruption-d829f1db64",
+      "pointer": "/key_components/78",
+      "sha256": "aa238db03f144882b38902e9ca415f9020850c3766d2951df8b86d2e6b218cf3",
+      "start_byte": 23122
+    },
+    {
+      "end_byte": 23705,
+      "id": "lisa:maplibui:contract:manifest-key-components-schemarebuildretryguard-7ced36b6b8",
+      "pointer": "/key_components/79",
+      "sha256": "8e97ea1f34ef375cdc3371ab7d9352c89f258d1c024a2cc0d4003dedfc7e769a",
+      "start_byte": 23467
+    },
+    {
+      "end_byte": 23927,
+      "id": "lisa:maplibui:contract:manifest-key-components-collectorprojectimporthelper-68f00cadfe",
+      "pointer": "/key_components/80",
+      "sha256": "987bf8578e4669b58a80eecacd4aad3da90558aeab34cba9f3b2a420f9204e60",
+      "start_byte": 23707
+    },
+    {
+      "end_byte": 24154,
+      "id": "lisa:maplibui:contract:manifest-key-components-collectorrasterlayerhelper-30afcc328c",
+      "pointer": "/key_components/81",
+      "sha256": "e040eec2789355535b06c82f6e2744b72f015b0b200d830430e9445191dcd21e",
+      "start_byte": 23929
+    },
+    {
+      "end_byte": 24341,
+      "id": "lisa:maplibui:contract:manifest-key-components-collectorimportjournal-c339a522c6",
+      "pointer": "/key_components/82",
+      "sha256": "b78245e09b1af812a7153a44e1966ba8dec50283bd53678c7fbfec9fcd29d855",
+      "start_byte": 24156
+    },
+    {
+      "end_byte": 24634,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerfillstaging-96d3a77008",
+      "pointer": "/key_components/83",
+      "sha256": "c321b1bfd36a0452b9d09217d596fe366740f6e851ca7ea8f9c5406bbc32385c",
+      "start_byte": 24343
+    },
+    {
+      "end_byte": 24827,
+      "id": "lisa:maplibui:contract:manifest-key-components-collectorformfiletransaction-57d8808933",
+      "pointer": "/key_components/84",
+      "sha256": "2dc01bf1eab50b186ceb7f6114e8c43a51f08c08b848c711fa58f3d986b452a7",
+      "start_byte": 24636
+    },
+    {
+      "end_byte": 25091,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerbackupmanager-507cd6bedc",
+      "pointer": "/key_components/85",
+      "sha256": "b04bcd13fd7a68d7b3772a38faf9d797b2cb483c82215190deb4eebf153abe6e",
+      "start_byte": 24829
+    },
+    {
+      "end_byte": 25725,
+      "id": "lisa:maplibui:contract:manifest-key-components-trackerservice-4a3003287a",
+      "pointer": "/key_components/86",
+      "sha256": "9f677f20ba7f3ddccb03bee08448d05b5ee44e5819e1f44b593d827555245f60",
+      "start_byte": 25093
+    },
+    {
+      "end_byte": 26093,
+      "id": "lisa:maplibui:contract:manifest-key-components-externalgnssservice-20a5c54c50",
+      "pointer": "/key_components/87",
+      "sha256": "44d61313175a7b40d672106b6fdc398fc6275f67b4d4a6c3db7e3fbefe769f5d",
+      "start_byte": 25727
+    },
+    {
+      "end_byte": 26637,
+      "id": "lisa:maplibui:contract:manifest-key-components-walkeditservice-ff39ae1950",
+      "pointer": "/key_components/88",
+      "sha256": "e0f53ad4676893288f29389d0b5cf8a4bb3dc2d7e8831ada82258ad158be12db",
+      "start_byte": 26095
+    },
+    {
+      "end_byte": 26992,
+      "id": "lisa:maplibui:contract:manifest-key-components-backgroundrecordingsoundmonitor-d8ab61e959",
+      "pointer": "/key_components/89",
+      "sha256": "26b796069f75149a24c22543dab2d76ebfb88fc90cac0aa2a895c19ba4b49854",
+      "start_byte": 26639
+    },
+    {
+      "end_byte": 27301,
+      "id": "lisa:maplibui:contract:manifest-key-components-backgroundrecordingsoundpolicy-b55157fd28",
+      "pointer": "/key_components/90",
+      "sha256": "c1c6e0667a19f004fcbbeca058b7c2c425bd4c48e38e0a98eb2e91ac6987777d",
+      "start_byte": 26994
+    },
+    {
+      "end_byte": 27582,
+      "id": "lisa:maplibui:contract:manifest-key-components-featureformdraftstore-0c4ca609f1-644c413e39",
+      "pointer": "/key_components/91",
+      "sha256": "f22eed9821c1fbadd41af5ecf697399ee5cd03db2a0c65a2a233688509d620c8",
+      "start_byte": 27303
+    },
+    {
+      "end_byte": 27796,
+      "id": "lisa:maplibui:contract:manifest-key-components-geometryeditdraftstore-9ad3633d53",
+      "pointer": "/key_components/92",
+      "sha256": "b22629003eee8a888199fc28768173c080001d87ec4c9204549bbecfc362ab51",
+      "start_byte": 27584
+    },
+    {
+      "end_byte": 28263,
+      "id": "lisa:maplibui:contract:manifest-key-components-editlayeroverlay-1749032b77",
+      "pointer": "/key_components/93",
+      "sha256": "1522056eef6519004e7f722eb0b9ca4a5add7766daafd032771c95ff7c6dabb9",
+      "start_byte": 27798
+    },
+    {
+      "end_byte": 28607,
+      "id": "lisa:maplibui:contract:manifest-key-components-undoredooverlay-3184935fe5",
+      "pointer": "/key_components/94",
+      "sha256": "dcd1d20543abadb0d3b434de6e5210f650d0e345f250ef90b9d8a27033cbe17d",
+      "start_byte": 28265
+    },
+    {
+      "end_byte": 28877,
+      "id": "lisa:maplibui:contract:manifest-key-components-ruleroverlay-800e039202",
+      "pointer": "/key_components/95",
+      "sha256": "66f7f607c8bf2341178c987450fcf723db4ce6d4310d0b046dfcffa617a9996c",
+      "start_byte": 28609
+    },
+    {
+      "end_byte": 29321,
+      "id": "lisa:maplibui:contract:manifest-key-components-modifyattributesactivity-6967debbaa",
+      "pointer": "/key_components/96",
+      "sha256": "15b59bf7cc2083d477157a38e359d06abe4d9a3aee0d83d8470fb2cd56442b25",
+      "start_byte": 28879
+    },
+    {
+      "end_byte": 29600,
+      "id": "lisa:maplibui:contract:manifest-key-components-vectorlayersettingsactivity-2fdf52ac72",
+      "pointer": "/key_components/97",
+      "sha256": "c618951f34643ade1931c5436f8e760a38db3d792ff731992ceb96ebf68bc34e",
+      "start_byte": 29323
+    },
+    {
+      "end_byte": 29801,
+      "id": "lisa:maplibui:contract:manifest-key-components-edit-polygon-e41a03250b",
+      "pointer": "/key_components/98",
+      "sha256": "e871715647e6582e3abf9b2404b37cfd765a0c255db233e809a4ee5d5e017e32",
+      "start_byte": 29602
+    },
+    {
+      "end_byte": 30004,
+      "id": "lisa:maplibui:contract:manifest-key-components-rulefeaturerendererui-6ddc6cbc4d-b84eae778c",
+      "pointer": "/key_components/99",
+      "sha256": "f5e8a7041977db6675ef568f55ab42e56c4f29785d5c1371b2332bb3ceab125b",
+      "start_byte": 29803
+    },
+    {
+      "end_byte": 30277,
+      "id": "lisa:maplibui:contract:manifest-key-components-syncaccountworker-13e7d7d245",
+      "pointer": "/key_components/100",
+      "sha256": "5f78cc700815d4e98c540cab8b4ab042623677cf8010010423a3e5edb432bc95",
+      "start_byte": 30006
+    },
+    {
+      "end_byte": 30440,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngidloginname-ed425b8919",
+      "pointer": "/key_components/101",
+      "sha256": "9eb915194a0132e9d57e3c9479055e937fe86e2d051f0e27b9fc81c1d9703138",
+      "start_byte": 30279
+    },
+    {
+      "end_byte": 30598,
+      "id": "lisa:maplibui:contract:manifest-key-components-sign-67242ca954",
+      "pointer": "/key_components/102",
+      "sha256": "2c90aa539e647f180737b3497d3d09efce9963866e05258f3da8081f0d412008",
+      "start_byte": 30442
+    },
+    {
+      "end_byte": 30865,
+      "id": "lisa:maplibui:contract:manifest-key-components-formbuildermodifyattributesactivity-f8966218f8",
+      "pointer": "/key_components/103",
+      "sha256": "71bd50bc6064d8f6b7f5a1ab9014013d6ca50a753da189bb257a7a395adffc68",
+      "start_byte": 30600
+    },
+    {
+      "end_byte": 31153,
+      "id": "lisa:maplibui:contract:manifest-key-components-layerfillerrormessage-69d6cc23c9",
+      "pointer": "/key_components/104",
+      "sha256": "5d8c6071d67f627e0695088b1c35f6cb2d40b93142d4fe7885c58190dee4ce71",
+      "start_byte": 30867
+    },
+    {
+      "end_byte": 31543,
+      "id": "lisa:maplibui:contract:manifest-key-components-ngwresourcerowlayout-06d8f1e1a0",
+      "pointer": "/key_components/105",
+      "sha256": "3d0fe47f381384d9eb61657667d5fefa88376d3df397ceb0c2a56b11cf5a444e",
+      "start_byte": 31155
+    },
+    {
+      "end_byte": 31858,
+      "id": "lisa:maplibui:contract:manifest-key-components-row-ngwlayer-check-7e19aa3ae2",
+      "pointer": "/key_components/106",
+      "sha256": "3452eed22c525dfa5ab9970dd67384d995aea506bc0d20f52556d603364c383e",
+      "start_byte": 31545
+    },
+    {
+      "end_byte": 32161,
+      "id": "lisa:maplibui:contract:manifest-key-components-row-ngwlayer-doublecheck-95ce244cce",
+      "pointer": "/key_components/107",
+      "sha256": "5a4e8bd84b9145c6c617f92649a6b1b87ca9bcd5635bef9ccda826d347e1ed15",
+      "start_byte": 31860
+    },
+    {
+      "end_byte": 32510,
+      "id": "lisa:maplibui:contract:manifest-key-components-layout-resources-ef9b472db5",
+      "pointer": "/key_components/108",
+      "sha256": "7bffb2f0c6f5496ac615a0c6e575bdcd81126f1f85755b97565aef64a319de02",
+      "start_byte": 32163
+    },
+    {
+      "end_byte": 32744,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-mobile-project-wording-08aa8f759a",
+      "pointer": "/public_contracts/0",
+      "sha256": "3df18000879fd962b7618241ce4dffa840aeea6ce8542be0bdfdd66439f591d0",
+      "start_byte": 32532
+    },
+    {
+      "end_byte": 32996,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-ngfp-lookup-prefetch-9e1335826f",
+      "pointer": "/public_contracts/1",
+      "sha256": "19a15f701980a88ae404631f4db79be42f5e5e4b8b2e6301ee94aa20cf835a4c",
+      "start_byte": 32746
+    },
+    {
+      "end_byte": 33220,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-track-stop-confirmation-45bb4673fd",
+      "pointer": "/public_contracts/2",
+      "sha256": "bd3e8ae2b9de11fa52be6a8720c2326f385f5d2cce64523c8e493aa99fa487f4",
+      "start_byte": 32998
+    },
+    {
+      "end_byte": 33444,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-scrolling-dialog-viewport-65e916ec65",
+      "pointer": "/public_contracts/3",
+      "sha256": "6ebcba0131a67ab2c1fdffce4c73a689a473f80290a69042a3142e97ab6334fc",
+      "start_byte": 33222
+    },
+    {
+      "end_byte": 33674,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-track-registration-indication-290ee20624",
+      "pointer": "/public_contracts/4",
+      "sha256": "a3a3f2252b8a225df03d3d765467d051bfd0e20a64cbe60ae1ba4ee469c2ff0c",
+      "start_byte": 33446
+    },
+    {
+      "end_byte": 33892,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-project-script-form-hooks-94cb881ec9",
+      "pointer": "/public_contracts/5",
+      "sha256": "4909994b08b90c1411302d04b7ca5711953f91c83bc0ae312f0e70c4cbf7af2d",
+      "start_byte": 33676
+    },
+    {
+      "end_byte": 34092,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-track-recording-mode-a5a475923a",
+      "pointer": "/public_contracts/6",
+      "sha256": "1a24b4aae7db421ea06c1c0c5159cf3dc7ac39095eb6d47f8e8ed568a63c579f",
+      "start_byte": 33894
+    },
+    {
+      "end_byte": 34288,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-independent-walk-session-e415598ca3",
+      "pointer": "/public_contracts/7",
+      "sha256": "9786ad4dfa13662832765bcb301ade5f2644e05861fe76748c934310bdd82d02",
+      "start_byte": 34094
+    },
+    {
+      "end_byte": 34469,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-gis-application-b33dc451d3",
+      "pointer": "/public_contracts/8",
+      "sha256": "e6fd4c93937391be5928ad773c4beb5e74b31423cc5feef15c92864989795e76",
+      "start_byte": 34290
+    },
+    {
+      "end_byte": 34646,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-url-import-2c2e4fd9d1",
+      "pointer": "/public_contracts/9",
+      "sha256": "2f53344bb51e833f486c5ca673bc6d79e9061a5a79877dbb56d0dc71966d57f3",
+      "start_byte": 34471
+    },
+    {
+      "end_byte": 34897,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-layer-fill-error-presentation-838218a309",
+      "pointer": "/public_contracts/10",
+      "sha256": "33c2ebac73fa3918cf4a6d0aa936b5f2b4dac3c5f6e7c587fcad9f13a53bd96a",
+      "start_byte": 34648
+    },
+    {
+      "end_byte": 35169,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-checkbox-selection-d3cac13dc9",
+      "pointer": "/public_contracts/11",
+      "sha256": "dbb6ef6d722b8c5e6ca54b15f26618516fec3d2cd392eda1348abde5b8279e0a",
+      "start_byte": 34899
+    },
+    {
+      "end_byte": 35405,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-caption-layout-01117bb58d",
+      "pointer": "/public_contracts/12",
+      "sha256": "8a970c30de61f81557a75c3acdb5fe1dc0ad94206ca10bd3e64e60df504bc0d6",
+      "start_byte": 35171
+    },
+    {
+      "end_byte": 35642,
+      "id": "lisa:maplibui:contract:manifest-public-contracts-selected-track-share-action-56037b9e1b",
+      "pointer": "/public_contracts/13",
+      "sha256": "0faae42206a5eae6fe1069ae43bfc1d1b632e61010bffd1933f5ab23cb203a99",
+      "start_byte": 35407
+    },
+    {
+      "end_byte": 36218,
+      "id": "lisa:maplibui:resource:manifest-settings-refs",
+      "pointer": "/settings_refs",
+      "sha256": "4c01e0995b1e652d4f3f6566119ce7c60876928967afdae6eb8f69357edbf71e",
+      "start_byte": 35657
+    },
+    {
+      "end_byte": 36360,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-track-registered-device-fb25c88942",
+      "pointer": "/storage_contracts/0",
+      "sha256": "6cff92d598c838fe4301e3697a8220811811942f3d132aba21ad3d85711b3e15",
+      "start_byte": 36242
+    },
+    {
+      "end_byte": 36462,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-tracks-temp-16fb2aa89d",
+      "pointer": "/storage_contracts/1",
+      "sha256": "b860e60a6dc3f2886cc3be4a18801b039097d78075c55e738e8c93ef7f7b1018",
+      "start_byte": 36362
+    },
+    {
+      "end_byte": 36589,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-ngw-resource-selection-state-3b6dd9c79e",
+      "pointer": "/storage_contracts/2",
+      "sha256": "669ebfc3f292a0ffa9368216970845c133ba32d0c61a6126dd8f6f191fac973c",
+      "start_byte": 36464
+    },
+    {
+      "end_byte": 36705,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-collector-registry-2c8b43a666",
+      "pointer": "/storage_contracts/3",
+      "sha256": "2ca4f4337771d063e48f2cf17ded0fcf62bd3d6ebffa3447d7e15346156aa0ad",
+      "start_byte": 36591
+    },
+    {
+      "end_byte": 36834,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-collector-initial-local-project-64b078e5ad",
+      "pointer": "/storage_contracts/4",
+      "sha256": "3a638ad34d209cac52d48c285fb34dae8453055b41d72db9126a68d3140a1b89",
+      "start_byte": 36707
+    },
+    {
+      "end_byte": 36954,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-collector-import-journal-3787cc78c2",
+      "pointer": "/storage_contracts/5",
+      "sha256": "17c6ebd2b7256b52704ac6bd9a8cdce2ad82f1d51acbe6fb8c9e330e534b469e",
+      "start_byte": 36836
+    },
+    {
+      "end_byte": 37062,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-layer-fill-staging-04c5a9be07",
+      "pointer": "/storage_contracts/6",
+      "sha256": "e6516de671d73e48c2023c0cdc6365579df05501d3e70954632bf962a6c88f07",
+      "start_byte": 36956
+    },
+    {
+      "end_byte": 37183,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-ngw-schema-rebuild-guard-c055c34bb3",
+      "pointer": "/storage_contracts/7",
+      "sha256": "4fe6d91e91fda4e2992556fd91566b1ef52336762999a93b137b47d843d90f2e",
+      "start_byte": 37064
+    },
+    {
+      "end_byte": 37311,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-collector-form-transaction-2dd1a85765",
+      "pointer": "/storage_contracts/8",
+      "sha256": "08299a30c10bc65a3ebb5abd2f9d484384d0dba04fb7319328bab4e9348d3a07",
+      "start_byte": 37185
+    },
+    {
+      "end_byte": 37416,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-layer-backups-49de2a2dac",
+      "pointer": "/storage_contracts/9",
+      "sha256": "0c980ea541cffa2b85e568e68567d2342d03bf3c26681c6edebe47490dae2a00",
+      "start_byte": 37313
+    },
+    {
+      "end_byte": 37521,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-walkedit-temp-16f086f057",
+      "pointer": "/storage_contracts/10",
+      "sha256": "7afe0a5c410cab87a4803b7c35c0f125fb8a485b9006cff8ecfad5a9ec750a3e",
+      "start_byte": 37418
+    },
+    {
+      "end_byte": 37634,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-feature-form-draft-d5547fd901",
+      "pointer": "/storage_contracts/11",
+      "sha256": "6a3cc367a46a3c7d90dc6a57cdc715039636f93c617cabc3c29705ea3d54f6c6",
+      "start_byte": 37523
+    },
+    {
+      "end_byte": 37747,
+      "id": "lisa:maplibui:contract:manifest-storage-contracts-geometry-edit-draft-7c51b5d7f0",
+      "pointer": "/storage_contracts/12",
+      "sha256": "8d2791a9063d948be0abf8fa155d9cc126bff7763debcca82f941c4910d360de",
+      "start_byte": 37636
+    },
+    {
+      "end_byte": 38965,
+      "id": "lisa:maplibui:resource:manifest-invariant-refs",
+      "pointer": "/invariant_refs",
+      "sha256": "48155de1467e25a244008bf3f9e2a98c8046bf72262839b58198ff316854b65c",
+      "start_byte": 37763
+    },
+    {
+      "end_byte": 39624,
+      "id": "lisa:maplibui:resource:manifest-global-docs",
+      "pointer": "/global_docs",
+      "sha256": "7bb64f99974a48dae139a870a0348097279d6119641e97efcc01b301f2ea120f",
+      "start_byte": 38981
+    },
+    {
+      "end_byte": 41208,
+      "id": "lisa:maplibui:resource:manifest-smoke-tests",
+      "pointer": "/smoke_tests",
+      "sha256": "6616515a529beeec00ca737e45132193a79e7fa1f1d7eaeae224cf3eab908124",
+      "start_byte": 39638
+    },
+    {
+      "end_byte": 41351,
+      "id": "lisa:maplibui:resource:manifest-upstream-hotspots",
+      "pointer": "/upstream_hotspots",
+      "sha256": "605e552a4e840c72705877106c9f94492bc27f8d3fb72f08911315e792669dfc",
+      "start_byte": 41228
+    }
+  ],
+  "owner": "android_projects/android_gisapp/maplibui",
+  "repeated_original_component_paths": {
+    "maplibui/build.gradle": 2,
+    "maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java": 2,
+    "maplibui/src/main/java/com/nextgis/maplibui/display/RuleFeatureRendererUI.java": 2,
+    "maplibui/src/main/java/com/nextgis/maplibui/fragment/LayersListAdapter.java": 2,
+    "maplibui/src/main/java/com/nextgis/maplibui/util/FeatureFormDraftStore.java": 2,
+    "maplibui/src/main/java/com/nextgis/maplibui/util/FittedDialogs.java": 2,
+    "maplibui/src/main/java/com/nextgis/maplibui/util/ProjectScriptClient.java": 2
+  }
+}

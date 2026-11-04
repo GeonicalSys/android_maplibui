@@ -30,3 +30,11 @@ No product source, version, data or app index pin changes here. ALL remaining
 knowledge types, independent task lifecycle and whole-subject views, real clients
 and individual cleanup across ALL six owners remain required. This block does
 not finish the approved goal, grant product execution or certify native acceptance.
+
+The [module manifest records](knowledge/maplibui-module-manifest) preserve 14
+ordered fields in 143 records. Their
+[provenance](provenance/maplibui-module-manifest.json) binds every member to the
+original YAML in Git. The seven repeated component paths retain separate
+ordered responsibilities. The [local manifest](../docs/manifest.yaml) is the
+ordinary editing address during this preservation phase. The next gate checks
+the shared reader and authoring.

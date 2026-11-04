@@ -1,0 +1,49 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "definition": {
+      "role": "module_manifest_definition",
+      "value": {
+        "consumers": [
+          "app"
+        ],
+        "id": "selected-track-share-action",
+        "path": "maplibui/src/main/java/com/nextgis/maplibui/view/TrackSelectionPanel.java",
+        "symbol": "TrackSelectionPanel.SHARE and bind(TrackInfo,Listener); LayerUtil.shareTrackAsGPX"
+      }
+    },
+    "manifest-field": {
+      "role": "module_manifest_manifest_field",
+      "value": "public_contracts"
+    }
+  },
+  "id": "lisa:maplibui:contract:manifest-public-contracts-selected-track-share-action-56037b9e1b",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "unknown",
+    "implementation": "unknown",
+    "merge": "unknown",
+    "release": "unknown",
+    "retention": "Preserve this ordered module manifest value and its original Git source.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "UNKNOWN"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/maplibui-module-manifest.json",
+    "scopes": [
+      "lisa:maplibui:contract:manifest-public-contracts-selected-track-share-action-56037b9e1b"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "historical",
+  "topic": "maplibui-module-manifest"
+}

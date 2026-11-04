@@ -1,0 +1,773 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "manifest-field-order": {
+      "role": "module_manifest_manifest_field_order",
+      "value": [
+        "entrypoints",
+        "key_components",
+        "public_contracts",
+        "settings_refs",
+        "storage_contracts",
+        "invariant_refs",
+        "global_docs",
+        "smoke_tests",
+        "upstream_hotspots"
+      ]
+    },
+    "manifest-metadata": {
+      "role": "module_manifest_manifest_metadata",
+      "value": {
+        "last_verified": "2026-11-02",
+        "maturity": "maintained",
+        "module_id": "maplibui",
+        "repository_id": "maplibui",
+        "schema_version": 1
+      }
+    },
+    "view-path": {
+      "role": "module_manifest_view_path",
+      "value": "docs/manifest.yaml"
+    }
+  },
+  "id": "lisa:maplibui:metadata:maplibui-module-manifest",
+  "kind": "metadata",
+  "lifecycle": {
+    "goal": "unknown",
+    "implementation": "unknown",
+    "merge": "unknown",
+    "release": "unknown",
+    "retention": "Preserve this ordered module manifest value and its original Git source.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "UNKNOWN"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/maplibui-module-manifest.json",
+    "scopes": [
+      "lisa:maplibui:metadata:maplibui-module-manifest"
+    ]
+  },
+  "relations": [
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:manifest-entrypoints",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-strings-fddf045add",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-strings-6c78bc6a3d",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackstopconfirmationactivity-9610414303",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackactions-245b1f0ff8",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackselectionpanel-91cbed5da0",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-rulefeaturerendererui-6ddc6cbc4d-a17cd6bb9d",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-stylepreviewview-dea7f44450",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-polygonstylecontrols-495a115682",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-stylefragment-4f98e38b30",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngdialog-d6b593efa1",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-bottomtoolbar-e38ff7ef15",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-featurecopydefaults-31c2b8a19d",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-compassfragment-0df1d87e4f",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-tabs-e7fa9dc7d7",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-sharedtrackprojects-e492726c05",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-projectscriptclient-e00d585a2d-7d917b0809",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-fitteddialogs-c469dd3db8-1e0a8f3d26",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-localchangesworker-a35dfa2f42",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-fragment-ngw-login-0a9ee04893",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngpreferenceactivity-53c592daa6",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-reflowingguidanceheader-8da8744457",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-wrappinglabel-3c7b2f6b97",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-fitteddialogs-c469dd3db8-708c66c422",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-wrappingrow-b0ace18b29",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-fittedpanellayout-3ecd63c663",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-toolbartextfit-839ead15c2",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-ef0bdb7680",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackregistrationstate-28b865419a",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackuploader-34536e3e47",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackworker-565e49d4e5",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-choosefeaturetypedialog-190977a8c3",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-featuretypedefaults-de27b3cf3d",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-featuretypepreview-2f8fe0735b",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-formchoiceadapter-2e2d80cd96",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-formscrollview-599e849398",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-cascadingformelements-33402aee34",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-formfieldlayout-df59bb5c73",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerutil-8b9efda97f",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-conditionalrequiredcontroller-2c434aaab4",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-formmetadatasnapshot-6bdc22c0aa",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerslistadapter-de50273428-07ca9b35a0",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-cascadingformcontroller-9e5e90820f",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-projectscriptformcontroller-ea62af3c3c",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-projectscriptclient-e00d585a2d-f89634301c",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-featureformdraftstore-0c4ca609f1-ad34f25c4d",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-requiredfieldvalidation-399779fd54",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-requiredfieldui-00b69fdbfa",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackrecordingmode-5bdd40d1cd",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackspeedgate-35f4ce0ffb",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-build-fe1b9dd4e2-000c8acaec",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerslistadapter-de50273428-e51ea41bd4",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-selectngwresourcedialog-685e3dc9aa",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngwresourceselectionstate-c44efe511b",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-sharedunderlayprojects-529f9fe633",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-walksessionstore-7705e45bc3",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-walksessionrecoverypolicy-3d9b60c788",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-walksessionpolicy-0009ba4e67",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-walkgeometrysnapshot-22d56b51e6",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-walkrecordingpanel-e029b2d852",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-controlhelper-74645662e3",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-walkgeometryinsertion-e666482266",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-currenttrackoverlay-1605098cb0",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-currentlocationoverlay-119a4d7d45",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-exportgpxtask-3eb774fc41",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-gpxsharepublisher-e57db533bc",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-build-fe1b9dd4e2-9a4c3b94fa",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngwresourceslistadapter-543c31a56c",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngwloginactivity-a9dca455a5",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-rebuildcacheservice-0e25951174",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-2ebb1d9b39",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerfillservice-75e709fca5",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerfactoryui-df1a2ac79c",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-loadlisacollectorproject-041b61a975",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngwresourceimporthelper-e7e5a52016",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-collectorprojectregistry-dccdbfee68",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-legacymapworkspacecopier-13bc6e86e7",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-selectngwresourceactivity-4ba97a1fb8",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-projectoperationcoordinator-8d693eb63f",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-projectsyncinterruption-d829f1db64",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-schemarebuildretryguard-7ced36b6b8",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-collectorprojectimporthelper-68f00cadfe",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-collectorrasterlayerhelper-30afcc328c",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-collectorimportjournal-c339a522c6",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerfillstaging-96d3a77008",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-collectorformfiletransaction-57d8808933",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerbackupmanager-507cd6bedc",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-trackerservice-4a3003287a",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-externalgnssservice-20a5c54c50",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-walkeditservice-ff39ae1950",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-backgroundrecordingsoundmonitor-d8ab61e959",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-backgroundrecordingsoundpolicy-b55157fd28",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-featureformdraftstore-0c4ca609f1-644c413e39",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-geometryeditdraftstore-9ad3633d53",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-editlayeroverlay-1749032b77",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-undoredooverlay-3184935fe5",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ruleroverlay-800e039202",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-modifyattributesactivity-6967debbaa",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-vectorlayersettingsactivity-2fdf52ac72",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-edit-polygon-e41a03250b",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-rulefeaturerendererui-6ddc6cbc4d-b84eae778c",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-syncaccountworker-13e7d7d245",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngidloginname-ed425b8919",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-sign-67242ca954",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-formbuildermodifyattributesactivity-f8966218f8",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layerfillerrormessage-69d6cc23c9",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-ngwresourcerowlayout-06d8f1e1a0",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-row-ngwlayer-check-7e19aa3ae2",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-row-ngwlayer-doublecheck-95ce244cce",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-key-components-layout-resources-ef9b472db5",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-mobile-project-wording-08aa8f759a",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-ngfp-lookup-prefetch-9e1335826f",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-track-stop-confirmation-45bb4673fd",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-scrolling-dialog-viewport-65e916ec65",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-track-registration-indication-290ee20624",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-project-script-form-hooks-94cb881ec9",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-track-recording-mode-a5a475923a",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-independent-walk-session-e415598ca3",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-gis-application-b33dc451d3",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-url-import-2c2e4fd9d1",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-layer-fill-error-presentation-838218a309",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-checkbox-selection-d3cac13dc9",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-ngw-resource-caption-layout-01117bb58d",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-public-contracts-selected-track-share-action-56037b9e1b",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:manifest-settings-refs",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-track-registered-device-fb25c88942",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-tracks-temp-16fb2aa89d",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-ngw-resource-selection-state-3b6dd9c79e",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-collector-registry-2c8b43a666",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-collector-initial-local-project-64b078e5ad",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-collector-import-journal-3787cc78c2",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-layer-fill-staging-04c5a9be07",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-ngw-schema-rebuild-guard-c055c34bb3",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-collector-form-transaction-2dd1a85765",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-layer-backups-49de2a2dac",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-walkedit-temp-16f086f057",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-feature-form-draft-d5547fd901",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manifest-storage-contracts-geometry-edit-draft-7c51b5d7f0",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:manifest-invariant-refs",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:manifest-global-docs",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:manifest-smoke-tests",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:manifest-upstream-hotspots",
+      "type": "contains"
+    }
+  ],
+  "schema_version": 2,
+  "status": "historical",
+  "topic": "maplibui-module-manifest"
+}
