@@ -1,0 +1,70 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "- импорт обычных NGW и Collector vector/style resources;",
+        "- Activity/Dialog выбора NGW сохраняют только account/server, пути remote ID и",
+        "  выбранные флаги; деревья ресурсов и credentials не входят в saved state или",
+        "  новые launch intents. Имена слоёв и групп в списке переносятся, а не",
+        "  обрезаются. `NgwResourceSelectionState` повторно получает учётные",
+        "  данные через AccountManager и восстанавливает путь/выбор в фоне. При ошибке",
+        "  сохранённый выбор остаётся для повтора, импорт заблокирован; закрытие экрана",
+        "  отменяет restore и не позволяет позднему результату открыть диалог.",
+        "  Начальный выбор аккаунта сохраняет тип действия/ID слоя вместо callback со",
+        "  старой Activity; после process recreation переход в импорт/экспорт остаётся",
+        "  доступен. Отсутствующая кнопка Add в account picker не разыменовывается."
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Supported resource imports and compact selector restore"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:supported-resource-imports-and-compact-selector-restore",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:supported-resource-imports-and-compact-selector-restore"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

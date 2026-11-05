@@ -1,0 +1,70 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Диагностика",
+        "",
+        "- Долгий/зависший fill: `LayerFillService`, notification/foreground lifecycle,",
+        "  SQLite transaction, project UID, `.layer-fill-partial` и deferred map reload.",
+        "- После прерывания появились лишние `layer_*`: автоматически удаляются только",
+        "  новые каталоги с `.layer-fill-partial`, которых нет в `LayerGroup`. Legacy",
+        "  каталоги без marker требуют отдельной диагностики и явного решения, поскольку",
+        "  среди них могут быть тяжёлые MBTiles или пользовательские данные.",
+        "- Crash `No Vulkan compatible GPU found` до появления карты означает, что в",
+        "  runtime dependency graph вернулся generic/Vulkan MapLibre artifact вместо",
+        "  согласованного `android-sdk-opengl`."
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Fill transaction, orphan storage and runtime dependency diagnosis"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:resource:fill-transaction-orphan-storage-and-runtime-dependency-diagnosis",
+  "kind": "resource",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:resource:fill-transaction-orphan-storage-and-runtime-dependency-diagnosis"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

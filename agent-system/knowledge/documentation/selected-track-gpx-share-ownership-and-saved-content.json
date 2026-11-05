@@ -1,0 +1,68 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "### Поделиться треком с карты",
+        "",
+        "Нижняя панель выбранного трека использует прежний GPX exporter списка с одним",
+        "shared track ID. Скрытие трека не убирает действие; запись не останавливается,",
+        "а GPX содержит сохранённые точки и сегменты. Панель переносит действия по",
+        "доступной ширине. Полное имя остаётся XML-текстом; basename не является путём.",
+        "Согласованность snapshot, конкурентные экспорты, жизнь cache/recipient и",
+        "короткие окна остаются отдельными границами проверки.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Selected-track GPX share ownership and saved content"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:selected-track-gpx-share-ownership-and-saved-content",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:selected-track-gpx-share-ownership-and-saved-content"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

@@ -1,0 +1,66 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "NGWResourcesListAdapter получает structured ChildrenLoadResult: known HTTP server",
+        "failure → общий Core текст о возможных техработах/перегрузке и повторе позже;",
+        "401/403 → прежние разные login/rights; unknown IO/JSON → human retry text.",
+        "Успешный empty[] не является ошибкой. Post-execute live Activity gate, sort/cache/",
+        "legacy void API/Parcelable прежние. Connection.connect(false) пока сохраняет",
+        "общий connect-failed outcome, а partial child parse/retry policy не исправляется.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Structured child load failures and live resource UI"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:structured-child-load-failures-and-live-resource-ui",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:structured-child-load-failures-and-live-resource-ui"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

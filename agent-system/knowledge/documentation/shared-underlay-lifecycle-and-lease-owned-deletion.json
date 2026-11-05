@@ -1,0 +1,63 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Подложки между проектами",
+        "",
+        "SharedUnderlayProjects координирует migration, attach, usage и подтверждённое глобальное удаление через UNDERLAY_MIGRATION lease. LayerFillService не добавляет второй shared ID в один проект и не подменяет имя NGRc-подложки SAF-идентификатором документа. Старые подложки защищаются перед удалением проекта; список слоёв снимает только проектную ссылку. Контракт: [shared-underlays](../../docs/architecture/shared-underlays.md).",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Shared underlay lifecycle and lease-owned deletion"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:shared-underlay-lifecycle-and-lease-owned-deletion",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:shared-underlay-lifecycle-and-lease-owned-deletion"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

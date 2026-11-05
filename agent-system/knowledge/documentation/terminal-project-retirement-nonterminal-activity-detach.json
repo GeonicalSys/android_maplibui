@@ -1,0 +1,73 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Закрытие native SQLite запросов при смене проекта",
+        "",
+        "`GISApplication.resetMap/closeMapObj` вызывают terminal",
+        "`MapDrawable.retireSqliteVectorSources()` до замены `mMap`. Вызов безопасен",
+        "с любого потока внутри существующего application monitor: он сразу закрывает",
+        "корутинные запросы/providers и запрещает новые поколения, не вызывает SDK,",
+        "не запрашивает `app.getMap()` и не ждёт Main. Освобождение controller references",
+        "отложено на UI. Это закрывает новый прямой SQLite путь при Collector switch и",
+        "удалении проекта. Старый HTTP tile server удалён; его clearLayers больше не вызывается.",
+        "Обычное пересоздание Activity использует отдельное nonterminal закрытие источников.",
+        "Layer order, sync-workspace owner, deferred reload и recording sessions не меняются.",
+        "Контракт нижней библиотеки: `maplib/docs/sqlite-vector-source-bridge.md`;",
+        "новые pure ownership/dispatcher tests не заменяют native project-switch проверку.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Terminal project retirement, nonterminal Activity detach"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:terminal-project-retirement-nonterminal-activity-detach",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:terminal-project-retirement-nonterminal-activity-detach"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

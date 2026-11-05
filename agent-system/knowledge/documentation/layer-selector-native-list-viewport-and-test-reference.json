@@ -1,0 +1,71 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Многорядный выбор слоя",
+        "",
+        "FittedDialogs не оборачивает в FittedPanelLayout весь диалог с вложенным",
+        "AbsListView/RecyclerView, включая custom `AlertDialog.setView`. При",
+        "UNSPECIFIED height ListView измерял только первую строку, скрывая остальные",
+        "слои при увеличенном системном интерфейсе. Список сохраняет bounded native",
+        "viewport и обычную прокрутку; фильтрация разрешённых слоёв не менялась.",
+        "Native LayerSelectionDialogTest consumer app проверяет viewport, полный текст,",
+        "каждый geometry choice и Cancel реальным касанием в 36 UI profiles.",
+        "ProjectLayerSelectionTest проверяет реальный состав разрешённого проекта.",
+        "Контракт: [интерфейс](../../docs/architecture/ui-accessibility.md).",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Layer selector native list viewport and test reference"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:layer-selector-native-list-viewport-and-test-reference",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:layer-selector-native-list-viewport-and-test-reference"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

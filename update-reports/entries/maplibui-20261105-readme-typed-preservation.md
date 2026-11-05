@@ -1,0 +1,116 @@
+---
+id: maplibui-20261105-readme-typed-preservation
+area: Документация
+kind: internal
+at: 2026-11-05T05:30:00+04:00
+title: Перенос двух README maplibui в записи владельца
+why: Сохранить проверяемые исходники, ограничения и датированные свидетельства по отдельным темам
+covers:
+  - agent-system/README.md
+  - agent-system/knowledge/documentation/all-project-sync-queue-and-callback-provider-service-ownership.json
+  - agent-system/knowledge/documentation/app-gps-owner-stops-separately-from-active-recorder-sessions.json
+  - agent-system/knowledge/documentation/atomic-cascade-snapshot-bounded-activity-state-and-invalid-pin-refusal.json
+  - agent-system/knowledge/documentation/atomic-logical-layer-replacement-before-storage-cleanup.json
+  - agent-system/knowledge/documentation/attachment-stamp-and-screen-preference-defaults.json
+  - agent-system/knowledge/documentation/attribute-edit-gate-label-field-and-default-style-rule.json
+  - agent-system/knowledge/documentation/background-gps-stationary-correction-and-gpx-mime-boundaries.json
+  - agent-system/knowledge/documentation/backup-and-duplicate-managed-layer-guards.json
+  - agent-system/knowledge/documentation/backup-format-and-ngw-identity-ui-contracts.json
+  - agent-system/knowledge/documentation/backup-gate-cancellation-ownership-and-project-mutation-fencing.json
+  - agent-system/knowledge/documentation/battery-saver-and-tracker-recording-notification.json
+  - agent-system/knowledge/documentation/caption-test-cohort-earlier-failed-cohort-and-compile-limits.json
+  - agent-system/knowledge/documentation/cascading-legacy-control-projection-and-appearance-before-early-return.json
+  - agent-system/knowledge/documentation/cascading-lists-and-durable-typed-selection.json
+  - agent-system/knowledge/documentation/checkbox-projection-compact-restore-and-dated-source-evidence.json
+  - agent-system/knowledge/documentation/cold-start-workspace-ownership-and-recording-switch-guard.json
+  - agent-system/knowledge/documentation/compass-remains-interactive-without-optional-vibrator.json
+  - agent-system/knowledge/documentation/conditional-visibility-required-checks-and-pinned-conditions.json
+  - agent-system/knowledge/documentation/connected-network-admission-for-account-and-track-workers.json
+  - agent-system/knowledge/documentation/current-cursor-and-confirmed-departure-measurement.json
+  - agent-system/knowledge/documentation/dated-3-1-2-27-consumer-release-preparation.json
+  - agent-system/knowledge/documentation/dated-lookup-test-and-consuming-compile-results.json
+  - agent-system/knowledge/documentation/dated-message-cohort-earlier-failure-and-runtime-boundaries.json
+  - agent-system/knowledge/documentation/dated-structural-xml-source-readback-and-its-runtime-boundary.json
+  - agent-system/knowledge/documentation/dated-underlay-progress-and-open-native-verification.json
+  - agent-system/knowledge/documentation/diagnostic-episode-identity-and-one-guarded-re-registration.json
+  - agent-system/knowledge/documentation/direct-url-local-point-import-and-raster-ordering.json
+  - agent-system/knowledge/documentation/editability-sync-initialization-and-composition-backup-diagnosis.json
+  - agent-system/knowledge/documentation/effective-category-snapshot-and-save-cancel-ownership.json
+  - agent-system/knowledge/documentation/exact-account-add-completion-and-variant-independent-mobile-mode.json
+  - agent-system/knowledge/documentation/external-gnss-owner-and-independent-fresh-fix-proof.json
+  - agent-system/knowledge/documentation/feature-categories-exact-typed-initial-values-and-durable-owner.json
+  - agent-system/knowledge/documentation/feature-copy-values-int64-precision-and-stateful-controls.json
+  - agent-system/knowledge/documentation/fill-storage-reservation-rollback-and-unfinished-marker-cleanup.json
+  - agent-system/knowledge/documentation/fill-transaction-orphan-storage-and-runtime-dependency-diagnosis.json
+  - agent-system/knowledge/documentation/firefly-symbol-and-dated-test-coverage-claims-need-separate-review.json
+  - agent-system/knowledge/documentation/form-save-snapshots-and-durable-retry-identity.json
+  - agent-system/knowledge/documentation/form-tabs-await-safe-host-state-and-preserve-existing-draft-owners.json
+  - agent-system/knowledge/documentation/geometry-repair-results-and-exact-map-projection-edit-history.json
+  - agent-system/knowledge/documentation/gps-gap-recovery-with-separate-manual-pause-and-point-lock.json
+  - agent-system/knowledge/documentation/independent-durable-crash-journals-and-recovery-choices.json
+  - agent-system/knowledge/documentation/independent-walk-preview-finish-acknowledgement-and-point-lock.json
+  - agent-system/knowledge/documentation/independent-walk-preview-point-lock-and-valid-geometry-before-form.json
+  - agent-system/knowledge/documentation/keyed-mobile-projects-and-common-workspace-import.json
+  - agent-system/knowledge/documentation/large-text-layout-and-native-validation-dimensions.json
+  - agent-system/knowledge/documentation/layer-selector-native-list-viewport-and-test-reference.json
+  - agent-system/knowledge/documentation/library-introduction-license-and-upstream-support-references.json
+  - agent-system/knowledge/documentation/local-logging-and-canonical-form-pair-hashing.json
+  - agent-system/knowledge/documentation/localized-form-message-contract-with-dated-test-comparison.json
+  - agent-system/knowledge/documentation/lower-layer-opengl-topology-and-layer-order-boundaries.json
+  - agent-system/knowledge/documentation/manual-underlays-and-read-only-managed-qgis-style-import.json
+  - agent-system/knowledge/documentation/mobile-project-wording-with-stable-ngw-collector-project-identity.json
+  - agent-system/knowledge/documentation/module-readme-frontmatter-and-title.json
+  - agent-system/knowledge/documentation/movement-admission-durable-stop-and-no-unconfirmed-tail.json
+  - agent-system/knowledge/documentation/network-display-estimate-and-app-owned-automatic-gps-lease.json
+  - agent-system/knowledge/documentation/october-17-diagnostic-handoff-and-scope.json
+  - agent-system/knowledge/documentation/offline-source-connectivity-contract-with-dated-native-not-run.json
+  - agent-system/knowledge/documentation/outer-form-tabs-gesture-ownership-and-default-metadata-pair.json
+  - agent-system/knowledge/documentation/owned-build-and-native-smoke-entry-references.json
+  - agent-system/knowledge/documentation/pending-changes-indicator-uses-one-shared-background-snapshot.json
+  - agent-system/knowledge/documentation/polygon-style-field-validation-and-ordinary-preview-factories.json
+  - agent-system/knowledge/documentation/portrait-and-large-text-landscape-style-preview-sizes.json
+  - agent-system/knowledge/documentation/project-registry-lifecycle-and-scoped-fill-admission.json
+  - agent-system/knowledge/documentation/project-scoped-journal-recovery-and-local-point-import.json
+  - agent-system/knowledge/documentation/qualified-gnss-ownership-and-recording-startup-and-persistence.json
+  - agent-system/knowledge/documentation/qualified-gps-filtering-account-add-live-error-ui-and-undo-diagnosis.json
+  - agent-system/knowledge/documentation/recording-outbox-and-safe-internal-service-timeout.json
+  - agent-system/knowledge/documentation/recoverable-walk-owner-states-and-scoped-emergency-reset.json
+  - agent-system/knowledge/documentation/recycled-resource-captions-actual-clipping-and-path-reach.json
+  - agent-system/knowledge/documentation/registry-sync-interruption-deletion-fallback-and-track-ownership-diagnosis.json
+  - agent-system/knowledge/documentation/required-save-gates-and-existing-versus-new-objects.json
+  - agent-system/knowledge/documentation/resource-tree-back-and-preserved-sync-direction-rules.json
+  - agent-system/knowledge/documentation/safe-selector-connection-errors-and-ui-ownership.json
+  - agent-system/knowledge/documentation/saved-change-worker-ownership-and-separate-isolated-test-reference.json
+  - agent-system/knowledge/documentation/schema-rebuild-deferred-render-callback-and-ordering-diagnosis.json
+  - agent-system/knowledge/documentation/scoped-nested-ngfp-lookup-traversal.json
+  - agent-system/knowledge/documentation/script-controller-pinned-version-and-lower-layer-interpreter-ownership.json
+  - agent-system/knowledge/documentation/selected-track-gpx-share-ownership-and-saved-content.json
+  - agent-system/knowledge/documentation/separate-config-data-effects-and-server-write-admission.json
+  - agent-system/knowledge/documentation/separate-track-walk-providers-and-live-activity-error-ownership.json
+  - agent-system/knowledge/documentation/shared-form-appearance-save-gate-and-draft-state.json
+  - agent-system/knowledge/documentation/shared-track-migration-queue-and-acknowledgement-ownership.json
+  - agent-system/knowledge/documentation/shared-underlay-lifecycle-and-lease-owned-deletion.json
+  - agent-system/knowledge/documentation/structured-child-load-failures-and-live-resource-ui.json
+  - agent-system/knowledge/documentation/supported-resource-imports-and-compact-selector-restore.json
+  - agent-system/knowledge/documentation/sync-interruption-gates-and-continuous-project-to-fill-lease.json
+  - agent-system/knowledge/documentation/terminal-project-retirement-nonterminal-activity-detach.json
+  - agent-system/knowledge/documentation/track-actions-session-ownership-and-durable-deletion.json
+  - agent-system/knowledge/documentation/track-only-speed-filtering-and-durable-mode.json
+  - agent-system/knowledge/documentation/track-panel-action-theme-and-preserved-style-options.json
+  - agent-system/knowledge/documentation/track-registration-upload-queue-confirmed-markers-and-independent-intent.json
+  - agent-system/knowledge/documentation/track-stop-confirmation-and-exact-durable-session-identity.json
+  - agent-system/knowledge/documentation/typed-fill-errors-redaction-and-existing-retry-handling.json
+  - agent-system/knowledge/documentation/typed-form-comparison-and-durable-terminal-save-discard.json
+  - agent-system/knowledge/documentation/ui-orchestration-ownership-and-common-opengl-sdk.json
+  - agent-system/knowledge/documentation/underlay-exclusive-lease-and-deferred-render-application.json
+  - agent-system/knowledge/documentation/update-report-cards-and-local-verification-hook.json
+  - agent-system/knowledge/documentation/versioned-script-service-binding-and-release-timing.json
+  - agent-system/knowledge/documentation/visibility-indication-and-separate-sync-progress-owner.json
+  - agent-system/knowledge/documentation/walk-panel-accessibility-and-owner-scoped-pause-finish.json
+  - agent-system/provenance/documentation.json
+  - agent-system/source-dispositions.json
+  - update-reports/entries/maplibui-20261105-readme-typed-preservation.md
+---
+
+Два исходных README восстановлены из 100 записей до байта.
+Точные версии и диапазоны исходников закреплены в карте владельца.

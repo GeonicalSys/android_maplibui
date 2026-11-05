@@ -1,0 +1,77 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Независимый обход и начало движения",
+        "",
+        "Обход владеет геометрией в `WalkSessionStore`, а карта показывает отдельный",
+        "`walk-preview-source`, восстановленный после загрузки style. Приватная копия",
+        "сохраняет CRS перед переводом метров в широту/долготу. Обычные меню доступны;",
+        "панель обхода не занимает foreground-редактор точки. От начала выбора слоя точки",
+        "до Save/Cancel заблокированы все команды обхода в UI и сервисе. Начальный черновик",
+        "формы сохраняется до её запуска; ошибка, камера и перезапуск не снимают блокировку.",
+        "После Finish сервис подтверждает финальный снимок, который можно проверить и",
+        "сохранить обычным редактором. Панель компактная, без точности GPS и меню действий;",
+        "Дискета, пауза/продолжение и крестик требуют подтверждения. Дискета после",
+        "FINISHED сразу открывает форму атрибутов. Линии требуют две разные точки, кольца — три;",
+        "пустые части или коллекции не допускаются. Недостаточный финальный снимок закрывает",
+        "обход без создания объекта или формы, с понятным сообщением.",
+        "Общий `ControlHelper` изолирует drawable перед изменением alpha/tint и поддерживает",
+        "пункты без иконки, чтобы состояние соседней кнопки не делало активную кнопку серой.",
+        "См. [восстановление](../../docs/architecture/crash-recovery.md).",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Independent walk preview, point lock and valid geometry before form"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:independent-walk-preview-point-lock-and-valid-geometry-before-form",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:independent-walk-preview-point-lock-and-valid-geometry-before-form"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

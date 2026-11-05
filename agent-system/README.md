@@ -38,3 +38,9 @@ original YAML in Git. The seven repeated component paths retain separate
 ordered responsibilities. The [local manifest](../docs/manifest.yaml) is the
 ordinary editing address during this preservation phase. The next gate checks
 the shared reader and authoring.
+
+The root and module READMEs have 100 reviewed [owner records](knowledge/documentation)
+and an [exact Git source map](provenance/documentation.json). Dated evidence,
+current contracts and mixed notes have separate statuses. Original Markdown
+addresses serve ordinary readers during preservation. Shared authoring and
+client acceptance are separate stages.

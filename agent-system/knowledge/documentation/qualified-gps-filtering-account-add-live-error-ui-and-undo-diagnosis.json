@@ -1,0 +1,72 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "- На скорости перестал расти трек или обход: проверить provider-qualified",
+        "  `LocationTrackFilter` и итоговые filter stats. Каскад `drop:speed_dist` при",
+        "  реальном движении до 160 км/ч является регрессией. Network не входит в запись;",
+        "  дополнительно проверить gps_paused у обхода и счётчики общего источника.",
+        "- Валидный вход закрывается без аккаунта: проверить совпадение account type в",
+        "  runtime, authenticator и sync adapter, затем сообщения `NGW account add` в HyperLog.",
+        "- Сервер NGW отвечает `5xx`, а приложение падает с `BadTokenException`: проверить,",
+        "  что `NGWResourceAsyncTask.onPostExecute()` не передаёт application context в",
+        "  `AlertDialog` и пропускает UI после уничтожения Activity.",
+        "- Для отмены одной вершины требуется несколько нажатий: проверить, что",
+        "  `UndoRedoOverlay` отбрасывает подряд идущие снимки с одинаковым координатным",
+        "  WKT, даже если callback обновил CRS, и не сдвигает курсор при недоступном Undo/Redo.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Qualified GPS filtering, account add, live error UI and Undo diagnosis"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:resource:qualified-gps-filtering-account-add-live-error-ui-and-undo-diagnosis",
+  "kind": "resource",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:resource:qualified-gps-filtering-account-add-live-error-ui-and-undo-diagnosis"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

@@ -1,0 +1,71 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "- Формы NGFP и стандартные формы проверяют Field.isRequired() в общем пути",
+        "  Save, включая сохранение через Back. Отсутствующее значение, пустота/пробелы",
+        "  и строка «Нет значения» без учёта регистра блокируют окончательный Save;",
+        "  «не применимо», 0 и false допустимы. Необязательные поля не меняются.",
+        "  Подпись получает *, диалог перечисляет пропуски и открывает вкладку первого",
+        "  поля. Оба значения зависимого списка проверяются по собственным полям.",
+        "  До проверки сохраняется черновик, но запись и вложения ещё не изменяются.",
+        "  Значение существующего объекта, которого нет в форме, сохраняется; отсутствие",
+        "  такого обязательного поля у нового объекта требует исправления формы.",
+        "  Контракт и ограничения описаны в docs/architecture/ngw-sync-and-storage.md",
+        "  consuming root; RequiredFieldsTest проверяет реальную Android-форму и SQLite.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Required Save gates and existing versus new objects"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:required-save-gates-and-existing-versus-new-objects",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:required-save-gates-and-existing-versus-new-objects"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

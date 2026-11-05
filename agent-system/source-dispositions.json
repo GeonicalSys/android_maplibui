@@ -13,7 +13,7 @@
     },
     {
       "path": "agent-system/README.md",
-      "sha256": "1b6ad9fc29ee6b23cb97f99a4065f7456b291950c58b21a95403e61fe27aafd1",
+      "sha256": "1dee7c42585289c9bd018bcf640db019341702ee1f66d5d87584396eb4b58ca1",
       "sha256_scope": "utf8_lf",
       "category": "working_bridge",
       "applies_to": [
@@ -40,6 +40,37 @@
         "docs/manifest.yaml"
       ],
       "reason": "Original Git object, complete field spans and ordered module record witnesses."
+    },
+    {
+      "path": "README.md",
+      "sha256": "e1742a6dc31198d0aceb39ba9f9af23ebf6128da910f5fb8d404ef9f3c4b39a2",
+      "sha256_scope": "utf8_lf",
+      "category": "working_bridge",
+      "applies_to": [
+        "."
+      ],
+      "reason": "Complete original README reconstructed from reviewed owner records. This Markdown address serves the ordinary preservation route."
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "a14b5fb9688cdd43e35ae6e50951d65033eab088b172446bedbd4261c4ca548b",
+      "sha256_scope": "utf8_lf",
+      "category": "working_bridge",
+      "applies_to": [
+        "."
+      ],
+      "reason": "Complete original README reconstructed from reviewed owner records. This Markdown address serves the ordinary preservation route."
+    },
+    {
+      "path": "agent-system/provenance/documentation.json",
+      "sha256": "55a95d1b46ad67aecffb5e0c1bae735b1f8545d8bc520abf9ebc120a21b15f5d",
+      "sha256_scope": "utf8_lf",
+      "category": "retained_evidence",
+      "applies_to": [
+        "README.md",
+        "docs/README.md"
+      ],
+      "reason": "Exact original Git objects, complete reviewed README byte spans and ordered owner record fingerprints."
     }
   ]
 }
