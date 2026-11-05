@@ -35,12 +35,22 @@ The [module manifest records](knowledge/maplibui-module-manifest) preserve 14
 ordered fields in 143 records. Their
 [provenance](provenance/maplibui-module-manifest.json) binds every member to the
 original YAML in Git. The seven repeated component paths retain separate
-ordered responsibilities. The [local manifest](../docs/manifest.yaml) is the
-ordinary editing address during this preservation phase. The next gate checks
-the shared reader and authoring.
+ordered responsibilities. The [local manifest](../docs/manifest.yaml) is generated from those records.
 
 The root and module READMEs have 100 reviewed [owner records](knowledge/documentation)
 and an [exact Git source map](provenance/documentation.json). Dated evidence,
-current contracts and mixed notes have separate statuses. Original Markdown
-addresses serve ordinary readers during preservation. Shared authoring and
-client acceptance are separate stages.
+current contracts and mixed notes have separate statuses. The same Markdown
+addresses serve ordinary readers.
+
+The ordinary App tools generate the library's declared Markdown and YAML
+views from these records. Run them from the Android App repository root.
+
+```powershell
+py -3.13 -B docs/scripts/prose_knowledge.py --write --module maplibui
+py -3.13 -B docs/scripts/structured_view_proof.py --write --module maplibui
+py -3.13 -B docs/scripts/validate_docs.py --module maplibui --require-pack
+```
+
+Commit record edits, refreshed views and the proof together. Original Git
+objects remain available through their source maps. Client acceptance and
+dependency adoption have separate gates.
