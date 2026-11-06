@@ -1,0 +1,73 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Resource selector: checkbox projection and compact restore",
+        "",
+        "Contract `UI-NGW-RESOURCE-CHECKBOX-SELECTION` / invariant `INV-NGW-RESOURCE-CHECKBOX-SELECTION` traces row XML and adapter mode binding,",
+        "process-local CheckState identity, Activity/Dialog import and compact JSON/legacy",
+        "parcel boundaries. Both modes and every recycled label must agree with the",
+        "bound resource; binding itself must not alter checks. Callback duplicate handling",
+        "and owned JSON OR merge are different operations, with external setter/Parcel",
+        "and generic import multiplicity intentionally unchanged. See central",
+        "docs/architecture/ui-contracts.md and ngw-sync-and-storage.md; unresolved refresh",
+        "questions remain in the canonical resource-browser refresh investigation linked from the consuming UI contract. User card `maplibui-20261030-ngw-resource-checkbox-binding` owns product source; App",
+        "`android-20261030-ngw-resource-checkbox-selection` owns28 new +9 protected browser technical models, actual37 PASS; Belka source compile0/BUILD47s. No native/device/",
+        "real-server/import acceptance or replay of historical89 is implied.",
+        "",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Exact source text and historical evidence retained. Review version-sensitive claims before treating this mixed note as current."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Checkbox projection, compact restore and dated source evidence"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:note:checkbox-projection-compact-restore-and-dated-source-evidence",
+  "kind": "note",
+  "lifecycle": {
+    "goal": "open",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:note:checkbox-projection-compact-restore-and-dated-source-evidence"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "unknown",
+  "topic": "documentation"
+}

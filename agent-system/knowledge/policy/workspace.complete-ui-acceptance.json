@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:instruction:workspace.complete-ui-acceptance",
+  "kind": "instruction",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "policy-workspace",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [
+      {
+        "repository": "android_projects/android_gisapp/maplibui",
+        "include": [
+          "."
+        ],
+        "exclude": []
+      }
+    ],
+    "scope_refs": [],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "source_verification": "NOT_APPLICABLE",
+    "merge": "not_applicable",
+    "runtime_verification": "NOT_APPLICABLE",
+    "release": "not_applicable",
+    "retention": "Retain editable logical subject and pinned provenance; product implementation/acceptance are separate records."
+  },
+  "facets": {
+    "body": {
+      "role": "permanent_rule",
+      "value": "Изменения общих UI-компонентов проверять с русским текстом, в обеих темах,\nportrait/landscape, fontScale 1.0/1.3/2.0 и крупным display size совместно.\nДиалоги создавать через `FittedDialogs.nativeBuilder/compatBuilder`, сохраняя\nисходный тип окна. С закрытой клавиатурой проверять полный текст и реальное\nнажатие Close/Save/Cancel после вписывания. Текущий продуктовый UI проверять\nна русском языке.\nВложенные adapter lists (`setView` с ListView/GridView/RecyclerView) сохраняют\nштатную ограниченную высоту и прокрутку; их нельзя измерять через общий\nFittedPanelLayout с неограниченной высотой. Проверять количество видимых строк,\nдостижимость последней строки, выбор каждого слоя и Cancel настоящими touches.\nПорядок адаптации: перенос и гибкая компоновка, понятное сокращение, затем\nлокальное уменьшение при оставшемся переполнении. Не менять системные настройки\nпользователя. Действия и их реальные области нажатия должны оставаться внутри\nвидимой области с учётом insets при закрытой клавиатуре. Одновременная\nвидимость всего интерфейса с открытой клавиатурой не требуется; штатное\nповедение IME сохраняется, после закрытия клавиатуры все элементы доступны. Native consuming-app проверки\nобязаны выявлять скрытые строки, ellipsis, перекрытия и выход кнопок за экран;\ngetText() и успешной сборки недостаточно. Панели карты вписываются без прокрутки.\n"
+    },
+    "classification": {
+      "role": "reviewed_knowledge_class",
+      "value": "permanent_rule"
+    },
+    "review": {
+      "role": "classification_reason",
+      "value": "One complete conditional shared-UI rule preserves Russian/matrix/native window type, bounded lists, actual touches, fitting order, system settings, closed-keyboard insets, IME and geometric/native versus text/build evidence."
+    },
+    "source_section": {
+      "role": "source_document_context",
+      "value": [
+        "# maplibui — инструкции для ИИ-агентов"
+      ]
+    },
+    "authority_limit": {
+      "role": "authority_and_acceptance_boundary",
+      "value": "Path applicability is reviewed separately from the rule's textual triggers. Every source condition and heading remains attached; no automatic predicate or lifecycle inference. Stored commands and dates do not grant current execution, freshness or product acceptance. Existing instruction clients/checkers remain effective until measured cutover."
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/policy-migration.json",
+    "scopes": [
+      "lisa:maplibui:instruction:workspace.complete-ui-acceptance"
+    ]
+  }
+}

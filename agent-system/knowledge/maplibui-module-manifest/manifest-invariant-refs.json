@@ -1,0 +1,86 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "definition": {
+      "role": "module_manifest_definition",
+      "value": [
+        "INV-SQLITE-NATIVE-VECTORS",
+        "INV-POINT-FIREFLY",
+        "INV-FEATURE-COPY",
+        "INV-WHOLE-OBJECT-TRANSFORM",
+        "INV-SCROLLING-DIALOG-VIEWPORT",
+        "INV-MOBILE-PUBLICATION-ACCEPTANCE",
+        "INV-LOCAL-LOG-STARTUP",
+        "INV-TRACK-DELIVERY",
+        "INV-CONDITIONAL-REQUIRED",
+        "INV-PROJECT-SCRIPTS",
+        "INV-REQUIRED-FIELDS",
+        "INV-NGW-ACCOUNT-IDENTITY",
+        "INV-NGW-RESOURCE-DIALOG-LIFECYCLE",
+        "INV-LAYER-ORDER",
+        "INV-TRACK-LAYER-TOP",
+        "INV-HOT-ADD-CONSISTENCY",
+        "INV-MAPLIBRE-BACKEND-COMPATIBILITY",
+        "INV-COLLECTOR-RESOURCE",
+        "INV-COLLECTOR-LAYER-IDENTITY",
+        "INV-COLLECTOR-RASTER-STYLES",
+        "INV-COLLECTOR-ISOLATION",
+        "INV-COLLECTOR-EDITABILITY",
+        "INV-COLLECTOR-RESUMABLE",
+        "INV-COLLECTOR-FORM-ATOMIC",
+        "INV-PROJECT-OPERATION-EXCLUSION",
+        "INV-NGRC-PRESERVE",
+        "INV-LEGACY-UNDERLAY-MIGRATION",
+        "INV-SYNC-ACCOUNT-ISOLATION",
+        "INV-BACKUP-BEFORE-DESTRUCTION",
+        "INV-NO-TRACK-FLAGS",
+        "INV-CRASH-DRAFT-RECOVERY",
+        "INV-MULTIPOLYGON-REPAIR",
+        "INV-GEOMETRY-SKETCH-WORKFLOW",
+        "INV-GPS-TRACK-FILTER",
+        "INV-LOCAL-VECTOR-LAYERS",
+        "INV-LOCAL-WRITE-COMMIT",
+        "INV-TRACK-RETRY",
+        "INV-NGID-LOGIN",
+        "INV-NGFP-LOOKUP-PREFETCH-SCOPE",
+        "INV-NGW-USER-MESSAGES",
+        "INV-NGW-RESOURCE-CHECKBOX-SELECTION",
+        "INV-NGW-RESOURCE-ROW-TEXT-FIT",
+        "INV-TRACK-SELECTED-GPX-SHARE"
+      ]
+    },
+    "manifest-field": {
+      "role": "module_manifest_manifest_field",
+      "value": "invariant_refs"
+    }
+  },
+  "id": "lisa:maplibui:resource:manifest-invariant-refs",
+  "kind": "resource",
+  "lifecycle": {
+    "goal": "unknown",
+    "implementation": "unknown",
+    "merge": "unknown",
+    "release": "unknown",
+    "retention": "Preserve this ordered module manifest value and its original Git source.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "UNKNOWN"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/maplibui-module-manifest.json",
+    "scopes": [
+      "lisa:maplibui:resource:manifest-invariant-refs"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "historical",
+  "topic": "maplibui-module-manifest"
+}

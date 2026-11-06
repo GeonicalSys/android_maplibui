@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:contract:workspace.conditional-form-and-navigation",
+  "kind": "contract",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "policy-workspace",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [
+      {
+        "repository": "android_projects/android_gisapp/maplibui",
+        "include": [
+          "."
+        ],
+        "exclude": []
+      }
+    ],
+    "scope_refs": [],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "source_verification": "NOT_APPLICABLE",
+    "merge": "not_applicable",
+    "runtime_verification": "NOT_APPLICABLE",
+    "release": "not_applicable",
+    "retention": "Retain editable logical subject and pinned provenance; product implementation/acceptance are separate records."
+  },
+  "facets": {
+    "body": {
+      "role": "standing_contract",
+      "value": "Зависимая обязательность: читать `../docs/architecture/conditional-form-rules.md`.\n`ConditionalRequiredController` использует общий `FormMetadataSnapshot`,\nне заменяет listeners контролов и не читает SQLite при отрисовке. Обновлять\nзвёздочки идемпотентно; v2 visible управляет контейнером field или\nelement/lisa_id, включая подпись/ошибку/отступ и pinned header Tabs. Hidden\nполя/потомки не блокируют required/cascade UI gate, значения и draft сохраняются.\nОбычная inactive вкладка не hidden. Unknown/duplicate target блокирует Save.\nFormFieldLayout — общий caption/value UI, FormChoiceAdapter переносит длинные\nназвания без потери значения/поиска. Нижняя кнопка использует общий Save gate.\nНе удалять снимки `form_rules` и не отключать проверку при ошибке pin.\n`LayerUtil` обязан передавать парные form/meta даже при default form.\n`FormScrollView` перелистывает только внешние Tabs, сохраняя самостоятельные\nжесты ввода, подписи, галереи и горизонтально прокручиваемых контролов.\nПроверять свайпы поверх enabled Spinner/checkbox/короткого комментария и пустой\nобласти, многократные переходы, vertical drag и выделение текста. Не отменять\nвзмах лишь из-за requestDisallowIntercept или небольшого начального дрейфа.\nКаскадный legacy double_combobox разворачивать через CascadingFormElements в\nдва обычных controls на каждом уровне, сохраняя field names/pins. Selector height\nи отступы применять до early return регистрации каскада через FormFieldLayout.\n"
+    },
+    "classification": {
+      "role": "reviewed_knowledge_class",
+      "value": "standing_contract"
+    },
+    "review": {
+      "role": "classification_reason",
+      "value": "Complete shared snapshot, v2 field/element visibility, pinned Tabs, hidden versus inactive semantics, Save/pin/listener/no-SQL gates, paired metadata/default forms, exact swipe ownership and legacy cascade field/pin/layout conditions."
+    },
+    "source_section": {
+      "role": "source_document_context",
+      "value": [
+        "# maplibui — инструкции для ИИ-агентов",
+        "## Project scripts"
+      ]
+    },
+    "authority_limit": {
+      "role": "authority_and_acceptance_boundary",
+      "value": "Path applicability is reviewed separately from the rule's textual triggers. Every source condition and heading remains attached; no automatic predicate or lifecycle inference. Stored commands and dates do not grant current execution, freshness or product acceptance. Existing instruction clients/checkers remain effective until measured cutover."
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/policy-migration.json",
+    "scopes": [
+      "lisa:maplibui:contract:workspace.conditional-form-and-navigation"
+    ]
+  }
+}

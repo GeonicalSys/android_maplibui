@@ -1,0 +1,74 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "App resource9/presentation10 и Core typed5+5 прошли в actual89 source checks:",
+        "Core46/App43,0fail/errors/skips,11 XML10.995с, Gradle0/BUILD50с. Первый85 остаётся",
+        "NOT_PASS81/4: реальный408 classifier исправлен централизованно body-only422 guard,",
+        "retry unchanged; один Producer stale integer oracle8→12 скорректирован вручную",
+        "по исходному known-prefix|OTHER контракту, не ослаблением UI или сменой API.",
+        "BelkaRelease source compile0/59с;4 Java JAR28/535/670/45 classes,100taskSET exact/",
+        "order different,68 inputs неизменны и unit15/compile13 процессов завершились.",
+        "Физический импорт/SQL/server/device/GUI fitting/native не запускались. Raw response,",
+        "URL, SQL columns или private path не должны становиться пользовательским объяснением.",
+        "Source delivery не означает library Merge Commit, App pointer update или выпуск APK.",
+        "Карточки: [формы](../update-reports/entries/maplibui-20261030-form-list-messages.md),",
+        "[список ресурсов](../update-reports/entries/maplibui-20261030-resource-load-messages.md),",
+        "[загрузка слоёв](../update-reports/entries/maplibui-20261030-layer-fill-messages.md).",
+        "",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Dated message cohort, earlier failure and runtime boundaries"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:evidence:dated-message-cohort-earlier-failure-and-runtime-boundaries",
+  "kind": "evidence",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:evidence:dated-message-cohort-earlier-failure-and-runtime-boundaries"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "historical",
+  "topic": "documentation"
+}

@@ -1,0 +1,80 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "."
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "markdown_body_lines",
+      "value": [
+        "# maplibui knowledge sources",
+        "",
+        "This physical owner participates in the WHOLE six-owner LISA restructuring.",
+        "The original AGENTS.md is authored as logical instructions,",
+        "contracts and individually separated historical evidence in [knowledge/policy](knowledge/policy).",
+        "The [inverse map](policy-migration.json) pins its Git object and every normalized",
+        "character, including within-line policy/history boundaries. Cross-owner equal",
+        "words remain distinct until separately reviewed ownership and same-fact proof.",
+        "",
+        "Stable IDs use `lisa:maplibui`; physical ownership remains",
+        "`android_projects/android_gisapp/maplibui`. Full conditions preserve UI/lower-layer",
+        "boundaries, Russian enlarged-window/list/touch acceptance, durable form pins,",
+        "backups/import/session identity, safe errors, checkbox/row-text/selected-track",
+        "identity and Mobile versus server-protocol wording. Former selector37 and caption/",
+        "Panel/compile receipts stay historical, including their failures and unavailable",
+        "native states. The lasting CPU-versus-real-window guard has its own complete unit.",
+        "An old audit continuation statement does not authorize work in this task.",
+        ""
+      ]
+    },
+    "view-path": {
+      "role": "published_markdown_path",
+      "value": "agent-system/README.md"
+    }
+  },
+  "id": "lisa:maplibui:resource:maplibui-knowledge-home",
+  "kind": "resource",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Keep the established owner documentation address and exact original Git range.",
+    "runtime_verification": "NOT_APPLICABLE",
+    "source_verification": "NOT_APPLICABLE"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:resource:maplibui-knowledge-home"
+    ]
+  },
+  "relations": [
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:maplibui-knowledge-authoring",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:maplibui-knowledge-layout",
+      "type": "contains"
+    }
+  ],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

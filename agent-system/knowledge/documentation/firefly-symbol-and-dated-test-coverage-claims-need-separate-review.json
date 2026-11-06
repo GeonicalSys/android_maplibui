@@ -1,0 +1,69 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## «Светлячок»",
+        "",
+        "В StyleFragment добавлен отдельный тип «Светлячок»: цвет/размер ядра,",
+        "цвет/ширина/размытие свечения и независимая непрозрачность. Смена типа сохраняет",
+        "параметры; отдельная кнопка пресета удалена; живой образец и ручные параметры сохранены.",
+        "Выбор типа переносит длинные названия. FeatureTypePreview использует тот же",
+        "sprite и вписывает его целиком. Матрица настоящего редактора проверяет 72",
+        "локальных font/display/theme/orientation профиля с реальными touches.",
+        "Контракт — consuming docs/architecture/point-firefly.md.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Exact source text and historical evidence retained. Review version-sensitive claims before treating this mixed note as current."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Firefly symbol and dated test coverage claims need separate review"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:note:firefly-symbol-and-dated-test-coverage-claims-need-separate-review",
+  "kind": "note",
+  "lifecycle": {
+    "goal": "open",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:note:firefly-symbol-and-dated-test-coverage-claims-need-separate-review"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "unknown",
+  "topic": "documentation"
+}

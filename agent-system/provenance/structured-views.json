@@ -1,0 +1,17 @@
+{
+  "format": "lisa.agent-system.module-structured-views.v1",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "views": {
+    "docs/manifest.yaml": {
+      "layout_id": "lisa:maplibui:metadata:maplibui-module-manifest",
+      "sha256_utf8_lf": "133569b050d8f3aaa67c73e9726db12e437fc68c87cebb00e8e1044e2f10c3ad",
+      "source_fingerprints": {
+        "agent-system/provenance/maplibui-module-manifest.json": "895066487c3c3ad30fb508b22c84d8fb5b971db7023fb53d77fb9b0131ff05b8",
+        "docs/scripts/module_manifest_knowledge.py": "6010dfb9a7cfc2cfe4f1afbfde9d865f9d225f07878bac5cf1e99d3ade68405c",
+        "docs/scripts/structured_view_proof.py": "bae9d5c0273dbe26bfa4c4467c2c7210cbc75c1677cc25a9a6a4cf347b6bb54c"
+      },
+      "ordered_records_sha256": "25c600341cd83cba71ddb78cafb2d1d4bc4cdc15c462e63dd055dd4ee3b637de",
+      "ordered_count": 143
+    }
+  }
+}

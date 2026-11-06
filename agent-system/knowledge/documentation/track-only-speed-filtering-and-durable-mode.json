@@ -1,0 +1,67 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "- `TrackerService` сохраняет выбранный в кнопке карты режим «Пешеход» или",
+        "  «Пешеход + машина». Track-only `TrackSpeedGate` пропускает скорость выше",
+        "  30 км/ч до sampling/queue, дописывает только разрешённый хвост и возобновляет",
+        "  запись новым сегментом. Без скорости приёмника используется соседняя GNSS-пара;",
+        "  без пригодной пары запись ждёт измерений. Stop работает и во время пропуска.",
+        "  Режим переживает restart/split, legacy default — смешанный. Heartbeat трека",
+        "  молчит во время пропуска; общие GNSS callbacks, курсор и обход не меняются.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Track-only speed filtering and durable mode"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:track-only-speed-filtering-and-durable-mode",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:track-only-speed-filtering-and-durable-mode"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

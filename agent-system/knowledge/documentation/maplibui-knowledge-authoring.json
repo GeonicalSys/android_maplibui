@@ -1,0 +1,60 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [],
+    "review_status": "reviewed",
+    "scope_refs": [
+      "lisa:maplibui:resource:maplibui-knowledge-home"
+    ],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "markdown_body_lines",
+      "value": [
+        "Edit readable logical values and explicitly re-review source mappings together.",
+        "The shared LISA `py -3.13 -B -m tools.agent_system check-policy-migration` replays",
+        "complete originals, ownership/classification and values. Standalone clients can",
+        "read JSON but must report the compiler unavailable when LISA is absent; no private",
+        "scanner or successful unchecked replay. Default foreign bases are committed HEAD;",
+        "shared builds/checks over uncommitted owner changes explicitly declare this owner live.",
+        "",
+        "The [working entrance](../AGENTS.md) and Cursor rule open the shared scoped reader.",
+        "Existing validators and hooks still apply. Library Merge Commit must precede a fetched merged app",
+        "gitlink, then app/publisher Squash; an open library PR is not an adopted dependency.",
+        "No product source, version, data or app index pin changes here. ALL remaining",
+        "knowledge types, independent task lifecycle and whole-subject views, real clients",
+        "and individual cleanup across ALL six owners remain required. This block does",
+        "not finish the approved goal, grant product execution or certify native acceptance.",
+        ""
+      ]
+    },
+    "view-path": {
+      "role": "published_markdown_path",
+      "value": "agent-system/README.md"
+    }
+  },
+  "id": "lisa:maplibui:resource:maplibui-knowledge-authoring",
+  "kind": "resource",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Keep the established owner documentation address and exact original Git range.",
+    "runtime_verification": "NOT_APPLICABLE",
+    "source_verification": "NOT_APPLICABLE"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:resource:maplibui-knowledge-authoring"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

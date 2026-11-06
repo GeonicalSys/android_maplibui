@@ -1,0 +1,79 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "- `TrackerService`, `WalkEditService` и `ExternalGnssService` подписаны на общий GNSS-only поток",
+        "  Application. `ExternalGnssService` держит процесс при выбранном внешнем",
+        "  приёмнике без второй LocationManager-подписки. Tracker и Walk сохраняют отфильтрованные точки после прореживания с сохранением",
+        "  поворотов. Network используется картой только без свежего GPS. Mock внешнего",
+        "  GNSS и native NMEA пишутся без пешеходного smoother, не грубее 2 с / 1 м. Трек хранит номер сегмента и",
+        "  экспортирует разрывы через GPX `trkseg`; обход хранит `gps_paused` и ждёт",
+        "  явного «Продолжить и соединить». Перед Save UI получает финальный durable",
+        "  snapshot без raw GPS-хвоста. Звуковой контроль получает общий проверенный поток",
+        "  до прореживания, продолжает работать на стоянке и проверяет время измерения.",
+        "  Подробности и миграция: [GPS pipeline](../../docs/architecture/location-pipeline.md).",
+        "  Сервисы работают в основном процессе, сохраняют durable intent/черновики при",
+        "  неожиданном завершении и не запускают запрещённый location FGS без permission.",
+        "  Track и Walk запускаются только с foreground type `location`, без требований",
+        "  `connectedDevice`. Меню подтверждает активную запись после публикации",
+        "  запущенного сервиса, а не только после восстановления прежнего трека. Состояния",
+        "  Start/Starting/Recording/Error общие для меню и кнопки карты; обычный запуск",
+        "  больше не мигает ложным «Не пишется». Выключенная системная геопозиция",
+        "  блокирует Start до создания строки трека; ошибка запуска или сохранения точки",
+        "  предупреждает отдельно. Черновик обхода и уже записанные точки сохраняются",
+        "  для восстановления."
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Qualified GNSS ownership and recording startup and persistence"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:qualified-gnss-ownership-and-recording-startup-and-persistence",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:qualified-gnss-ownership-and-recording-startup-and-persistence"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

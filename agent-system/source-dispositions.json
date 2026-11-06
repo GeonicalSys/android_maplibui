@@ -1,0 +1,48 @@
+{
+  "format": "lisa.agent-system.source-dispositions.v1",
+  "entries": [
+    {
+      "path": "agent-system/policy-migration.json",
+      "sha256": "a2e4a94705cebb78d332909c5df92f28fa22663dd4a9d6d490c7f400c8e921d2",
+      "sha256_scope": "utf8_lf",
+      "category": "retained_evidence",
+      "applies_to": [
+        "."
+      ],
+      "reason": "Individually authored complete original Git/source/character and logical-unit inverse map, including selector and caption receipt/policy boundaries; retained provenance without active-prose or deletion authority."
+    },
+    {
+      "path": "agent-system/provenance/maplibui-module-manifest.json",
+      "sha256": "895066487c3c3ad30fb508b22c84d8fb5b971db7023fb53d77fb9b0131ff05b8",
+      "sha256_scope": "utf8_lf",
+      "category": "retained_evidence",
+      "applies_to": [
+        "docs/manifest.yaml"
+      ],
+      "reason": "Original Git object, complete field spans and ordered module record witnesses."
+    },
+    {
+      "path": "agent-system/provenance/documentation.json",
+      "sha256": "03396dd3127c331d4d4a0dfcbd42880363be2895ec143444480dfdde544b1ef2",
+      "sha256_scope": "utf8_lf",
+      "category": "retained_evidence",
+      "applies_to": [
+        "README.md",
+        "docs/README.md",
+        "agent-system/README.md"
+      ],
+      "reason": "Exact original Git objects, complete reviewed README byte spans and ordered owner record fingerprints."
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "046f49325a61f67f6dedfbd5070c74024097e6412c8f695d584abf686ab534c4",
+      "sha256_scope": "utf8_lf",
+      "category": "retained_evidence",
+      "reason": "Keep the maplibui repository's LGPL version 3 license text at its published Git address.",
+      "applies_to": [
+        "LICENSE",
+        "README.md"
+      ]
+    }
+  ]
+}

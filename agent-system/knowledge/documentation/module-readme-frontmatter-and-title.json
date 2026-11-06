@@ -1,0 +1,569 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "",
+        "# maplibui — GIS UI, layer fill и мобильные проекты",
+        ""
+      ]
+    },
+    "frontmatter": {
+      "role": "original_frontmatter_lines",
+      "value": [
+        "title: maplibui — GIS UI, layer fill и мобильные проекты",
+        "module_id: maplibui",
+        "last_verified: 2026-11-02"
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Module README frontmatter and title"
+    },
+    "typed-frontmatter": {
+      "role": "reviewed_frontmatter_values",
+      "value": {
+        "last_verified": "2026-11-02",
+        "module_id": "maplibui",
+        "title": "maplibui — GIS UI, layer fill и мобильные проекты"
+      }
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:resource:module-readme-frontmatter-and-title",
+  "kind": "resource",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:resource:module-readme-frontmatter-and-title"
+    ]
+  },
+  "relations": [
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:mobile-project-wording-with-stable-ngw-collector-project-identity",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:evidence:dated-structural-xml-source-readback-and-its-runtime-boundary",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:terminal-project-retirement-nonterminal-activity-detach",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:note:offline-source-connectivity-contract-with-dated-native-not-run",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:track-actions-session-ownership-and-durable-deletion",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:portrait-and-large-text-landscape-style-preview-sizes",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:polygon-style-field-validation-and-ordinary-preview-factories",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:note:firefly-symbol-and-dated-test-coverage-claims-need-separate-review",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:feature-copy-values-int64-precision-and-stateful-controls",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:compass-remains-interactive-without-optional-vibrator",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:form-tabs-await-safe-host-state-and-preserve-existing-draft-owners",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:app-gps-owner-stops-separately-from-active-recorder-sessions",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:diagnostic-episode-identity-and-one-guarded-re-registration",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:shared-track-migration-queue-and-acknowledgement-ownership",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:note:saved-change-worker-ownership-and-separate-isolated-test-reference",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:network-display-estimate-and-app-owned-automatic-gps-lease",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:large-text-layout-and-native-validation-dimensions",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:connected-network-admission-for-account-and-track-workers",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:gps-gap-recovery-with-separate-manual-pause-and-point-lock",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:local-logging-and-canonical-form-pair-hashing",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:track-registration-upload-queue-confirmed-markers-and-independent-intent",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:feature-categories-exact-typed-initial-values-and-durable-owner",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:outer-form-tabs-gesture-ownership-and-default-metadata-pair",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:cascading-legacy-control-projection-and-appearance-before-early-return",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:shared-form-appearance-save-gate-and-draft-state",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:conditional-visibility-required-checks-and-pinned-conditions",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:atomic-cascade-snapshot-bounded-activity-state-and-invalid-pin-refusal",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:pending-changes-indicator-uses-one-shared-background-snapshot",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:ui-orchestration-ownership-and-common-opengl-sdk",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:evidence:dated-3-1-2-27-consumer-release-preparation",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:external-gnss-owner-and-independent-fresh-fix-proof",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:cascading-lists-and-durable-typed-selection",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:required-save-gates-and-existing-versus-new-objects",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:battery-saver-and-tracker-recording-notification",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:track-only-speed-filtering-and-durable-mode",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:visibility-indication-and-separate-sync-progress-owner",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:supported-resource-imports-and-compact-selector-restore",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:safe-selector-connection-errors-and-ui-ownership",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:direct-url-local-point-import-and-raster-ordering",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:keyed-mobile-projects-and-common-workspace-import",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:underlay-exclusive-lease-and-deferred-render-application",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:project-registry-lifecycle-and-scoped-fill-admission",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:sync-interruption-gates-and-continuous-project-to-fill-lease",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:backup-and-duplicate-managed-layer-guards",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:atomic-logical-layer-replacement-before-storage-cleanup",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:resource-tree-back-and-preserved-sync-direction-rules",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:attachment-stamp-and-screen-preference-defaults",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:qualified-gnss-ownership-and-recording-startup-and-persistence",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:geometry-repair-results-and-exact-map-projection-edit-history",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:independent-durable-crash-journals-and-recovery-choices",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:attribute-edit-gate-label-field-and-default-style-rule",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:lower-layer-opengl-topology-and-layer-order-boundaries",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:manual-underlays-and-read-only-managed-qgis-style-import",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:backup-gate-cancellation-ownership-and-project-mutation-fencing",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:cold-start-workspace-ownership-and-recording-switch-guard",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:separate-config-data-effects-and-server-write-admission",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:fill-storage-reservation-rollback-and-unfinished-marker-cleanup",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:project-scoped-journal-recovery-and-local-point-import",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:typed-form-comparison-and-durable-terminal-save-discard",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:independent-walk-preview-finish-acknowledgement-and-point-lock",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:exact-account-add-completion-and-variant-independent-mobile-mode",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:separate-track-walk-providers-and-live-activity-error-ownership",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:fill-transaction-orphan-storage-and-runtime-dependency-diagnosis",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:schema-rebuild-deferred-render-callback-and-ordering-diagnosis",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:editability-sync-initialization-and-composition-backup-diagnosis",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:registry-sync-interruption-deletion-fallback-and-track-ownership-diagnosis",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:qualified-gps-filtering-account-add-live-error-ui-and-undo-diagnosis",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:owned-build-and-native-smoke-entry-references",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:background-gps-stationary-correction-and-gpx-mime-boundaries",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:movement-admission-durable-stop-and-no-unconfirmed-tail",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:walk-panel-accessibility-and-owner-scoped-pause-finish",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:independent-walk-preview-point-lock-and-valid-geometry-before-form",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:recoverable-walk-owner-states-and-scoped-emergency-reset",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:current-cursor-and-confirmed-departure-measurement",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:shared-underlay-lifecycle-and-lease-owned-deletion",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:form-save-snapshots-and-durable-retry-identity",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:recording-outbox-and-safe-internal-service-timeout",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:backup-format-and-ngw-identity-ui-contracts",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:script-controller-pinned-version-and-lower-layer-interpreter-ownership",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:all-project-sync-queue-and-callback-provider-service-ownership",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:layer-selector-native-list-viewport-and-test-reference",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:versioned-script-service-binding-and-release-timing",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:evidence:october-17-diagnostic-handoff-and-scope",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:resource:update-report-cards-and-local-verification-hook",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:effective-category-snapshot-and-save-cancel-ownership",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:track-stop-confirmation-and-exact-durable-session-identity",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:track-panel-action-theme-and-preserved-style-options",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:scoped-nested-ngfp-lookup-traversal",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:evidence:dated-lookup-test-and-consuming-compile-results",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:note:localized-form-message-contract-with-dated-test-comparison",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:structured-child-load-failures-and-live-resource-ui",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:typed-fill-errors-redaction-and-existing-retry-handling",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:evidence:dated-message-cohort-earlier-failure-and-runtime-boundaries",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:note:checkbox-projection-compact-restore-and-dated-source-evidence",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:recycled-resource-captions-actual-clipping-and-path-reach",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:evidence:caption-test-cohort-earlier-failed-cohort-and-compile-limits",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:contract:selected-track-gpx-share-ownership-and-saved-content",
+      "type": "contains"
+    },
+    {
+      "status": "source_backed",
+      "target": "lisa:maplibui:evidence:dated-underlay-progress-and-open-native-verification",
+      "type": "contains"
+    }
+  ],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

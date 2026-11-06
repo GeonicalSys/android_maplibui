@@ -1,0 +1,45 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "definition": {
+      "role": "module_manifest_definition",
+      "value": {
+        "path": "maplibui/src/main/java/com/nextgis/maplibui/GISApplication.java",
+        "responsibility": "Application-level map lifecycle, active-project database binding, fill, schema rebuild and removal orchestration; backup-gated pre-sync collapse of duplicate managed layer identities with one map commit; resume a durable Collector journal only in its matching project, clean only app-marked unpublished layer stages, defer heavy account-sync reloads, keep post-fill map reload pending until MapLibre confirms style/source application, and start or stop ExternalGnssService while an external NMEA endpoint is configured."
+      }
+    },
+    "manifest-field": {
+      "role": "module_manifest_manifest_field",
+      "value": "key_components"
+    }
+  },
+  "id": "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-2ebb1d9b39",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "unknown",
+    "implementation": "unknown",
+    "merge": "unknown",
+    "release": "unknown",
+    "retention": "Preserve this ordered module manifest value and its original Git source.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "UNKNOWN"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/maplibui-module-manifest.json",
+    "scopes": [
+      "lisa:maplibui:contract:manifest-key-components-gisapplication-7c86892304-2ebb1d9b39"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "historical",
+  "topic": "maplibui-module-manifest"
+}

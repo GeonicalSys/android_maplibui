@@ -1,0 +1,79 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Назначение",
+        "",
+        "Общие UI-компоненты поддерживают крупные системные font/display scales.",
+        "Подписи настроек, слоёв и ресурсов переносятся; кнопки растут по тексту.",
+        "`WrappingRow` переносит целые элементы, `FittedPanelLayout` вписывает уже",
+        "скомпонованный блок при оставшемся переполнении и сохраняет touch transform.",
+        "`WrappingLabel` сохраняет целые слова инструкции, уменьшая только слово,",
+        "которое шире доступной области. Подбор измеряет фактические glyph advances:",
+        "на API30 простая пропорция оставляла слово на1px шире строки из-за hinting.",
+        "Фиксированные ячейки таблицы используют",
+        "ограниченный autosize с восстановлением предпочитаемого размера.",
+        "Панель обхода переносит полное название над действиями. Вход в Веб ГИС в landscape",
+        "использует две колонки с компактным логотипом и кратким русским пояснением,",
+        "сохраняя крупнее поля и кнопки; при оставшемся переполнении форма вписывается,",
+        "а переполняющийся заголовок toolbar адаптируется локально. Общие builders",
+        "`FittedDialogs` вписывают non-list диалоги и их действия при крупном интерфейсе",
+        "с закрытой клавиатурой; тип окна, callbacks и штатные списки сохраняются. Native consuming-app",
+        "`LargeTextLayoutTest` проверяет русский текст, обе темы/ориентации и крупные",
+        "шрифт и display size вместе. Карты не получают дополнительной прокрутки.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Large-text layout and native validation dimensions"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:large-text-layout-and-native-validation-dimensions",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:large-text-layout-and-native-validation-dimensions"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

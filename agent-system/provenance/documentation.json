@@ -1,0 +1,663 @@
+{
+  "owner": "android_projects/android_gisapp/maplibui",
+  "schema_version": 1,
+  "sources": [
+    {
+      "blob": "3093fc22b9f26596e9c97cc02fa9a7a34f645acb",
+      "bytes": 500,
+      "id": "lisa:maplibui:resource:library-introduction-license-and-upstream-support-references",
+      "ordered_records_sha256": "4cbaa181c1441e26bd2b08595da0dec851bbf0214562423bab3a7245bfa39c50",
+      "ordered_spans": [
+        {
+          "end_byte": 500,
+          "id": "lisa:maplibui:resource:library-introduction-license-and-upstream-support-references",
+          "sha256": "e1742a6dc31198d0aceb39ba9f9af23ebf6128da910f5fb8d404ef9f3c4b39a2",
+          "start_byte": 0
+        }
+      ],
+      "path": "README.md",
+      "record": "library-introduction-license-and-upstream-support-references.json",
+      "revision": "99e0013f1efd56747c92a1ca2ee118b9605028b7",
+      "sha256": "e1742a6dc31198d0aceb39ba9f9af23ebf6128da910f5fb8d404ef9f3c4b39a2"
+    },
+    {
+      "blob": "91574aba1b340237bf121fbc8561aad5b1f7a35d",
+      "bytes": 77954,
+      "id": "lisa:maplibui:resource:module-readme-frontmatter-and-title",
+      "ordered_records_sha256": "c753d8b582d931e214032ce2ca8e39651acbe30c665c351bc479126200ceb616",
+      "ordered_spans": [
+        {
+          "end_byte": 203,
+          "id": "lisa:maplibui:resource:module-readme-frontmatter-and-title",
+          "sha256": "37eb274801043a26aa71bec09e9c5c01f3e7f199a32670174e10801813a51512",
+          "start_byte": 0
+        },
+        {
+          "end_byte": 1568,
+          "id": "lisa:maplibui:contract:mobile-project-wording-with-stable-ngw-collector-project-identity",
+          "sha256": "bf73ee430022766aa6321deccdc59888aab7eb3ca659a844b5b472c3b46c6c4f",
+          "start_byte": 203
+        },
+        {
+          "end_byte": 2163,
+          "id": "lisa:maplibui:evidence:dated-structural-xml-source-readback-and-its-runtime-boundary",
+          "sha256": "15d56c5a1d7d32801b1291ce0f4d6785eafcb878c2b3c3a78b7b7f980c53c810",
+          "start_byte": 1568
+        },
+        {
+          "end_byte": 3469,
+          "id": "lisa:maplibui:contract:terminal-project-retirement-nonterminal-activity-detach",
+          "sha256": "13263a2a2c81377d8345a2e6f8db7876c64b11681b3948ff9ad1e57d00e1302e",
+          "start_byte": 2163
+        },
+        {
+          "end_byte": 3857,
+          "id": "lisa:maplibui:note:offline-source-connectivity-contract-with-dated-native-not-run",
+          "sha256": "c1fc6496a9fc5f2d7549f6284d900539cab7b237f5ca63967d2ca6f8829fd46b",
+          "start_byte": 3469
+        },
+        {
+          "end_byte": 4264,
+          "id": "lisa:maplibui:contract:track-actions-session-ownership-and-durable-deletion",
+          "sha256": "cdf8b9ea7e65a70956a29b51025f6d061673f670630edd73ca56cfcf1ba9c1fa",
+          "start_byte": 3857
+        },
+        {
+          "end_byte": 4536,
+          "id": "lisa:maplibui:contract:portrait-and-large-text-landscape-style-preview-sizes",
+          "sha256": "a64343092f28a42ea8b508642f2b5eade35010fc3de23e8600ba357d79cbc389",
+          "start_byte": 4264
+        },
+        {
+          "end_byte": 5065,
+          "id": "lisa:maplibui:contract:polygon-style-field-validation-and-ordinary-preview-factories",
+          "sha256": "7a0c86d2f1c6a8bee207285db51aafe67b05716f56d0a6b2e6c22a97b05d4e8a",
+          "start_byte": 4536
+        },
+        {
+          "end_byte": 5940,
+          "id": "lisa:maplibui:note:firefly-symbol-and-dated-test-coverage-claims-need-separate-review",
+          "sha256": "3caa0438040f3bcbb81e41bea36ec6f98e2052ee4a29934378bd7a3df2692c15",
+          "start_byte": 5065
+        },
+        {
+          "end_byte": 6998,
+          "id": "lisa:maplibui:contract:feature-copy-values-int64-precision-and-stateful-controls",
+          "sha256": "bc9cb5243b6dd917305adf86a4bf7af1d1fa5bc04e46aacaa544aeba28ec4e08",
+          "start_byte": 5940
+        },
+        {
+          "end_byte": 7722,
+          "id": "lisa:maplibui:contract:compass-remains-interactive-without-optional-vibrator",
+          "sha256": "1f092eaa601de286eca7e0d382b5ed96b3ca68fc0049f6bd70252fc0528fe6fd",
+          "start_byte": 6998
+        },
+        {
+          "end_byte": 8252,
+          "id": "lisa:maplibui:contract:form-tabs-await-safe-host-state-and-preserve-existing-draft-owners",
+          "sha256": "7676d4082c2359c81876d0dbf2e917f8ca17e97fabfcead57535e184f4eab64b",
+          "start_byte": 7722
+        },
+        {
+          "end_byte": 8583,
+          "id": "lisa:maplibui:contract:app-gps-owner-stops-separately-from-active-recorder-sessions",
+          "sha256": "394c1323661f8c8bc137828cb86bdd193ae437e8dac613bb8904da81e60b41a3",
+          "start_byte": 8252
+        },
+        {
+          "end_byte": 9088,
+          "id": "lisa:maplibui:contract:diagnostic-episode-identity-and-one-guarded-re-registration",
+          "sha256": "93684a024bf5678cd2d1b8db5ff6b7732bd96ef4427375e3d10e1094ddf9151e",
+          "start_byte": 8583
+        },
+        {
+          "end_byte": 9592,
+          "id": "lisa:maplibui:contract:shared-track-migration-queue-and-acknowledgement-ownership",
+          "sha256": "3cb38a34095111bbbd591be9f1c9e0b6f32bc241eb80af56bffbce2dc46d6733",
+          "start_byte": 9088
+        },
+        {
+          "end_byte": 10892,
+          "id": "lisa:maplibui:note:saved-change-worker-ownership-and-separate-isolated-test-reference",
+          "sha256": "719dce0dca791ee6224399933c3d7cc608bf0b32f08aa1ee618e00a5b5221fa0",
+          "start_byte": 9592
+        },
+        {
+          "end_byte": 11695,
+          "id": "lisa:maplibui:contract:network-display-estimate-and-app-owned-automatic-gps-lease",
+          "sha256": "29e994cd83570b53b0a33e35a8efb2a8775c4573ebf324e84d88354a942fa8d0",
+          "start_byte": 10892
+        },
+        {
+          "end_byte": 13845,
+          "id": "lisa:maplibui:contract:large-text-layout-and-native-validation-dimensions",
+          "sha256": "1cd0f46891fd0ad2cec077ce305e980389eda3c62c46162a5ed06416704471d3",
+          "start_byte": 11695
+        },
+        {
+          "end_byte": 14297,
+          "id": "lisa:maplibui:contract:connected-network-admission-for-account-and-track-workers",
+          "sha256": "9e84edc76df15e5d42355a3b5cf074580cfbbec751b1db382d50ab5bb4a7bff9",
+          "start_byte": 13845
+        },
+        {
+          "end_byte": 14907,
+          "id": "lisa:maplibui:contract:gps-gap-recovery-with-separate-manual-pause-and-point-lock",
+          "sha256": "52dc6536677ffd2fc0d0684284bb8944efe699a726853172d6601d408f8560dd",
+          "start_byte": 14297
+        },
+        {
+          "end_byte": 15438,
+          "id": "lisa:maplibui:contract:local-logging-and-canonical-form-pair-hashing",
+          "sha256": "96d41ef4ca9383600587889cd708363ba795fa6aeeb2ba1bb63a779dfc0c897b",
+          "start_byte": 14907
+        },
+        {
+          "end_byte": 16496,
+          "id": "lisa:maplibui:contract:track-registration-upload-queue-confirmed-markers-and-independent-intent",
+          "sha256": "232df460952750c8fab6010de86bbaea968da5fa42804ac4f0e776ed541475df",
+          "start_byte": 15438
+        },
+        {
+          "end_byte": 18374,
+          "id": "lisa:maplibui:contract:feature-categories-exact-typed-initial-values-and-durable-owner",
+          "sha256": "7244daa341b003786a4015567defb94e5833a80e91fdf51b94732488d4f623f4",
+          "start_byte": 16496
+        },
+        {
+          "end_byte": 19141,
+          "id": "lisa:maplibui:contract:outer-form-tabs-gesture-ownership-and-default-metadata-pair",
+          "sha256": "d2db8ef87d7b579627cee97af349e708f569c31156a58f3aff3b9588ee077c34",
+          "start_byte": 18374
+        },
+        {
+          "end_byte": 19727,
+          "id": "lisa:maplibui:contract:cascading-legacy-control-projection-and-appearance-before-early-return",
+          "sha256": "1d0add406b91329b2f614fd03fac06321b1e2e887849e1568ef345df6b8b0880",
+          "start_byte": 19141
+        },
+        {
+          "end_byte": 20358,
+          "id": "lisa:maplibui:contract:shared-form-appearance-save-gate-and-draft-state",
+          "sha256": "f43f28a26546542d8150fe579900da89d748d729c46348bc9c7ede1b2c9e8658",
+          "start_byte": 19727
+        },
+        {
+          "end_byte": 21228,
+          "id": "lisa:maplibui:contract:conditional-visibility-required-checks-and-pinned-conditions",
+          "sha256": "5ee5bc84bf41191b70aa6135699c50f0492f564e0528597f37313e749da07835",
+          "start_byte": 20358
+        },
+        {
+          "end_byte": 21728,
+          "id": "lisa:maplibui:contract:atomic-cascade-snapshot-bounded-activity-state-and-invalid-pin-refusal",
+          "sha256": "279502a19e91ba34a8608715a4540f33af014dd656c70e880bab7bbae2637847",
+          "start_byte": 21228
+        },
+        {
+          "end_byte": 22359,
+          "id": "lisa:maplibui:contract:pending-changes-indicator-uses-one-shared-background-snapshot",
+          "sha256": "d359735dd0b496b37b57e8745ceb89595f6210ef131f74a60f480153778d10f2",
+          "start_byte": 21728
+        },
+        {
+          "end_byte": 22739,
+          "id": "lisa:maplibui:resource:ui-orchestration-ownership-and-common-opengl-sdk",
+          "sha256": "1b89d9a39cb271ceb57d79591917a2a735260289bb43eb78bb388d7bb4a9d5d4",
+          "start_byte": 22359
+        },
+        {
+          "end_byte": 23058,
+          "id": "lisa:maplibui:evidence:dated-3-1-2-27-consumer-release-preparation",
+          "sha256": "8091caa184c98ac5827df30eab983e5a391f3b6a46893d9d0bb40ec7d7122fa2",
+          "start_byte": 22739
+        },
+        {
+          "end_byte": 23410,
+          "id": "lisa:maplibui:contract:external-gnss-owner-and-independent-fresh-fix-proof",
+          "sha256": "ab855ad0690139bc7c94766256d3503fa7d2dd90afd99092111f9f267693720c",
+          "start_byte": 23058
+        },
+        {
+          "end_byte": 24276,
+          "id": "lisa:maplibui:contract:cascading-lists-and-durable-typed-selection",
+          "sha256": "376ec4d32a7d04f7e766933658ee7a9e510725c8fc9cac9e03082fe1e30ff2b5",
+          "start_byte": 23410
+        },
+        {
+          "end_byte": 25683,
+          "id": "lisa:maplibui:contract:required-save-gates-and-existing-versus-new-objects",
+          "sha256": "1ad35bd7e01e25c25dd8949fd99fa641d688eb302cd8594aefc4d8aef67f1494",
+          "start_byte": 24276
+        },
+        {
+          "end_byte": 26188,
+          "id": "lisa:maplibui:contract:battery-saver-and-tracker-recording-notification",
+          "sha256": "7916f208b6746040ffee1b836096af321ceac37aa2624edb4b5b4210120682b2",
+          "start_byte": 25683
+        },
+        {
+          "end_byte": 27071,
+          "id": "lisa:maplibui:contract:track-only-speed-filtering-and-durable-mode",
+          "sha256": "98193ac66506843a48b1347ff802f04e7f714fc0226b90f55099139b3fed708e",
+          "start_byte": 26188
+        },
+        {
+          "end_byte": 27523,
+          "id": "lisa:maplibui:contract:visibility-indication-and-separate-sync-progress-owner",
+          "sha256": "bd162f2087f90ce05078c8b8f4111882a001e690748c8c491df5d105f223b161",
+          "start_byte": 27071
+        },
+        {
+          "end_byte": 28797,
+          "id": "lisa:maplibui:contract:supported-resource-imports-and-compact-selector-restore",
+          "sha256": "930c63223d6dadd3d328b7d2bec5cfe3a246e9fc0d220171be630ff4ee393636",
+          "start_byte": 27523
+        },
+        {
+          "end_byte": 29038,
+          "id": "lisa:maplibui:contract:safe-selector-connection-errors-and-ui-ownership",
+          "sha256": "2de5577d9eb9406c60dfeabe62679e4e89416ef19e92fe490a7ed79173e1d395",
+          "start_byte": 28797
+        },
+        {
+          "end_byte": 29947,
+          "id": "lisa:maplibui:contract:direct-url-local-point-import-and-raster-ordering",
+          "sha256": "2b982e9007c2ca818d6d514f46df3ddc6d4542bb482369e62e30e66657b81d5b",
+          "start_byte": 29038
+        },
+        {
+          "end_byte": 30303,
+          "id": "lisa:maplibui:contract:keyed-mobile-projects-and-common-workspace-import",
+          "sha256": "069e9173d7a808ec84803831f7e3f47950008b9f2197f6e884fbef97140c02f2",
+          "start_byte": 29947
+        },
+        {
+          "end_byte": 30727,
+          "id": "lisa:maplibui:contract:underlay-exclusive-lease-and-deferred-render-application",
+          "sha256": "16d4e468cade1f8d41b70f3934982cc770393a8a9aed1f0a2cb19d3adec60da9",
+          "start_byte": 30303
+        },
+        {
+          "end_byte": 31305,
+          "id": "lisa:maplibui:contract:project-registry-lifecycle-and-scoped-fill-admission",
+          "sha256": "465d1d79d0d3f7fe7bd01c5cd3a782dbe648141f1da31107507242c93ebc5686",
+          "start_byte": 30727
+        },
+        {
+          "end_byte": 32188,
+          "id": "lisa:maplibui:contract:sync-interruption-gates-and-continuous-project-to-fill-lease",
+          "sha256": "05c37927c00d30435ce549cd55d332233a487b899d606c25c5faac941373add8",
+          "start_byte": 31305
+        },
+        {
+          "end_byte": 32929,
+          "id": "lisa:maplibui:contract:backup-and-duplicate-managed-layer-guards",
+          "sha256": "3ea614ac9d18a43ad857c712af302c15c235b47f8ab31490fa60426f00f345b9",
+          "start_byte": 32188
+        },
+        {
+          "end_byte": 33261,
+          "id": "lisa:maplibui:contract:atomic-logical-layer-replacement-before-storage-cleanup",
+          "sha256": "06814cf193e319a9f2faa82d1bc97937c6ec3f77ab47136ce8e493953c3b53e6",
+          "start_byte": 32929
+        },
+        {
+          "end_byte": 33811,
+          "id": "lisa:maplibui:contract:resource-tree-back-and-preserved-sync-direction-rules",
+          "sha256": "cae86d389e0b68beda9cc9c86ed73af40730e7255df12eb1c62614e721510412",
+          "start_byte": 33261
+        },
+        {
+          "end_byte": 34193,
+          "id": "lisa:maplibui:contract:attachment-stamp-and-screen-preference-defaults",
+          "sha256": "3bf3283ba3a4f2b2e01a75b163df2c0917fa49bec48cf558053a3235d3d059ec",
+          "start_byte": 33811
+        },
+        {
+          "end_byte": 36763,
+          "id": "lisa:maplibui:contract:qualified-gnss-ownership-and-recording-startup-and-persistence",
+          "sha256": "b7d57ac7c7af566d2c56f715cf033400c6805b2c5d9c67c6791cb0f4bb798e03",
+          "start_byte": 34193
+        },
+        {
+          "end_byte": 38924,
+          "id": "lisa:maplibui:contract:geometry-repair-results-and-exact-map-projection-edit-history",
+          "sha256": "fef9cd2f59af01bc4df258d2de9f803fb7acfa718499deb1be866a6d837fe1f7",
+          "start_byte": 36763
+        },
+        {
+          "end_byte": 39286,
+          "id": "lisa:maplibui:contract:independent-durable-crash-journals-and-recovery-choices",
+          "sha256": "daf00ef484ed45b3f32037f58eb9bd9afc686179ff9d3f870190c9eafb44c9c8",
+          "start_byte": 38924
+        },
+        {
+          "end_byte": 39825,
+          "id": "lisa:maplibui:contract:attribute-edit-gate-label-field-and-default-style-rule",
+          "sha256": "84a60a34fd5447e7174b8f7a15bd495287625b8e6ca6818eb6032ca5b77035d3",
+          "start_byte": 39286
+        },
+        {
+          "end_byte": 40443,
+          "id": "lisa:maplibui:contract:lower-layer-opengl-topology-and-layer-order-boundaries",
+          "sha256": "f82bca2273d7b014a658210aa4f65830abec717924b93c8157ef0036045dd002",
+          "start_byte": 39825
+        },
+        {
+          "end_byte": 41207,
+          "id": "lisa:maplibui:contract:manual-underlays-and-read-only-managed-qgis-style-import",
+          "sha256": "6329ba849ac99f788e19523fdfe3346c636d857fbb5003e005291608bd1e2837",
+          "start_byte": 40443
+        },
+        {
+          "end_byte": 42096,
+          "id": "lisa:maplibui:contract:backup-gate-cancellation-ownership-and-project-mutation-fencing",
+          "sha256": "039a7176a36f0acb049861eadecb21d049ff06355b66551d1803190b6c627727",
+          "start_byte": 41207
+        },
+        {
+          "end_byte": 42688,
+          "id": "lisa:maplibui:contract:cold-start-workspace-ownership-and-recording-switch-guard",
+          "sha256": "877de907ab9003e883ab87dbe6dce7cd13e5a0485b1d47b1402844193df7a15f",
+          "start_byte": 42096
+        },
+        {
+          "end_byte": 43046,
+          "id": "lisa:maplibui:contract:separate-config-data-effects-and-server-write-admission",
+          "sha256": "6f5ce1268e7190ed5b1f2b36d39d22daaf85c76a4f11d344a2dccb20f7075e1d",
+          "start_byte": 42688
+        },
+        {
+          "end_byte": 44051,
+          "id": "lisa:maplibui:contract:fill-storage-reservation-rollback-and-unfinished-marker-cleanup",
+          "sha256": "7a0ff2667a448fd7495defdc6053ec27884e8feac5fd01cca3a6967e7ca7a11e",
+          "start_byte": 43046
+        },
+        {
+          "end_byte": 44603,
+          "id": "lisa:maplibui:contract:project-scoped-journal-recovery-and-local-point-import",
+          "sha256": "673972ea82b0c562672429a5a9cadccba2c7aecab9dd8597bd5a2a0157d15f7e",
+          "start_byte": 44051
+        },
+        {
+          "end_byte": 45522,
+          "id": "lisa:maplibui:contract:typed-form-comparison-and-durable-terminal-save-discard",
+          "sha256": "c52e84bbf0a2679c2d477a4463175367353c3beedc24bf02003914ab34fd862b",
+          "start_byte": 44603
+        },
+        {
+          "end_byte": 46117,
+          "id": "lisa:maplibui:contract:independent-walk-preview-finish-acknowledgement-and-point-lock",
+          "sha256": "821389cea949d357edf327db11c57d032bbdde1838ccce2d2b3b25613d61414a",
+          "start_byte": 45522
+        },
+        {
+          "end_byte": 46738,
+          "id": "lisa:maplibui:contract:exact-account-add-completion-and-variant-independent-mobile-mode",
+          "sha256": "44ba522503149191496281ce5ad6453ef8afe2837e7687a6fc7facdd5514f96c",
+          "start_byte": 46117
+        },
+        {
+          "end_byte": 47366,
+          "id": "lisa:maplibui:contract:separate-track-walk-providers-and-live-activity-error-ownership",
+          "sha256": "98bf911930646418fc750ecb3536dbf0b0e593445735e3ff095c9a31da6ff73d",
+          "start_byte": 46738
+        },
+        {
+          "end_byte": 48310,
+          "id": "lisa:maplibui:resource:fill-transaction-orphan-storage-and-runtime-dependency-diagnosis",
+          "sha256": "705e8a909e3d22d54d9bae5a9be89f723598fb8e8ffc02ce7c31e1f88c0cf2ca",
+          "start_byte": 47366
+        },
+        {
+          "end_byte": 49086,
+          "id": "lisa:maplibui:resource:schema-rebuild-deferred-render-callback-and-ordering-diagnosis",
+          "sha256": "e5ff0537cdb3fd225e7da0ac82ca0441ed3fbb50cb35552f91c96a5481ae9b6c",
+          "start_byte": 48310
+        },
+        {
+          "end_byte": 49660,
+          "id": "lisa:maplibui:resource:editability-sync-initialization-and-composition-backup-diagnosis",
+          "sha256": "a5e57a87bffd37230e524d889f792c3c5612de46b87d843ac2dbcb4d28062ea8",
+          "start_byte": 49086
+        },
+        {
+          "end_byte": 50663,
+          "id": "lisa:maplibui:resource:registry-sync-interruption-deletion-fallback-and-track-ownership-diagnosis",
+          "sha256": "3acaeaa2e9bfa04b02b66fb88c832d608ab91b8525e614a9815b544b1df12d5e",
+          "start_byte": 49660
+        },
+        {
+          "end_byte": 52073,
+          "id": "lisa:maplibui:resource:qualified-gps-filtering-account-add-live-error-ui-and-undo-diagnosis",
+          "sha256": "60ad85114c34285eb99c462ea5ae4617c4c5105e09bb9ead8cfa7fe282366a7c",
+          "start_byte": 50663
+        },
+        {
+          "end_byte": 52302,
+          "id": "lisa:maplibui:resource:owned-build-and-native-smoke-entry-references",
+          "sha256": "a35c7f0b4651c2777e86d5b11d65ad3a88ef5cd41ed33be5fe33ac3b80cdf7e7",
+          "start_byte": 52073
+        },
+        {
+          "end_byte": 53900,
+          "id": "lisa:maplibui:contract:background-gps-stationary-correction-and-gpx-mime-boundaries",
+          "sha256": "a582812644a014e237258607f237f046adbe353315487f4c10c358c50ed1cb6b",
+          "start_byte": 52302
+        },
+        {
+          "end_byte": 54632,
+          "id": "lisa:maplibui:contract:movement-admission-durable-stop-and-no-unconfirmed-tail",
+          "sha256": "3a2315ad7651fdf83b34c7725a04c9fec5e36ea0883aeb9c6a598c14eb8e07ff",
+          "start_byte": 53900
+        },
+        {
+          "end_byte": 55827,
+          "id": "lisa:maplibui:contract:walk-panel-accessibility-and-owner-scoped-pause-finish",
+          "sha256": "26f0b567396930d38529e625b474aad3062e569a30fb26b3dea55481ecf755b7",
+          "start_byte": 54632
+        },
+        {
+          "end_byte": 57919,
+          "id": "lisa:maplibui:contract:independent-walk-preview-point-lock-and-valid-geometry-before-form",
+          "sha256": "c8ba10949b329d157da1fd40450e1b94215a87ec66b57189642dda2ffaf8d6d7",
+          "start_byte": 55827
+        },
+        {
+          "end_byte": 58542,
+          "id": "lisa:maplibui:contract:recoverable-walk-owner-states-and-scoped-emergency-reset",
+          "sha256": "ae8ff5afa07fa401217c13e8a7d87db778620c6f6d60e3c9bc3d45ceb76ad757",
+          "start_byte": 57919
+        },
+        {
+          "end_byte": 59249,
+          "id": "lisa:maplibui:contract:current-cursor-and-confirmed-departure-measurement",
+          "sha256": "daf3c873230c84ac5b6eda566e12d281a2243bb17748133db423014a4cd91b85",
+          "start_byte": 58542
+        },
+        {
+          "end_byte": 59946,
+          "id": "lisa:maplibui:contract:shared-underlay-lifecycle-and-lease-owned-deletion",
+          "sha256": "afc0a6d252db8a17c50b93956bd28edc735937a985409a37e4b375bf5408c248",
+          "start_byte": 59249
+        },
+        {
+          "end_byte": 60691,
+          "id": "lisa:maplibui:contract:form-save-snapshots-and-durable-retry-identity",
+          "sha256": "fdcb436ce79a892836d8e95fe08fafb8b0c0ef1d75b41c9185c65bbad34c5744",
+          "start_byte": 59946
+        },
+        {
+          "end_byte": 61164,
+          "id": "lisa:maplibui:contract:recording-outbox-and-safe-internal-service-timeout",
+          "sha256": "11a968a02470b29355999472fef53ca7ca4feb80c66c13b63ba5ae6b9666e4ab",
+          "start_byte": 60691
+        },
+        {
+          "end_byte": 62201,
+          "id": "lisa:maplibui:contract:backup-format-and-ngw-identity-ui-contracts",
+          "sha256": "34fc20d8a061e15426d8ab5f1f6db6159f78b89117a5ddbc271808429ea6e4e3",
+          "start_byte": 61164
+        },
+        {
+          "end_byte": 62653,
+          "id": "lisa:maplibui:contract:script-controller-pinned-version-and-lower-layer-interpreter-ownership",
+          "sha256": "8e0a6098a9fb6370a6b36dc8b5880b76caa3eb94c08c86e5b1050eabb3a3ac2d",
+          "start_byte": 62201
+        },
+        {
+          "end_byte": 63649,
+          "id": "lisa:maplibui:contract:all-project-sync-queue-and-callback-provider-service-ownership",
+          "sha256": "3fdfd2fc12c66a4bbf361286a4ae6f560d66c1f2013aa8888ed6894c2bd98eb9",
+          "start_byte": 62653
+        },
+        {
+          "end_byte": 64643,
+          "id": "lisa:maplibui:contract:layer-selector-native-list-viewport-and-test-reference",
+          "sha256": "60d7c8d16ed95d2a8a0cf0d0ebc93272ae6ffd89036bcad36e7cb0dbbc9c7d16",
+          "start_byte": 63649
+        },
+        {
+          "end_byte": 65327,
+          "id": "lisa:maplibui:contract:versioned-script-service-binding-and-release-timing",
+          "sha256": "ecb6fab0de9d2f28b7f4b0be95bb3415efa179fd83870f4ab67e3c1100fbd59b",
+          "start_byte": 64643
+        },
+        {
+          "end_byte": 65749,
+          "id": "lisa:maplibui:evidence:october-17-diagnostic-handoff-and-scope",
+          "sha256": "8fff1bcc87b115acb3ce8ce222b7566c932f3c55984f9aba91ea62b8287aeea4",
+          "start_byte": 65327
+        },
+        {
+          "end_byte": 66078,
+          "id": "lisa:maplibui:resource:update-report-cards-and-local-verification-hook",
+          "sha256": "c36eca36b2d5e8812269c0fdf96c34d6aefbf58c73f403919217be8318b66903",
+          "start_byte": 65749
+        },
+        {
+          "end_byte": 66427,
+          "id": "lisa:maplibui:contract:effective-category-snapshot-and-save-cancel-ownership",
+          "sha256": "49b7cd62e7d202e5529a83187a4de61532a3a9967e12b747223ada2c044e1b7c",
+          "start_byte": 66078
+        },
+        {
+          "end_byte": 66933,
+          "id": "lisa:maplibui:contract:track-stop-confirmation-and-exact-durable-session-identity",
+          "sha256": "710d70c10de9d06ef42f70bb65f0b26d96de2a389e11148a5180fd316f2463ac",
+          "start_byte": 66427
+        },
+        {
+          "end_byte": 67409,
+          "id": "lisa:maplibui:contract:track-panel-action-theme-and-preserved-style-options",
+          "sha256": "3db218870e1089164bd058e5f16fbd5106dc0b86033d4cd50b0f93eb12702dcc",
+          "start_byte": 66933
+        },
+        {
+          "end_byte": 68197,
+          "id": "lisa:maplibui:contract:scoped-nested-ngfp-lookup-traversal",
+          "sha256": "52264b47d50eb297a66a559115d4e2f2223d8cd6d17526260d1c902f557eaa6c",
+          "start_byte": 67409
+        },
+        {
+          "end_byte": 69272,
+          "id": "lisa:maplibui:evidence:dated-lookup-test-and-consuming-compile-results",
+          "sha256": "1c101d7ebba61d7513b592d2ca17f9ea74a664abb11b9428f0ba6dfdcfc7867c",
+          "start_byte": 68197
+        },
+        {
+          "end_byte": 69871,
+          "id": "lisa:maplibui:note:localized-form-message-contract-with-dated-test-comparison",
+          "sha256": "56a3808667b94394bd3ae2df24ffbb743b066451d01c908398ee6075cf3f45bf",
+          "start_byte": 69272
+        },
+        {
+          "end_byte": 70494,
+          "id": "lisa:maplibui:contract:structured-child-load-failures-and-live-resource-ui",
+          "sha256": "8522d180f1adf24dee01d5fd5d8a6685f43226e91675fd9879a777f618842ef2",
+          "start_byte": 69871
+        },
+        {
+          "end_byte": 71120,
+          "id": "lisa:maplibui:contract:typed-fill-errors-redaction-and-existing-retry-handling",
+          "sha256": "1739c031b4c63f495ab5a0bd29bf72ad126f48e5f507bf52a6ea204591eab4b5",
+          "start_byte": 70494
+        },
+        {
+          "end_byte": 72494,
+          "id": "lisa:maplibui:evidence:dated-message-cohort-earlier-failure-and-runtime-boundaries",
+          "sha256": "398f931667b1129fff16df9c43ba22113ee6b771e19839f19857314433b2179c",
+          "start_byte": 71120
+        },
+        {
+          "end_byte": 73595,
+          "id": "lisa:maplibui:note:checkbox-projection-compact-restore-and-dated-source-evidence",
+          "sha256": "a28fb4f73be2f6bad4ffdffd4563c60e06c384bdd03ac91e73a15e82db18a3a0",
+          "start_byte": 72494
+        },
+        {
+          "end_byte": 74840,
+          "id": "lisa:maplibui:contract:recycled-resource-captions-actual-clipping-and-path-reach",
+          "sha256": "96ff2cbb734f914993bb7582c5e4c984be7d100bddd6384be2d6b5d6fde5eaeb",
+          "start_byte": 73595
+        },
+        {
+          "end_byte": 76796,
+          "id": "lisa:maplibui:evidence:caption-test-cohort-earlier-failed-cohort-and-compile-limits",
+          "sha256": "9bc4829fd8ea9e926c0c03f5695752eced2687692164218882ba12f2d7d813b4",
+          "start_byte": 74840
+        },
+        {
+          "end_byte": 77596,
+          "id": "lisa:maplibui:contract:selected-track-gpx-share-ownership-and-saved-content",
+          "sha256": "fbc68d548bd04fca674627ee9dfec5ff8ea73dd28149905da9e00a35a48a82f0",
+          "start_byte": 76796
+        },
+        {
+          "end_byte": 77954,
+          "id": "lisa:maplibui:evidence:dated-underlay-progress-and-open-native-verification",
+          "sha256": "e88f75638631c496366898e94a6d6660c3745ee3bb4fd483515aad03fcfee7f7",
+          "start_byte": 77596
+        }
+      ],
+      "path": "docs/README.md",
+      "record": "module-readme-frontmatter-and-title.json",
+      "revision": "99e0013f1efd56747c92a1ca2ee118b9605028b7",
+      "sha256": "a14b5fb9688cdd43e35ae6e50951d65033eab088b172446bedbd4261c4ca548b"
+    },
+    {
+      "applies_to": [
+        "."
+      ],
+      "blob": "3e6a569c8bab9f93f040863142d231ad28d34eef",
+      "bytes": 3441,
+      "id": "lisa:maplibui:resource:maplibui-knowledge-home",
+      "ordered_records_sha256": "b49b440e0decd1fe3aad3afeeb4abf823f097dcf5c28dfe37c672ba090defd21",
+      "ordered_spans": [
+        {
+          "end_byte": 1149,
+          "id": "lisa:maplibui:resource:maplibui-knowledge-home",
+          "sha256": "d79739e7536bed8c92d269ecbc597bc8312c14e06326ea929d2d379b68a48c63",
+          "start_byte": 0
+        },
+        {
+          "end_byte": 2216,
+          "id": "lisa:maplibui:resource:maplibui-knowledge-authoring",
+          "sha256": "ace1778c75eb16add724e301e8c0601f0f52e0c62abfe0392785f6ad8c1ce153",
+          "start_byte": 1149
+        },
+        {
+          "end_byte": 3441,
+          "id": "lisa:maplibui:resource:maplibui-knowledge-layout",
+          "sha256": "6259d667f3aaa80be09191d070c5dcf800df7ca726918a2f0c1be83f8ba9b05f",
+          "start_byte": 2216
+        }
+      ],
+      "path": "agent-system/README.md",
+      "record": "maplibui-knowledge-home.json",
+      "revision": "7fe61ce453d257ca9edc0d504055a9146fb67d3a",
+      "sha256": "9db2fbce1313355fc2f082639a5701ca3d1ca2889311f3431ae16b85f1549735"
+    }
+  ]
+}

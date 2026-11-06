@@ -1,0 +1,68 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Ограничения",
+        "",
+        "- Нет compile dependency на `app`.",
+        "- MapLibre dependency совпадает с `app` и `maplib`:",
+        "  `org.maplibre.gl:android-sdk-opengl:13.7.1`; generic MapLibre 13 artifact",
+        "  использует Vulkan и не допускается в production dependency graph.",
+        "- UI не выбирает типы для topology repair: решение разрешено только app/maplib",
+        "  для точного `GTMultiPolygon`; Polygon и линии сохраняют прежнее поведение.",
+        "- LayerGroup index `0` — bottom; UI и MapLibre должны совпадать."
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Lower-layer, OpenGL, topology and layer order boundaries"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:lower-layer-opengl-topology-and-layer-order-boundaries",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:lower-layer-opengl-topology-and-layer-order-boundaries"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

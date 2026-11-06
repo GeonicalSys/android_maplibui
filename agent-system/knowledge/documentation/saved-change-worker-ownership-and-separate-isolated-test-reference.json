@@ -1,0 +1,73 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "unknown",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "## Доставка сохранённых локальных изменений",
+        "",
+        "GISApplication направляет after-commit callback нижней библиотеки в",
+        "LocalChangesWorker. События карты объединяются за секунду в network-constrained",
+        "one-off цепочку APPEND_OR_REPLACE; startup и 15-минутный recovery job подбирают",
+        "оставшиеся очереди. Работает независимо от account full-sync enabled, соблюдая",
+        "remote read-only, направление to-server, SYNC_NONE и отдельные Save-флаги.",
+        "Штатный sendLocalChanges подтверждает только принятые сервером изменения.",
+        "DATA_SYNC lease и SyncWorkspaceSession удерживают owner до children/HTTP окончания;",
+        "равные layer IDs разных карт не смешиваются и активные preferences не меняются.",
+        "Worker не пишет full-project clock и не выполняет полный pull. Network/HTTP",
+        "ошибка возвращает retry с сохранением данных. Native LocalChangesUploadTest",
+        "использует synthetic account и реальный loopback NGW только на isolated emulator.",
+        ""
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Exact source text and historical evidence retained. Review version-sensitive claims before treating this mixed note as current."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Saved change worker ownership and separate isolated test reference"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:note:saved-change-worker-ownership-and-separate-isolated-test-reference",
+  "kind": "note",
+  "lifecycle": {
+    "goal": "open",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:note:saved-change-worker-ownership-and-separate-isolated-test-reference"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "unknown",
+  "topic": "documentation"
+}

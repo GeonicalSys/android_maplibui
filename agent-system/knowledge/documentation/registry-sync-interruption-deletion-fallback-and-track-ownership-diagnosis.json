@@ -1,0 +1,68 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "- Неверный проект после restart: registry JSON, active project и map path.",
+        "- Импорт во время sync показывает предупреждение с кнопкой прерывания; проверить",
+        "  `ProjectSyncInterruption`, отмену worker и то, что блокировка срабатывает до",
+        "  `ensureProject()`. При fill/rebuild сохраняется `PrepareWorkspaceResult.BUSY`.",
+        "  и открыть модальное сообщение.",
+        "- После успешного удаления показана ошибка: не открывать fallback-карту из",
+        "  фонового потока удаления; её открывает `MainActivity` после результата.",
+        "- Пустая/чужая история треков после switch: проверить active project preference, создание нового",
+        "  `MapDrawable` и перепривязку `LayerContentProvider` к тому же workspace."
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Registry, sync interruption, deletion fallback and track ownership diagnosis"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:resource:registry-sync-interruption-deletion-fallback-and-track-ownership-diagnosis",
+  "kind": "resource",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:resource:registry-sync-interruption-deletion-fallback-and-track-ownership-diagnosis"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}

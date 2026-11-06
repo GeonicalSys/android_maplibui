@@ -1,0 +1,67 @@
+{
+  "applicability": {
+    "conditions": [],
+    "paths": [
+      {
+        "exclude": [],
+        "include": [
+          "docs/README.md"
+        ],
+        "repository": "android_projects/android_gisapp/maplibui"
+      }
+    ],
+    "review_status": "reviewed",
+    "scope_refs": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "execution_permission": false,
+  "facets": {
+    "body": {
+      "role": "original_owner_markdown_lines",
+      "value": [
+        "- Backup failure блокирует destructive mutation; отсутствие локальной копии",
+        "  server-only вложения не является failure.",
+        "- Project UID/map path не смешиваются между workspaces; во время sync UI предлагает",
+        "  прервать sync перед switch/create/rename/delete или destructive project",
+        "  mutation. Несколько владельцев отмены регистрируются независимо; завершение",
+        "  отклонённого запуска не снимает handler активного worker. Пока подтверждается",
+        "  уже отправленная серверная правка, UI объясняет безопасное ожидание;",
+        "  fill/rebuild остаются взаимоисключающими с изменением проекта."
+      ]
+    },
+    "source-review": {
+      "role": "verification_boundary",
+      "value": "Source-text review covers this exact original span. Runtime acceptance remains separate."
+    },
+    "title": {
+      "role": "reviewed_subject",
+      "value": "Backup gate, cancellation ownership and project mutation fencing"
+    },
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    }
+  },
+  "id": "lisa:maplibui:contract:backup-gate-cancellation-ownership-and-project-mutation-fencing",
+  "kind": "contract",
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "merge": "not_applicable",
+    "release": "not_applicable",
+    "retention": "Retain the reviewed original span and its source-applicability boundary with the owning library.",
+    "runtime_verification": "NOT_RUN",
+    "source_verification": "PASS"
+  },
+  "owner": "android_projects/android_gisapp/maplibui",
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:contract:backup-gate-cancellation-ownership-and-project-mutation-fencing"
+    ]
+  },
+  "relations": [],
+  "schema_version": 2,
+  "status": "active",
+  "topic": "documentation"
+}
