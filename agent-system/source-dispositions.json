@@ -32,6 +32,17 @@
         "agent-system/README.md"
       ],
       "reason": "Exact original Git objects, complete reviewed README byte spans and ordered owner record fingerprints."
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "046f49325a61f67f6dedfbd5070c74024097e6412c8f695d584abf686ab534c4",
+      "sha256_scope": "utf8_lf",
+      "category": "retained_evidence",
+      "reason": "Keep the maplibui repository's LGPL version 3 license text at its published Git address.",
+      "applies_to": [
+        "LICENSE",
+        "README.md"
+      ]
     }
   ]
 }
