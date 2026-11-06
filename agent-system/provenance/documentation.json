@@ -625,6 +625,39 @@
       "record": "module-readme-frontmatter-and-title.json",
       "revision": "99e0013f1efd56747c92a1ca2ee118b9605028b7",
       "sha256": "a14b5fb9688cdd43e35ae6e50951d65033eab088b172446bedbd4261c4ca548b"
+    },
+    {
+      "applies_to": [
+        "."
+      ],
+      "blob": "3e6a569c8bab9f93f040863142d231ad28d34eef",
+      "bytes": 3441,
+      "id": "lisa:maplibui:resource:maplibui-knowledge-home",
+      "ordered_records_sha256": "b49b440e0decd1fe3aad3afeeb4abf823f097dcf5c28dfe37c672ba090defd21",
+      "ordered_spans": [
+        {
+          "end_byte": 1149,
+          "id": "lisa:maplibui:resource:maplibui-knowledge-home",
+          "sha256": "d79739e7536bed8c92d269ecbc597bc8312c14e06326ea929d2d379b68a48c63",
+          "start_byte": 0
+        },
+        {
+          "end_byte": 2216,
+          "id": "lisa:maplibui:resource:maplibui-knowledge-authoring",
+          "sha256": "ace1778c75eb16add724e301e8c0601f0f52e0c62abfe0392785f6ad8c1ce153",
+          "start_byte": 1149
+        },
+        {
+          "end_byte": 3441,
+          "id": "lisa:maplibui:resource:maplibui-knowledge-layout",
+          "sha256": "6259d667f3aaa80be09191d070c5dcf800df7ca726918a2f0c1be83f8ba9b05f",
+          "start_byte": 2216
+        }
+      ],
+      "path": "agent-system/README.md",
+      "record": "maplibui-knowledge-home.json",
+      "revision": "7fe61ce453d257ca9edc0d504055a9146fb67d3a",
+      "sha256": "9db2fbce1313355fc2f082639a5701ca3d1ca2889311f3431ae16b85f1549735"
     }
   ]
 }

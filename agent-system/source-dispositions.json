@@ -12,16 +12,6 @@
       "reason": "Individually authored complete original Git/source/character and logical-unit inverse map, including selector and caption receipt/policy boundaries; retained provenance without active-prose or deletion authority."
     },
     {
-      "path": "agent-system/README.md",
-      "sha256": "9db2fbce1313355fc2f082639a5701ca3d1ca2889311f3431ae16b85f1549735",
-      "sha256_scope": "utf8_lf",
-      "category": "working_bridge",
-      "applies_to": [
-        "."
-      ],
-      "reason": "Reviewed physical identity, full source projection, historical failure/authority boundary, shared compiler/live basis, existing clients and complete remaining six-owner objective; no product execution/acceptance."
-    },
-    {
       "path": "agent-system/provenance/maplibui-module-manifest.json",
       "sha256": "895066487c3c3ad30fb508b22c84d8fb5b971db7023fb53d77fb9b0131ff05b8",
       "sha256_scope": "utf8_lf",
@@ -33,12 +23,13 @@
     },
     {
       "path": "agent-system/provenance/documentation.json",
-      "sha256": "55a95d1b46ad67aecffb5e0c1bae735b1f8545d8bc520abf9ebc120a21b15f5d",
+      "sha256": "03396dd3127c331d4d4a0dfcbd42880363be2895ec143444480dfdde544b1ef2",
       "sha256_scope": "utf8_lf",
       "category": "retained_evidence",
       "applies_to": [
         "README.md",
-        "docs/README.md"
+        "docs/README.md",
+        "agent-system/README.md"
       ],
       "reason": "Exact original Git objects, complete reviewed README byte spans and ordered owner record fingerprints."
     }
