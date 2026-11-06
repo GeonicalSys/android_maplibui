@@ -1,7 +1,7 @@
 # maplibui knowledge sources
 
 This physical owner participates in the WHOLE six-owner LISA restructuring.
-The complete unchanged [AGENTS](../AGENTS.md) is authored as logical instructions,
+The original AGENTS.md is authored as logical instructions,
 contracts and individually separated historical evidence in [knowledge/policy](knowledge/policy).
 The [inverse map](policy-migration.json) pins its Git object and every normalized
 character, including within-line policy/history boundaries. Cross-owner equal
@@ -23,8 +23,8 @@ read JSON but must report the compiler unavailable when LISA is absent; no priva
 scanner or successful unchecked replay. Default foreign bases are committed HEAD;
 shared builds/checks over uncommitted owner changes explicitly declare this owner live.
 
-Existing AGENTS, Cursor rules, validators and hooks remain effective until measured
-actual-client cutover. Library Merge Commit must precede a fetched merged app
+The [working entrance](../AGENTS.md) and Cursor rule open the shared scoped reader.
+Existing validators and hooks still apply. Library Merge Commit must precede a fetched merged app
 gitlink, then app/publisher Squash; an open library PR is not an adopted dependency.
 No product source, version, data or app index pin changes here. ALL remaining
 knowledge types, independent task lifecycle and whole-subject views, real clients
