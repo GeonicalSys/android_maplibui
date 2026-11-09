@@ -84,7 +84,6 @@ import java.util.Queue;
 
 import static com.nextgis.maplib.util.GeoConstants.TMSTYPE_NORMAL;
 import static com.nextgis.maplib.util.GeoConstants.TMSTYPE_OSM;
-import static java.lang.Thread.interrupted;
 
 public class CreateFromQMSLayerDialog extends NGDialog {
     protected final static String QMS_URL = "https://qms.nextgis.com/api/v1";
@@ -408,18 +407,21 @@ public class CreateFromQMSLayerDialog extends NGDialog {
         protected void onPostExecute(HttpResponse response) {
             super.onPostExecute(response);
 
-            if (!interrupted())
+            Dialog dialog = getDialog();
+            if (dialog == null || !isAdded() || isCancelled() || task == null || task.get() != this) {
+                return;
+            }
+
+            Context context = dialog.getContext();
             if (response.isOk()) {
                 try {
-                    new JSONArray(response.getResponseBody());
-                    createList(response.getResponseBody());
+                    createList(context, new JSONArray(response.getResponseBody()));
                 } catch (JSONException ignored) {
-                    Toast.makeText(mContextWeakRef.get(), R.string.qms_unavailable, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, R.string.qms_unavailable, Toast.LENGTH_SHORT).show();
                     showRetry();
                 }
             } else {
-                Toast.makeText(
-                        mContextWeakRef.get(), NetworkUtil.getError(mContextWeakRef.get(), response.getResponseCode()),
+                Toast.makeText(context, NetworkUtil.getError(context, response.getResponseCode()),
                         Toast.LENGTH_SHORT).show();
                 showRetry();
             }
@@ -433,9 +435,8 @@ public class CreateFromQMSLayerDialog extends NGDialog {
             mPositive.setText(R.string.retry);
         }
 
-        private void createList(String response) {
+        private void createList(Context context, JSONArray layers) {
             try {
-                JSONArray layers = new JSONArray(response);
                 for (int i = 0; i < layers.length(); i++) {
                     JSONObject layer = layers.getJSONObject(i);
                     HashMap<String, Object> data = new HashMap<>();
@@ -448,7 +449,8 @@ public class CreateFromQMSLayerDialog extends NGDialog {
                 e.printStackTrace();
             }
 
-            mAdapter = new LayersAdapter(mContextWeakRef.get(), mData, R.layout.item_qms_layer, new String[]{KEY_NAME}, new int[]{R.id.text1});
+            mAdapter = new LayersAdapter(context, mData, R.layout.item_qms_layer,
+                    new String[]{KEY_NAME}, new int[]{R.id.text1});
             mLayers.setChoiceMode(AbsListView.CHOICE_MODE_MULTIPLE);
             mLayers.setAdapter(mAdapter);
 

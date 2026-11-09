@@ -29,7 +29,9 @@
         "  среди них могут быть тяжёлые MBTiles или пользовательские данные.",
         "- Crash `No Vulkan compatible GPU found` до появления карты означает, что в",
         "  runtime dependency graph вернулся generic/Vulkan MapLibre artifact вместо",
-        "  согласованного `android-sdk-opengl`."
+        "  согласованного `android-sdk-opengl`.",
+        "- На старте MaplibUI отмечает вход и выход из инициализации MapLibre",
+        "  в общем наблюдателе загрузки. Отчёт сохраняет длительность стадии."
       ]
     },
     "source-review": {
