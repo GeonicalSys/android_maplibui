@@ -70,6 +70,7 @@ import com.nextgis.maplib.map.LayerOriginMetadata;
 import com.nextgis.maplib.map.VectorLayer;
 import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
+import com.nextgis.maplib.util.MapRuntimeDiagnostics;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.LayerFormHashUtil;
 import com.nextgis.maplib.util.NGWUtil;
@@ -354,8 +355,11 @@ public abstract class GISApplication extends Application
     }
 
     private void initializeMapbox() {
-        MapLibre.getInstance(this, "sjdkfhjkdshfkjhsdkjf", WellKnownTileServer.MapTiler);
-        MapStrictMode.setStrictModeEnabled(true);
+        try (MapRuntimeDiagnostics.StartupStep ignored =
+                     MapRuntimeDiagnostics.startupStep(MapRuntimeDiagnostics.StartupPhase.MAPLIBRE_INITIALIZATION)) {
+            MapLibre.getInstance(this, "sjdkfhjkdshfkjhsdkjf", WellKnownTileServer.MapTiler);
+            MapStrictMode.setStrictModeEnabled(true);
+        }
     }
 
     protected int getThemeId(boolean isDark){

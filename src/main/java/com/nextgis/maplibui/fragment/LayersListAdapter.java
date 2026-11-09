@@ -33,7 +33,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.drawerlayout.widget.DrawerLayout;
 
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
@@ -81,6 +80,7 @@ import static com.nextgis.maplibui.util.ExportGeoJSONTask.ZIP_EXT;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 
@@ -95,6 +95,7 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
     protected DrawerLayout mDrawer;
     protected onEdit mEditListener;
     protected View.OnClickListener mOnPencilClickListener;
+    private List<ILayer> mRows = Collections.emptyList();
     private Set<Integer> mPendingChanges = Collections.emptySet();
     private Runnable mOnLayerDataChanged;
 
@@ -120,8 +121,10 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
         mMap = map.getMap();
         mActivity = new WeakReference<>(activity);
 
-        if (null != mMap)
+        if (mMap != null) {
             mMap.addListener(this);
+            mRows = mMap.getLayers();
+        }
     }
 
 
@@ -150,30 +153,30 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
 
 
     @Override
+    public void notifyDataSetChanged() {
+        // ListView must see the new rows and the notification in the same UI turn.
+        mRows = mMap == null ? Collections.emptyList() : mMap.getLayers();
+        super.notifyDataSetChanged();
+    }
+
+
+    @Override
     public int getCount() {
-        if (null != mMap)
-            return mMap.getLayerCount();
-        return 0;
+        return mRows.size();
     }
 
 
     @Override
-    public Object getItem(int i) {
-        int nIndex = getCount() - 1 - i;
-        if (null != mMap)
-            return mMap.getLayer(nIndex);
-        return null;
+    public ILayer getItem(int position) {
+        int index = mRows.size() - 1 - position;
+        return index >= 0 && index < mRows.size() ? mRows.get(index) : null;
     }
 
 
     @Override
-    public long getItemId(int i) {
-        if (i < 0 || i >= mMap.getLayerCount())
-            return NOT_FOUND;
-        Table layer = (Table) getItem(i);
-        if (null != layer)
-            return layer.getId();
-        return NOT_FOUND;
+    public long getItemId(int position) {
+        ILayer layer = getItem(position);
+        return layer == null ? NOT_FOUND : layer.getId();
     }
 
 
@@ -591,25 +594,12 @@ public class LayersListAdapter extends BaseAdapter implements MapEventListener {
 
 
     public void swapElements(int originalPosition, int newPosition) {
-        Log.d("SSWAPP",
-              "Original position: " + originalPosition + " Destination position: " + newPosition);
-        if (null == mMap) {
-            return;
+        ILayer source = getItem(originalPosition);
+        ILayer target = getItem(newPosition);
+        if (mMap != null && source != null && target != null) {
+            mMap.moveLayer(source, target);
+            notifyDataSetChanged();
         }
-
-        final ILayer iLayerFrom = (ILayer)getItem(originalPosition);
-        final ILayer iLayerTo = (ILayer)getItem(newPosition);
-
-        Log.d("SSWAPP",
-                "Original position: " + iLayerFrom.getName() + " Destination position: " + iLayerTo.getName());
-
-
-
-        int newPositionFixed = getCount() - 1 - newPosition;
-        mMap.moveLayer(newPositionFixed, (com.nextgis.maplib.api.ILayer) getItem(originalPosition));
-
-//        mMap.updatelayerOrder(iLayerFrom, iLayerTo);
-        notifyDataSetChanged();
     }
 
 
