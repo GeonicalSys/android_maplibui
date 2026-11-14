@@ -40,6 +40,12 @@ public final class LocalChangesWorker extends Worker {
             schedule(context, new File(project.getMapPath()));
         schedule(context, ((IGISApplication) context.getApplicationContext()).getMap());
     }
+    /** UI requests use a trusted registry identity, never a caller-supplied filesystem path. */
+    public static boolean requestProject(Context context,String uid) {
+        for(CollectorProjectRegistry.ProjectInfo project:CollectorProjectRegistry.listProjects(context))
+            if(project.getProjectUid().equals(uid)) {schedule(context,new File(project.getMapPath()));return true;}
+        return false;
+    }
     private static void schedule(Context context, File file) {
         if (file == null || !file.isDirectory()) return;
         try {
@@ -110,6 +116,7 @@ public final class LocalChangesWorker extends Worker {
         boolean background = false, interrupted = false;
         try {
             File directory = new File(path).getCanonicalFile();
+            if(ProjectRecoveryGuard.isDeliveryBlocked(directory))return true;
             File mapFile = null;
             for (CollectorProjectRegistry.ProjectInfo project : CollectorProjectRegistry.listProjects(context))
                 if (directory.equals(new File(project.getMapPath()).getCanonicalFile()))
@@ -145,6 +152,7 @@ public final class LocalChangesWorker extends Worker {
             if (layer instanceof LayerGroup) complete &= push((LayerGroup) layer);
             else if (layer instanceof NGWVectorLayer) {
                 NGWVectorLayer vector = (NGWVectorLayer) layer;
+                vector.cleanupAcknowledgedUploads();
                 if (!outboundEnabled(vector) || FeatureChanges.getChangeCount(
                         DatabaseContext.getDatabaseForLayer(vector, false), vector.getChangeTableName()) == 0) continue;
                 SyncResult result = new SyncResult();

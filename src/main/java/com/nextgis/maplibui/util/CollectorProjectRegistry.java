@@ -461,6 +461,42 @@ public final class CollectorProjectRegistry {
         }
     }
 
+    /** Publish an already verified, held recovery copy without activating it or replacing a project. */
+    static ProjectInfo registerRecoveredProject(Context context, File workspace, String requestedName,
+            String mapName, ProjectOperationCoordinator.Lease lease) throws IOException {
+        if (lease == null || !lease.owns(ProjectOperationCoordinator.Kind.PROJECT_RESTORE))
+            throw new IOException("Recovery does not own the project registry");
+        if (requestedName == null || requestedName.trim().isEmpty() || mapName == null || mapName.isEmpty()
+                || mapName.contains("/") || mapName.contains("\\") || mapName.contains(":"))
+            throw new IOException("Invalid recovery project name");
+        synchronized (LOCK) {
+            File root = getWorkspacesRootDir(context);
+            com.nextgis.maplib.util.UnderlayFiles.requireChild(root, workspace);
+            if (java.nio.file.Files.isSymbolicLink(workspace.toPath())
+                    || !workspace.getParentFile().getName().startsWith(".restore-")
+                    || !workspace.getParentFile().getParentFile().getCanonicalFile().equals(root.getCanonicalFile())
+                    || !new File(workspace, mapName + Constants.MAP_EXT).isFile()
+                    || !com.nextgis.maplib.util.ProjectRecoveryGuard.isHeld(workspace))
+                throw new IOException("Recovery workspace is not verified and held");
+            ArrayList<ProjectInfo> projects = loadProjectsLocked(context);
+            String uuid = UUID.randomUUID().toString(), uid = "local:" + uuid;
+            File destination = new File(root, "recovered_" + uuid);
+            com.nextgis.maplib.util.UnderlayFiles.requireChild(root, destination);
+            if (destination.exists()) throw new IOException("Recovery destination already exists");
+            String name = uniqueDisplayName(projects, requestedName.trim(), uid);
+            ProjectInfo project = new ProjectInfo(uid, ProjectType.LOCAL, null, 0L, name, name,
+                    null, destination.getAbsolutePath(), mapName, System.currentTimeMillis(), 0L);
+            try {
+                writeAtomicFile(new File(workspace, WORKSPACE_INFO_NAME), project.toJSON().toString());
+            } catch (JSONException error) { throw new IOException("Invalid recovery registration", error); }
+            java.nio.file.Files.move(workspace.toPath(), destination.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            projects.add(project);
+            if (!saveProjectsLocked(context, projects))
+                throw new IOException("Recovery copy retained; registry update failed");
+            return project;
+        }
+    }
+
     public static ProjectInfo createAndActivateLocalProject(
             Context context,
             String requestedName) {

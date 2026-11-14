@@ -187,6 +187,7 @@ public class ModifyAttributesActivity
     private volatile boolean mFormSaving;
     private long mLastCheckpointWarning;
     private String mFormOperationId = java.util.UUID.randomUUID().toString();
+    private boolean mFormClearFailed;
     private String mScriptReferencePin;
     private com.nextgis.maplibui.util.ProjectScriptFormController mProjectScripts;
     private final android.os.Handler mDraftHandler = new android.os.Handler(Looper.getMainLooper());
@@ -442,6 +443,24 @@ public class ModifyAttributesActivity
                     }
                 }
 
+                if (!mIsViewOnly && mFeatureId != NOT_FOUND) {
+                    android.database.sqlite.SQLiteDatabase db = com.nextgis.maplib.util.DatabaseContext.getDatabaseForLayer(mLayer, false);
+                    com.nextgis.maplib.util.LayerDatabaseTransaction.run(db, () -> {
+                        mFeatureId = com.nextgis.maplib.util.UploadOperationJournal.resolveCreatedId(
+                                db, mLayer.getPath().getName(), mFeatureId, mFormOperationId);
+                        if (mFeatureId != NOT_FOUND) com.nextgis.maplib.util.FeatureSaveJournal.holdUpload(db,
+                                mLayer.getPath().getName(), mFeatureId, mFormOperationId);
+                        return null;
+                    });
+                    if (mFeatureId == NOT_FOUND) {
+                        // A missing old row must not become a new-object draft during finish/onPause.
+                        // Any existing recovery checkpoint remains available to the recovery screen.
+                        mFormDraftFinalized = true;
+                        Toast.makeText(this, R.string.error_db_query, Toast.LENGTH_LONG).show();
+                        finish();
+                        return;
+                    }
+                }
                 mCopiedValues = controlsState == null ? null : controlsState.getString(
                         com.nextgis.maplibui.util.FeatureCopyDefaults.VALUES);
                 mCopiedControlBaseline = controlsState == null ? null : controlsState.getString(
@@ -735,10 +754,16 @@ public class ModifyAttributesActivity
         return null;
     }
 
-    protected void clearFormDraft() {
+    protected boolean clearFormDraft() {
+        if (!FeatureFormDraftStore.clearOwned(this, mFormOperationId)) {
+            mFormClearFailed = true;
+            return false;
+        }
+        mFormClearFailed = false;
         mFormDraftFinalized = true;
-        FeatureFormDraftStore.clear(this);
+        releaseOwnUploadHold();
         WalkSessionStore.endPoint(this, mPointSessionId);
+        return true;
     }
 
 
@@ -794,8 +819,7 @@ public class ModifyAttributesActivity
                     .setNegativeButton(R.string.discard, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-                            clearFormDraft();
-                            finish();
+                            if (clearFormDraft()) finish();
                         }
                     })
                     .setNeutralButton(R.string.cancel, new DialogInterface.OnClickListener() {
@@ -1024,47 +1048,26 @@ public class ModifyAttributesActivity
             return false;
         }
 
-        boolean error;
         boolean wasNewFeature = mFeatureId == NOT_FOUND;
-        if (wasNewFeature) {
-            // we need to get proper mFeatureId for new features first
-            Uri result = null;
-            try {
-                result = getContentResolver().insert(uri.buildUpon().appendQueryParameter(
-                        com.nextgis.maplib.util.FeatureSaveJournal.URI_PARAMETER,
-                        mFormOperationId).build(), values);
-            } catch (RuntimeException e) {
-                logFeatureSaveException("insert threw", uri, values, geoGeometry, e);
-                showDbError(R.string.error_db_insert);
-                return false;
-            }
-            error = result == null;
-            if (error) {
-                logFeatureSaveFailure("insert returned null", uri, values, geoGeometry);
-                showDbError(R.string.error_db_insert);
-                //Toast.makeText(this, getText(R.string.error_db_insert), Toast.LENGTH_SHORT).show();
-            } else {
-                mFeatureId = Long.parseLong(result.getLastPathSegment());
-            }
-        } else {
-            Uri updateUri = ContentUris.withAppendedId(uri, mFeatureId);
-            boolean valuesUpdated;
-            try {
-                valuesUpdated = getContentResolver().update(updateUri, values, null, null) == 1;
-            } catch (RuntimeException e) {
-                logFeatureSaveException("update threw", updateUri, values, geoGeometry, e);
-                showDbError(R.string.error_db_update);
-                return false;
-            }
-            error = !valuesUpdated;
-            if (error) {
-                logFeatureSaveFailure("update affected 0 rows", updateUri, values, geoGeometry);
-                showDbError(R.string.error_db_update);
-                //Toast.makeText(this, getText(R.string.error_db_update), Toast.LENGTH_SHORT).show();
-            }
-        }
-
-        if (error) {
+        android.database.sqlite.SQLiteDatabase saveDb = com.nextgis.maplib.util.DatabaseContext.getDatabaseForLayer(mLayer, false);
+        try {
+            mFeatureId = com.nextgis.maplib.util.LayerDatabaseTransaction.run(saveDb, () -> {
+                long savedId = mFeatureId;
+                if (wasNewFeature) {
+                    Uri created = getContentResolver().insert(uri.buildUpon().appendQueryParameter(
+                            com.nextgis.maplib.util.FeatureSaveJournal.URI_PARAMETER, mFormOperationId).build(), values);
+                    if (created == null) throw new android.database.sqlite.SQLiteException("Feature insert returned null");
+                    savedId = Long.parseLong(created.getLastPathSegment());
+                } else if (getContentResolver().update(ContentUris.withAppendedId(uri, savedId), values, null, null) != 1) {
+                    throw new android.database.sqlite.SQLiteException("Feature update affected no row");
+                }
+                com.nextgis.maplib.util.FeatureSaveJournal.holdUpload(saveDb,
+                        mLayer.getPath().getName(), savedId, mFormOperationId);
+                return savedId;
+            });
+        } catch (RuntimeException error) {
+            logFeatureSaveException("feature/hold commit failed", uri, values, geoGeometry, error);
+            showDbError(wasNewFeature ? R.string.error_db_insert : R.string.error_db_update);
             return false;
         }
 
@@ -1081,6 +1084,16 @@ public class ModifyAttributesActivity
             showShortToast(R.string.error_form_attachments);
             return false;
         }
+        // The feature receipt alone precedes photograph/signature work. Only this
+        // boundary proves a complete Save, even when clearing the UI checkpoint fails.
+        com.nextgis.maplib.util.LayerDatabaseTransaction.run(saveDb,()->{
+            com.nextgis.maplib.util.FeatureSaveJournal.completeForm(saveDb,mLayer.getPath().getName(),mFormOperationId,mFeatureId);
+            try {
+                com.nextgis.maplib.util.ProjectRecoveryGuard.releaseCompletedFormHolds(
+                        com.nextgis.maplib.util.DatabaseContext.getMapForLayer(mLayer).getPath(),saveDb,mLayer.getPath().getName(),mFeatureId);
+            }catch(java.io.IOException error) {throw new android.database.sqlite.SQLiteException("Cannot complete recovered form",error);}
+            return null;
+        });
         Intent data = new Intent();
         data.putExtra(ConstantsUI.KEY_FEATURE_ID, mFeatureId);
         data.putExtra(ConstantsUI.KEY_LAYER_ID, mLayer.getId());
@@ -1089,13 +1102,13 @@ public class ModifyAttributesActivity
             data.putExtra(KEY_ADDED_POINT, new double[]{ ((GeoPoint)geoGeometry).getX(), ((GeoPoint)geoGeometry).getY() });
         HyperLog.v(Constants.TAG, "FormSave result ready layer=" + mLayer.getId()
                 + " feature=" + mFeatureId + " wasNew=" + wasNewFeature);
-        onMain(() -> {
+        boolean finalized = onMain(() -> {
+            if (!clearFormDraft()) return false;
             setResult(RESULT_OK, data);
             if (mWalkSessionId != null) WalkSessionStore.clear(this, mWalkSessionId);
-            clearFormDraft();
-            return null;
+            return true;
         });
-        return !error;
+        return finalized;
     }
 
 
@@ -1360,7 +1373,19 @@ public class ModifyAttributesActivity
 
     @Override protected void onDestroy() {
         if (mProjectScripts != null) mProjectScripts.close();
+        if (!mFormSaving && !mFormClearFailed && mLayer != null) {
+            FeatureFormDraftStore.Snapshot draft = FeatureFormDraftStore.load(this);
+            if (draft == null || !mFormOperationId.equals(draft.operationId)) releaseOwnUploadHold();
+        }
         super.onDestroy();
+    }
+
+    private void releaseOwnUploadHold() {
+        if (mLayer == null || mIsViewOnly) return;
+        android.database.sqlite.SQLiteDatabase db = com.nextgis.maplib.util.DatabaseContext.getDatabaseForLayer(mLayer, false);
+        com.nextgis.maplib.util.FeatureSaveJournal.releaseUpload(db, mLayer.getPath().getName(), mFormOperationId);
+        ((IGISApplication) getApplication()).onLocalChangesCommitted(
+                com.nextgis.maplib.util.DatabaseContext.getMapForLayer(mLayer));
     }
 
     protected Object putFieldValue(

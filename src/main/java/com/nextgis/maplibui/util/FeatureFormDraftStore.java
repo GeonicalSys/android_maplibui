@@ -29,6 +29,7 @@ public final class FeatureFormDraftStore {
     private static final String TAG = "FeatureFormDraftStore";
     private static final String PREFS = "feature_form_draft";
     private static final String KEY_STATE = "state_json";
+    private static volatile boolean sourcePreservationFailed;
     private static final int VERSION = 1;
     private static final String BUNDLE_TYPE = "__bundle_type";
     private static final String BUNDLE_VALUE = "value";
@@ -72,27 +73,40 @@ public final class FeatureFormDraftStore {
         }
     }
 
-    public static boolean save(Context context, Snapshot snapshot) {
+    public static synchronized boolean save(Context context, Snapshot snapshot) {
         if (context == null || snapshot == null || !snapshot.isValid()) {
             return false;
         }
         try {
             JSONObject encoded = encode(snapshot);
-            String existing = preferences(context).getString(KEY_STATE, null);
+            String existing;
+            try {existing=preferences(context).getString(KEY_STATE, null);}
+            catch(ClassCastException error) {
+                if(!DraftQuarantineStore.preservePreferences(context,"invalid_preference_type")
+                        ||!preferences(context).edit().remove(KEY_STATE).commit())return false;
+                existing=null;
+            }
             if (existing != null) {
                 try {
                     JSONObject previous = new JSONObject(existing);
+                    Snapshot prior = decode(previous);
+                    if (prior == null || !prior.isValid()) {
+                        if (!DraftQuarantineStore.preserve(context, existing, "invalid_before_replace")) return false;
+                    } else if (!prior.operationId.equals(snapshot.operationId)) {
+                        if (!DraftQuarantineStore.preserve(context, existing, "replaced_operation")) return false;
+                    }
                     previous.remove("updated_at");
                     encoded.remove("updated_at");
                     if (previous.toString().equals(encoded.toString())) return true;
                 } catch (JSONException error) {
-                    Log.w(TAG, "Replacing unreadable form checkpoint", error);
+                    if (!DraftQuarantineStore.preserve(context, existing, "unreadable_before_replace")) return false;
                 }
             }
             snapshot.updatedAtMs = System.currentTimeMillis();
             boolean committed = preferences(context).edit()
                     .putString(KEY_STATE, encode(snapshot).toString())
                     .commit();
+            if(committed)sourcePreservationFailed=false;
             if (!committed) {
                 Log.e(TAG, "Failed to commit form draft");
                 HyperLog.e(Constants.TAG, "FormDraft commit failed layer=" + snapshot.layerId
@@ -109,23 +123,23 @@ public final class FeatureFormDraftStore {
             Log.e(TAG, "Failed to encode form draft", e);
             HyperLog.e(Constants.TAG, "FormDraft encode failed: " + e.getMessage(), e);
             return false;
+        } catch (RuntimeException error) {
+            Log.e(TAG,"Cannot persist draft; source retained");return false;
         }
     }
 
-    public static Snapshot load(Context context) {
+    public static synchronized Snapshot load(Context context) {
         if (context == null) {
             return null;
         }
-        String value = preferences(context).getString(KEY_STATE, null);
-        if (value == null || value.length() == 0) {
-            return null;
-        }
+        String value=null;
         try {
+            value=preferences(context).getString(KEY_STATE,null);
+            if(value==null)return null;
             Snapshot snapshot = decode(new JSONObject(value));
             if (snapshot == null || !snapshot.isValid()) {
-                Log.e(TAG, "Invalid form draft; discarding");
-                HyperLog.w(Constants.TAG, "FormDraft invalid; discarding");
-                clear(context);
+                Log.e(TAG, "Invalid form draft; preserving original");
+                if (DraftQuarantineStore.preserve(context, value, "invalid_checkpoint")) clearInternal(context, null);
                 return null;
             }
             HyperLog.v(Constants.TAG, "FormDraft loaded layer=" + snapshot.layerId
@@ -135,9 +149,12 @@ public final class FeatureFormDraftStore {
                     + " photos=" + snapshot.photoPaths.size());
             return snapshot;
         } catch (JSONException e) {
-            Log.e(TAG, "Corrupt form draft; discarding", e);
-            HyperLog.e(Constants.TAG, "FormDraft corrupt; discarding: " + e.getMessage(), e);
-            clear(context);
+            Log.e(TAG, "Corrupt form draft; preserving original", e);
+            if (DraftQuarantineStore.preserve(context, value, "unreadable_checkpoint")) clearInternal(context, null);
+            return null;
+        } catch(RuntimeException error) {
+            Log.e(TAG,"Unreadable draft preferences; source retained");
+            if(DraftQuarantineStore.preservePreferences(context,"unreadable_preferences"))clearInternal(context,null);
             return null;
         }
     }
@@ -154,14 +171,122 @@ public final class FeatureFormDraftStore {
     }
 
     public static void clear(Context context) {
+        clearInternal(context, null);
+    }
+
+    public static boolean clearOwned(Context context, String operationId) {
+        return operationId != null && clearInternal(context, operationId);
+    }
+
+    private static synchronized boolean clearInternal(Context context, String operationId) {
         if (context != null) {
+            Snapshot released = null;
+            String raw=null;
+            try {
+                raw = preferences(context).getString(KEY_STATE, null);
+                if (raw != null) released = decode(new JSONObject(raw));
+                if(raw!=null&&(released==null||!released.isValid())
+                        &&!DraftQuarantineStore.preserve(context,raw,"invalid_before_clear"))return false;
+            } catch (JSONException ignored) {
+                if (operationId != null) return false;
+                if(raw!=null&&!DraftQuarantineStore.preserve(context,raw,"unreadable_before_clear"))return false;
+            } catch(RuntimeException error) {
+                if(operationId!=null||!DraftQuarantineStore.preservePreferences(context,"unreadable_preferences_before_clear"))return false;
+            }
+            if (operationId != null && raw != null && (released == null || !operationId.equals(released.operationId))) return false;
+            // Automatic recovery rejection also uses generic clear for structurally valid
+            // drafts whose layer/feature/session no longer exists. Preserve those bytes too.
+            if(operationId==null&&raw!=null&&!DraftQuarantineStore.preserve(context,raw,"before_unowned_clear")) {
+                sourcePreservationFailed=true;return false;
+            }
+            if(operationId==null&&released!=null&&released.mapPath!=null) {
+                com.nextgis.maplib.map.MapBase active=com.nextgis.maplib.map.MapBase.getActiveInstance();
+                try {
+                    if(active!=null&&!active.getPath().getCanonicalPath().equals(new java.io.File(released.mapPath).getCanonicalPath())
+                            &&!DraftQuarantineStore.preserve(context,raw,"foreign_workspace_clear"))return false;
+                }catch(java.io.IOException error) {return false;}
+            }
             boolean existed = preferences(context).contains(KEY_STATE);
             if (!preferences(context).edit().remove(KEY_STATE).commit()) {
                 Log.e(TAG, "Failed to clear form draft");
                 HyperLog.e(Constants.TAG, "FormDraft clear failed");
+                return false;
             } else if (existed) {
+                sourcePreservationFailed=false;
+                releaseUploadHold(context, released);
                 HyperLog.v(Constants.TAG, "FormDraft cleared");
             }
+            return true;
+        }
+        return false;
+    }
+
+    public static synchronized boolean retryQuarantined(Context context, String id) {
+        if (preferences(context).contains(KEY_STATE)) return false;
+        try {
+            Snapshot snapshot = decode(new JSONObject(DraftQuarantineStore.original(context, id)));
+            if (snapshot == null || !snapshot.isValid() || snapshot.mapPath == null) return false;
+            com.nextgis.maplib.map.MapBase map = com.nextgis.maplib.map.MapBase.getActiveInstance();
+            if (map == null || !map.getPath().getCanonicalPath().equals(new java.io.File(snapshot.mapPath).getCanonicalPath())
+                    || map.getLayerById(snapshot.layerId) == null) return false;
+            if (!save(context, snapshot)) return false;
+            try {DraftQuarantineStore.recovered(context,id);}
+            catch(Exception error) {Log.w(TAG,"Draft restored; quarantine status could not be updated");}
+            return true;
+        } catch (Exception error) { Log.w(TAG, "Quarantined draft could not be recovered", error); return false; }
+    }
+
+    /** Failure to create quarantine must remain visible and exportable without clearing source. */
+    public static synchronized boolean hasUnreadableSource(Context context) {
+        try {
+            String raw=preferences(context).getString(KEY_STATE,null);
+            if(raw==null)return false;
+            Snapshot value=decode(new JSONObject(raw));return sourcePreservationFailed||value==null||!value.isValid();
+        }catch(JSONException|RuntimeException error) {return true;}
+    }
+
+    public static synchronized void exportUnreadableSource(Context context,java.io.OutputStream output) throws java.io.IOException {
+        if(!hasUnreadableSource(context))throw new java.io.IOException("No unreadable source checkpoint");
+        try(java.util.zip.ZipOutputStream zip=new java.util.zip.ZipOutputStream(output)) {
+            Object raw=null;
+            try {raw=preferences(context).getAll().get(KEY_STATE);}catch(RuntimeException unavailable) { }
+            boolean wrote=false;
+            if(raw!=null) {
+                zip.putNextEntry(new java.util.zip.ZipEntry("source-value.txt"));
+                java.io.Writer text=new java.io.OutputStreamWriter(zip,java.nio.charset.StandardCharsets.UTF_8);
+                String value=raw.toString();
+                for(int start=0;start<value.length();start+=4096) {
+                    if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException("Draft export cancelled");
+                    text.write(value,start,Math.min(4096,value.length()-start));
+                }
+                text.flush();zip.closeEntry();
+                wrote=true;
+            }
+            java.io.File file=new java.io.File(context.getApplicationInfo().dataDir,"shared_prefs/"+PREFS+".xml");
+            if(file.isFile()&&!java.nio.file.Files.isSymbolicLink(file.toPath())) {
+                zip.putNextEntry(new java.util.zip.ZipEntry("source-preferences.xml"));
+                java.nio.file.Files.copy(file.toPath(),zip);zip.closeEntry();
+                wrote=true;
+            }
+            if(!wrote)throw new java.io.IOException("Original checkpoint source is unavailable");
+            zip.finish();
+        }
+    }
+
+    private static void releaseUploadHold(Context context, Snapshot snapshot) {
+        if (snapshot == null || snapshot.mapPath == null) return;
+        com.nextgis.maplib.map.MapBase map = com.nextgis.maplib.map.MapBase.getActiveInstance();
+        try {
+            if (map == null || !map.getPath().getCanonicalPath().equals(
+                    new java.io.File(snapshot.mapPath).getCanonicalPath())) return;
+            com.nextgis.maplib.api.ILayer layer = map.getLayerById(snapshot.layerId);
+            if (!(layer instanceof com.nextgis.maplib.map.VectorLayer)) return;
+            com.nextgis.maplib.util.FeatureSaveJournal.releaseUpload(
+                    com.nextgis.maplib.util.DatabaseContext.getDatabaseForLayer(layer, false),
+                    layer.getPath().getName(), snapshot.operationId);
+            ((com.nextgis.maplib.api.IGISApplication) context.getApplicationContext()).onLocalChangesCommitted(map);
+        } catch (java.io.IOException | RuntimeException error) {
+            Log.w(TAG, "Form is cleared; upload hold retained for recovery", error);
         }
     }
 
