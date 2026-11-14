@@ -37,6 +37,9 @@ public final class ProjectOperationCoordinator {
         SCHEMA_REBUILD(false),
         PROJECT_SWITCH(true),
         PROJECT_CREATE(true),
+        PROJECT_BACKUP(true),
+        PROJECT_RESTORE(true),
+        CHANGE_REVIEW(true),
         PROJECT_RENAME(true),
         UNDERLAY_MIGRATION(true),
         PROJECT_DELETE(true);
@@ -106,6 +109,13 @@ public final class ProjectOperationCoordinator {
 
         private Lease(long id) {
             this.id = id;
+        }
+
+        public boolean owns(Kind kind) {
+            synchronized (LOCK) {
+                ActiveOperation operation = ACTIVE.get(id);
+                return operation != null && operation.kind == kind;
+            }
         }
 
         public void heartbeat() {
