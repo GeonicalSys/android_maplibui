@@ -12,7 +12,7 @@
       "role": "module_manifest_definition",
       "value": {
         "path": "maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java",
-        "responsibility": "Atomically persist typed new-object category defaults with one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel, including revision and snapshot acknowledgement used by startup repair."
+        "responsibility": "Atomically persist typed new-object category defaults with one full-geometry walk owner and a point UUID from chooser through terminal Save or Cancel, including revision and snapshot acknowledgement used by startup repair. REL-03 replays a contiguous private journal tail, commits full WKT and sequence atomically and fences active writers against cold terminal cleanup."
       }
     },
     "manifest-field": {

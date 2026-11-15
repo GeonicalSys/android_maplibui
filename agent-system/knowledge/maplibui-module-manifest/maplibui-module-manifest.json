@@ -607,6 +607,11 @@
       "type": "contains"
     },
     {
+      "type": "contains",
+      "target": "lisa:maplibui:contract:manifest-key-components-walkcheckpointwriter-rel03",
+      "status": "source_backed"
+    },
+    {
       "status": "source_backed",
       "target": "lisa:maplibui:contract:manifest-public-contracts-mobile-project-wording-08aa8f759a",
       "type": "contains"

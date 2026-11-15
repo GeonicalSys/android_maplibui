@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:contract:manifest-key-components-walkcheckpointwriter-rel03",
+  "kind": "contract",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "maplibui-module-manifest",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [
+      {
+        "repository": "android_projects/android_gisapp/maplibui",
+        "include": [
+          "src/main/java/com/nextgis/maplibui/util/WalkCheckpointWriter.java"
+        ],
+        "exclude": []
+      }
+    ],
+    "scope_refs": [],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "implemented",
+    "source_verification": "PASS",
+    "merge": "open",
+    "runtime_verification": "NOT_RUN",
+    "release": "unpublished",
+    "retention": "Keep the module component and scoped verification evidence."
+  },
+  "facets": {
+    "manifest-field": {
+      "role": "module_manifest_manifest_field",
+      "value": "key_components"
+    },
+    "definition": {
+      "role": "module_manifest_definition",
+      "value": {
+        "path": "maplibui/src/main/java/com/nextgis/maplibui/util/WalkCheckpointWriter.java",
+        "responsibility": "Owner-scoped durable bounded coordinate deltas, one ordered background full-checkpoint worker, replay, explicit pending admission and asynchronous Finish fence."
+      }
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/provenance/maplibui-module-manifest.json",
+    "scopes": [
+      "lisa:maplibui:contract:manifest-key-components-walkcheckpointwriter-rel03"
+    ]
+  }
+}

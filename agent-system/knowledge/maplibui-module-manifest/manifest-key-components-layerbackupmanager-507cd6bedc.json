@@ -12,7 +12,7 @@
       "role": "module_manifest_definition",
       "value": {
         "path": "maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java",
-        "responsibility": "Export layer tables and only attachment files physically present on this device before destructive rebuild or removal, without downloading server-only payloads."
+        "responsibility": "Export layer tables and only attachment files physically present on this device before destructive rebuild or removal, without downloading server-only payloads. REL-03 checks actual ZIP disk growth and selected row length before hydration."
       }
     },
     "manifest-field": {

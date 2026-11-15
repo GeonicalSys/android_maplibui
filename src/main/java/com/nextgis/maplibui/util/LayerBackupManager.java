@@ -27,6 +27,9 @@ import com.nextgis.maplib.map.NGWVectorLayer;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.MapUtil;
+import com.nextgis.maplib.util.NgwSyncIo;
+import com.nextgis.maplib.util.NgwSyncResourceBudget;
+import android.database.DatabaseUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -101,7 +104,8 @@ public final class LayerBackupManager {
         catch (IOException error) { return BackupResult.failure(error.getMessage()); }
 
         try (ZipOutputStream zos = new ZipOutputStream(
-                new BufferedOutputStream(new FileOutputStream(backupFile, false)))) {
+                new BufferedOutputStream(NgwSyncResourceBudget.reserving(
+                        new FileOutputStream(backupFile, false), backupRoot)))) {
             MapContentProviderHelper map = com.nextgis.maplib.util.DatabaseContext.getMapForLayer(layer);
             if (map == null) {
                 throw new IOException("Map database is not available");
@@ -176,7 +180,8 @@ public final class LayerBackupManager {
         catch (IOException error) { return BackupResult.failure(error.getMessage()); }
 
         try (ZipOutputStream zos = new ZipOutputStream(
-                new BufferedOutputStream(new FileOutputStream(backupFile, false)))) {
+                new BufferedOutputStream(NgwSyncResourceBudget.reserving(
+                        new FileOutputStream(backupFile, false), backupRoot)))) {
             MapContentProviderHelper map = com.nextgis.maplib.util.DatabaseContext.getMapForLayer(layer);
             if (map == null) {
                 throw new IOException("Map database is not available");
@@ -484,6 +489,11 @@ public final class LayerBackupManager {
 
         try (Cursor cursor = db.rawQuery(sql, args)) {
             String[] names = cursor.getColumnNames();
+            StringBuilder rowSize = new StringBuilder("0");
+            for (String name : names)
+                rowSize.append("+coalesce(length(").append(quoteIdentifier(name)).append("),0)");
+            NgwSyncResourceBudget.requireFeatureBytes(DatabaseUtils.longForQuery(db,
+                    "SELECT coalesce(max(" + rowSize + "),0)" + sql.substring(sql.indexOf(" FROM ")), args));
             for (String name : names) {
                 columns.put(name);
             }
@@ -493,6 +503,8 @@ public final class LayerBackupManager {
                     + ",\"exists\":true,\"columns\":" + columns + ",\"rows\":[");
             long rowCount = 0;
             while (cursor.moveToNext()) {
+                NgwSyncIo.checkInterrupted();
+                NgwSyncResourceBudget.requireHeap();
                 JSONObject row = new JSONObject();
                 for (int i = 0; i < names.length; i++) {
                     row.put(names[i], cursorValueToJson(cursor, i));
