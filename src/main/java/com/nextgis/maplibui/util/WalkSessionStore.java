@@ -15,6 +15,11 @@ import com.nextgis.maplibui.service.WalkEditService;
 import com.nextgis.maplibui.service.WalkGeometrySnapshot;
 
 import java.util.UUID;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import com.nextgis.maplib.util.NgwSyncResourceBudget;
 
 /** Durable ownership of one walk and its optional foreground point-creation session. */
 public final class WalkSessionStore {
@@ -48,6 +53,13 @@ public final class WalkSessionStore {
         public final org.json.JSONObject initialValues;
         public final int layerId, member, ring, pointLayer, pointTool;
         public final long featureId, revision, updatedAt;
+        public final String checkpointOwner;
+        public final long checkpointSequence;
+        public final int insertion;
+        private final List<WalkCheckpointWriter.Edit> checkpointEdits;
+        private final IOException checkpointError;
+        private volatile boolean recoveryFailed;
+        private final long committedCheckpointSequence;
         public final boolean gpsPaused;
         public final WalkSessionPolicy.Phase phase;
 
@@ -68,13 +80,37 @@ public final class WalkSessionStore {
             ring = prefs.getInt(WalkEditService.KEY_RING_INDEX, 0);
             revision = prefs.getLong(KEY_REVISION, 0);
             updatedAt = prefs.getLong(WalkEditService.KEY_UPDATED_AT, 0);
-            gpsPaused = prefs.getBoolean(WalkEditService.KEY_GPS_PAUSED, false);
+            checkpointOwner = prefs.getString(WalkCheckpointWriter.KEY_OWNER, id);
+            long sequence = prefs.getLong(WalkCheckpointWriter.KEY_SEQUENCE, 0);
+            committedCheckpointSequence = sequence;
+            int insertion = prefs.getInt(WalkEditService.KEY_INSERT_INDEX, 0);
+            boolean paused = prefs.getBoolean(WalkEditService.KEY_GPS_PAUSED, false);
+            List<WalkCheckpointWriter.Edit> edits = java.util.Collections.emptyList();
+            IOException problem = null;
+            try { edits = WalkCheckpointWriter.capture(new File(mapPath), checkpointOwner, sequence); }
+            catch (IOException error) { problem = error; }
+            for (WalkCheckpointWriter.Edit edit : edits) {
+                sequence = edit.sequence; insertion = edit.insertion; paused = edit.paused;
+            }
+            checkpointEdits = edits; checkpointError = problem;
+            checkpointSequence = sequence; this.insertion = insertion; gpsPaused = paused;
             phase = WalkSessionPolicy.Phase.valueOf(prefs.getString(KEY_PHASE, "RECORDING"));
         }
 
         public boolean isPointActive() { return !pointId.isEmpty(); }
-        public GeoGeometry geometry() {
+        public boolean hasCheckpointFailure() { return checkpointError != null || recoveryFailed; }
+        private GeoGeometry baseGeometry() {
             return WalkGeometrySnapshot.restore(fullWkt, member, ring);
+        }
+        public GeoGeometry geometry() {
+            if (checkpointError != null) { recoveryFailed = true; return null; }
+            GeoGeometry full = baseGeometry();
+            try {
+                WalkCheckpointWriter.replay(WalkGeometrySnapshot.part(full, member, ring), insertion,
+                        gpsPaused, committedCheckpointSequence,
+                        checkpointEdits);
+            } catch (IOException | RuntimeException error) { recoveryFailed = true; return null; }
+            return full;
         }
     }
 
@@ -127,20 +163,61 @@ public final class WalkSessionStore {
         return saved ? id : null;
     }
 
-    /** Called in the service's persistence transaction, without touching the point lock. */
+    /** Legacy synchronous API remains for callers without a live checkpoint writer. */
     public static synchronized boolean updateGeometry(Context context, String id,
             GeoLineString part, int insertion, boolean gpsPaused) {
         Snapshot session = load(context);
         if (session == null || !session.id.equals(id)
-                || session.phase == WalkSessionPolicy.Phase.FINISHED) return false;
-        GeoGeometry full = WalkGeometrySnapshot.replace(session.geometry(), part, session.member, session.ring);
-        return preferences(context).edit()
-                .putString(KEY_FULL_GEOMETRY, full.toWKT(true))
-                .putString(ConstantsUI.KEY_GEOMETRY, part.toWKT(true))
-                .putInt(WalkEditService.KEY_INSERT_INDEX, insertion)
-                .putBoolean(WalkEditService.KEY_GPS_PAUSED, gpsPaused)
-                .putLong(WalkEditService.KEY_UPDATED_AT, System.currentTimeMillis())
-                .putLong(KEY_REVISION, session.revision + 1).commit();
+                || WalkCheckpointWriter.isActive(new File(session.mapPath), session.checkpointOwner)
+                || !session.checkpointEdits.isEmpty()) return false;
+        return updateGeometry(context, id, part, insertion, gpsPaused, -1, session.checkpointOwner);
+    }
+
+    /** Geometry and the acknowledged delta sequence are one durable preference commit. */
+    public static synchronized boolean updateGeometry(Context context, String id,
+            GeoLineString part, int insertion, boolean gpsPaused, long sequence, String owner) {
+        Snapshot session = load(context);
+        SharedPreferences prefs = preferences(context);
+        if (session == null || !session.id.equals(id) || session.phase == WalkSessionPolicy.Phase.FINISHED
+                || !session.checkpointOwner.equals(owner)
+                || sequence >= 0 && sequence < prefs.getLong(WalkCheckpointWriter.KEY_SEQUENCE, 0)) return false;
+        try {
+            NgwSyncResourceBudget.requireHeap();
+            NgwSyncResourceBudget.requireFeatureBytes(session.fullWkt.length());
+            GeoGeometry full = WalkGeometrySnapshot.replace(session.baseGeometry(), part, session.member, session.ring);
+            String fullWkt = full.toWKT(true), partWkt = part.toWKT(true);
+            NgwSyncResourceBudget.requireFeatureBytes(fullWkt.length());
+            NgwSyncResourceBudget.requireSpace(context.getFilesDir(), 2L * (fullWkt.length() + partWkt.length()) + 32768);
+            SharedPreferences.Editor edit = prefs.edit()
+                    .putString(KEY_FULL_GEOMETRY, fullWkt).putString(ConstantsUI.KEY_GEOMETRY, partWkt)
+                    .putInt(WalkEditService.KEY_INSERT_INDEX, insertion)
+                    .putBoolean(WalkEditService.KEY_GPS_PAUSED, gpsPaused)
+                    .putLong(WalkEditService.KEY_UPDATED_AT, System.currentTimeMillis())
+                    .putLong(KEY_REVISION, session.revision + 1);
+            if (sequence >= 0) edit.putLong(WalkCheckpointWriter.KEY_SEQUENCE, sequence)
+                    .putString(WalkCheckpointWriter.KEY_OWNER, owner);
+            return commitDraftPreferences(prefs, edit);
+        } catch (IOException | RuntimeException failure) { return false; }
+    }
+
+    /** A failed disk commit must not leave an acknowledged/cleared draft in the in-memory map. */
+    public static synchronized boolean commitDraftPreferences(SharedPreferences prefs, SharedPreferences.Editor edit) {
+        Map<String, ?> before = prefs.getAll();
+        boolean saved;
+        try { saved = edit.commit(); } catch (RuntimeException error) { saved = false; }
+        if (saved) return true;
+        SharedPreferences.Editor rollback = prefs.edit().clear();
+        for (Map.Entry<String, ?> entry : before.entrySet()) {
+            String key = entry.getKey(); Object value = entry.getValue();
+            if (value instanceof String) rollback.putString(key, (String) value);
+            else if (value instanceof Boolean) rollback.putBoolean(key, (Boolean) value);
+            else if (value instanceof Integer) rollback.putInt(key, (Integer) value);
+            else if (value instanceof Long) rollback.putLong(key, (Long) value);
+            else if (value instanceof Float) rollback.putFloat(key, (Float) value);
+            else if (value instanceof java.util.Set) rollback.putStringSet(key, new java.util.HashSet<>((java.util.Set<String>) value));
+        }
+        try { rollback.commit(); } catch (RuntimeException ignored) { }
+        return false;
     }
 
     /** Upgrade an old part-only draft once its owning feature has been reconstructed. */
@@ -167,17 +244,40 @@ public final class WalkSessionStore {
     public static synchronized boolean setPhase(Context context, String id, WalkSessionPolicy.Phase phase) {
         Snapshot session = load(context);
         if (session == null || !session.id.equals(id) || session.isPointActive()) return false;
-        boolean saved = preferences(context).edit().putString(KEY_PHASE, phase.name())
-                .putLong(KEY_REVISION, session.revision + 1).commit();
+        SharedPreferences prefs = preferences(context);
+        SharedPreferences.Editor edit = prefs.edit().putString(KEY_PHASE, phase.name())
+                .putLong(KEY_REVISION, session.revision + 1);
+        if (phase == WalkSessionPolicy.Phase.FINISHED) {
+            if (WalkCheckpointWriter.isActive(new File(session.mapPath), session.checkpointOwner)) return false;
+            try {
+                GeoGeometry full = session.geometry();
+                GeoLineString part = WalkGeometrySnapshot.part(full, session.member, session.ring);
+                String fullWkt = full.toWKT(true), partWkt = part.toWKT(true);
+                NgwSyncResourceBudget.requireFeatureBytes(fullWkt.length());
+                NgwSyncResourceBudget.requireSpace(context.getFilesDir(), 2L * (fullWkt.length() + partWkt.length()) + 32768);
+                edit.putString(KEY_FULL_GEOMETRY, fullWkt).putString(ConstantsUI.KEY_GEOMETRY, partWkt)
+                        .putLong(WalkCheckpointWriter.KEY_SEQUENCE, session.checkpointSequence)
+                        .putString(WalkCheckpointWriter.KEY_OWNER, session.checkpointOwner)
+                        .putInt(WalkEditService.KEY_INSERT_INDEX, session.insertion)
+                        .putBoolean(WalkEditService.KEY_GPS_PAUSED, session.gpsPaused);
+            } catch (IOException | RuntimeException error) { return false; }
+        }
+        boolean saved = commitDraftPreferences(prefs, edit);
         if (saved) notifyChanged(context);
         return saved;
     }
 
     public static synchronized boolean clear(Context context, String id) {
         Snapshot session = load(context);
-        if (session == null || !session.id.equals(id) || session.isPointActive()) return false;
-        boolean saved = preferences(context).edit().clear().commit();
-        if (saved) notifyChanged(context);
+        if (session == null || !session.id.equals(id) || session.isPointActive()
+                || WalkCheckpointWriter.isActive(new File(session.mapPath), session.checkpointOwner)) return false;
+        SharedPreferences prefs = preferences(context);
+        boolean saved = commitDraftPreferences(prefs, prefs.edit().clear());
+        if (saved) {
+            if (!WalkCheckpointWriter.deleteFinished(new File(session.mapPath), session.checkpointOwner))
+                android.util.Log.w("WalkCheckpoint", "Discarded journal cleanup is pending");
+            notifyChanged(context);
+        }
         return saved;
     }
 
@@ -187,8 +287,11 @@ public final class WalkSessionStore {
         if (session == null || !session.id.equals(id) || session.isPointActive()
                 || session.phase != WalkSessionPolicy.Phase.RECORDING
                 || session.revision > 1 || session.updatedAt > 0
+                || !session.checkpointEdits.isEmpty()
+                || WalkCheckpointWriter.isActive(new File(session.mapPath), session.checkpointOwner)
                 || WalkEditService.isSessionRunning(id)) return false;
-        boolean saved = preferences(context).edit().clear().commit();
+        SharedPreferences prefs = preferences(context);
+        boolean saved = commitDraftPreferences(prefs, prefs.edit().clear());
         if (saved) notifyChanged(context);
         return saved;
     }

@@ -784,3 +784,11 @@ shared track ID. Скрытие трека не убирает действие;
 shared-underlay/catalog/operation coordinator API не менялся. Unit/native
 source compile подтверждает consumers, но project switch, offline direct
 rendering и actual Debug transfer после удаления loopback ещё NOT_RUN.
+
+### REL-03: ordered walk journal and backup budget
+
+WalkCheckpointWriter appends constant-sized immutable edits through Android AtomicFile+fd.sync in the producer, then one private worker saves the full part. Bounded tail2048, batches128, sequence acknowledgement and Finish barrier preserve exact order and retry without reapplying edits. Journal failure is bounded RAM-pending and visibly pauses; only DURABLE promises cold recovery. Files stay in the owning map archive. Cold overlay/legacy preferences preserve other geometry members/holes and point ownership. A gap/corrupt committed record is retained and rejected; only an incomplete last first-write is unadmitted.
+
+WalkSessionStore commits full WKT plus sequence together, restores typed RAM preferences on a failed commit, and fences live writers against cold Finish/clear. WalkEditService initializes before GPS subscription, preserves a live sticky tail, and asynchronously flushes Finish/Stop; shutdown keeps recovery. LayerBackupManager checks the selected row size before hydration and checks actual ZIP output against disk reserve without changing ZIP payload/CRC or attachment policy.
+
+Addressed unit tests use controlled IO/prefs failures and ordering latches. Native verification uses actual Android AtomicFile/prefs and synthetic owners on an isolated emulator. General Full, physical matrix and release remain separate.

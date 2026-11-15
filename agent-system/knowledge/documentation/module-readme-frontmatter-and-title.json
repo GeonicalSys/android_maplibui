@@ -561,6 +561,11 @@
       "status": "source_backed",
       "target": "lisa:maplibui:evidence:dated-underlay-progress-and-open-native-verification",
       "type": "contains"
+    },
+    {
+      "type": "contains",
+      "target": "lisa:maplibui:resource:rel03-ordered-walk-journal-and-backup-budget",
+      "status": "source_backed"
     }
   ],
   "schema_version": 2,

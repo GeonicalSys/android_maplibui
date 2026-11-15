@@ -173,6 +173,8 @@ key_components:
 - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionStore.java
   responsibility: Atomically persist typed new-object category defaults with one full-geometry walk owner and a point UUID
     from chooser through terminal Save or Cancel, including revision and snapshot acknowledgement used by startup repair.
+    REL-03 replays a contiguous private journal tail, commits full WKT and sequence atomically and fences active writers against
+    cold terminal cleanup.
 - path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkSessionRecoveryPolicy.java
   responsibility: Classify unacknowledged empty starts, resumable stopped drafts, interrupted Finish and foreign-map owners
     without Android dependencies.
@@ -276,7 +278,8 @@ key_components:
   responsibility: Install or recover the form and metadata sidecars as one validated transaction.
 - path: maplibui/src/main/java/com/nextgis/maplibui/util/LayerBackupManager.java
   responsibility: Export layer tables and only attachment files physically present on this device before destructive rebuild
-    or removal, without downloading server-only payloads.
+    or removal, without downloading server-only payloads. REL-03 checks actual ZIP disk growth and selected row length before
+    hydration.
 - path: maplibui/src/main/java/com/nextgis/maplibui/service/TrackerService.java
   responsibility: Start a location-only foreground recorder only while Android system location is enabled, expose stopped/starting/recording/error
     state, distinguish confirmed recording from durable intent, report failed starts, keep ordered Start/Stop, checkpoint
@@ -291,7 +294,9 @@ key_components:
   responsibility: Own independent full-geometry GNSS recording, validate session/point/phase on commands, resume automatically
     after GPS gaps without changing user pause intent, acknowledge a durable final snapshot before foreground editing, retain
     geometry on recovery, and provide an exact-session emergency stop/clear path across map identity changes; app task removal
-    or double-Back exit releases automatic owners without stopping this recording service.
+    or double-Back exit releases automatic owners without stopping this recording service. REL-03 admits short durable/pending
+    deltas before mutating live geometry, uses one background checkpoint worker, preserves live sticky state and waits for
+    an async final barrier.
 - path: maplibui/src/main/java/com/nextgis/maplibui/util/BackgroundRecordingSoundMonitor.java
   responsibility: Consume the shared validated GNSS stream before geometry sampling, use measurement age for the ten-second
     background heartbeat, rely on source-owned recording wake lock and retain existing alarm/vibration and persistence-failure
@@ -354,6 +359,9 @@ key_components:
   responsibility: Keep the shared resource window breadcrumb scroller padding at5dp so the current path tail is reachable,
     preserving the weighted bounded ListView. The separate activity Add button remains outside this list; descendant row remeasurement
     belongs to NgwResourceRowLayout.
+- path: maplibui/src/main/java/com/nextgis/maplibui/util/WalkCheckpointWriter.java
+  responsibility: Owner-scoped durable bounded coordinate deltas, one ordered background full-checkpoint worker, replay, explicit
+    pending admission and asynchronous Finish fence.
 public_contracts:
 - id: mobile-project-wording
   symbol: R.string.ngw_collector_project and existing project import/repair/read-only message keys

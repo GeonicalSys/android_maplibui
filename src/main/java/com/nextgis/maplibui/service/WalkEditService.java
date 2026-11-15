@@ -67,6 +67,11 @@ import com.nextgis.maplibui.util.BackgroundRecordingSoundMonitor;
 import com.nextgis.maplibui.util.NotificationHelper;
 import com.nextgis.maplibui.util.WalkSessionStore;
 import com.nextgis.maplibui.util.WalkSessionPolicy;
+import com.nextgis.maplibui.util.WalkCheckpointWriter;
+import com.nextgis.maplib.util.NgwSyncResourceBudget;
+import java.io.File;
+import java.io.IOException;
+import java.util.UUID;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -138,8 +143,13 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     private boolean mGpsPaused;
     private boolean mPersistenceFailed;
     private BackgroundRecordingSoundMonitor mRecordingSoundMonitor;
-    private String mSessionId;
-    private boolean mTerminalHandled;
+    private volatile String mSessionId;
+    private volatile boolean mTerminalHandled;
+    private WalkCheckpointWriter mCheckpointWriter;
+    private File mCheckpointRoot;
+    private String mCheckpointOwner;
+    private boolean mCheckpointRejected, mFinishPending, mDestroying;
+    private final android.os.Handler mCheckpointHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private static WalkEditService sActive;
     private final SharedPreferences.OnSharedPreferenceChangeListener mSessionPreferencesListener =
             (preferences, key) -> {
@@ -217,11 +227,28 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             if (mGeometry == null) stopSelf();
             return mGeometry == null ? START_NOT_STICKY : START_STICKY;
         }
+        if (intent == null && mCheckpointWriter != null && mGeometry != null) {
+            // Redelivery to this live owner must not replace accepted deltas with an older base.
+            sendGeometryBroadcast();
+            return START_STICKY;
+        }
         if (intent != null) {
 
             if (action != null && !TextUtils.isEmpty(action)) {
                 switch (action) {
                     case ACTION_STOP:
+                        if (mCheckpointWriter != null) {
+                            flushWalkLocationFilterToGeometry();
+                            mGpsSource.removeRecordingListener(this);
+                            boolean discard = intent.getBooleanExtra(EXTRA_CLEAR_DRAFT, true);
+                            mCheckpointWriter.finishAsync(discard, saved -> mCheckpointHandler.post(() -> {
+                                if (mDestroying) return;
+                                if (!saved) { checkpointRejected(); return; }
+                                mCheckpointWriter = null;
+                                finishLegacyStop(discard);
+                            }));
+                            break;
+                        }
                         // Explicit stop from UI should clear draft; unexpected deaths must not.
                         flushWalkLocationFilterToGeometry();
                         mGpsSource.removeRecordingListener(this);
@@ -255,6 +282,11 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                         // This action explicitly acknowledges the unrecorded connection.
                         if (mGeometry != null && mGpsSource.getLastRecordingLocation() != null) {
                             mGpsPaused = false;
+                            mCheckpointRejected = false;
+                            if (mCheckpointWriter == null && !initializeWalkCheckpoints(true)) {
+                                checkpointRejected();
+                                break;
+                            }
                             mLastRecordingNanos = 0;
                             if (mSampler != null) mSampler.reset();
                             mGpsSource.removeRecordingListener(this);
@@ -274,6 +306,10 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
                         if (mLayerId == layerId && mFeatureId == featureId && mGeometry != null) {
                             sendGeometryBroadcast();
                         } else {
+                            if (mCheckpointWriter != null) {
+                                HyperLog.w(Constants.TAG, "Existing walk checkpoint owner is preserved");
+                                return START_STICKY;
+                            }
                             mLayerId = layerId;
                             mFeatureId = featureId;
                             mGeometryIndex = intent.getIntExtra(KEY_GEOMETRY_INDEX, 0);
@@ -297,6 +333,11 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
 
                             mLastRecordingNanos = 0;
                             mGpsPaused = intent.getBooleanExtra(KEY_GPS_PAUSED, false);
+                            if (!initializeWalkCheckpoints(true)) {
+                                reportWalkPersistence(false);
+                                stopWithoutLocationForeground("checkpoint-init-failed");
+                                return START_NOT_STICKY;
+                            }
                             if (!startWalkEdit()) {
                                 return START_NOT_STICKY;
                             }
@@ -323,6 +364,11 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             // A sticky restart retains the user's intent; a gap never creates a pause.
             mGpsPaused = mSharedPreferencesTemp.getBoolean(KEY_GPS_PAUSED, false);
             if (mGeometry != null && mLayerId != Constants.NOT_FOUND) {
+                if (!initializeWalkCheckpoints(false)) {
+                    reportWalkPersistence(false);
+                    stopWithoutLocationForeground("checkpoint-recovery-failed");
+                    return START_NOT_STICKY;
+                }
                 if (!startWalkEdit()) {
                     return START_NOT_STICKY;
                 }
@@ -420,6 +466,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     @Override
     public void onDestroy() {
         HyperLog.v(Constants.TAG, "WalkEditService.onDestroy");
+        mDestroying = true;
         mSharedPreferencesTemp.unregisterOnSharedPreferenceChangeListener(mSessionPreferencesListener);
         if (mSessionId != null) {
             if (!mTerminalHandled) {
@@ -431,6 +478,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             if (mRecordingSoundMonitor != null) mRecordingSoundMonitor.release();
             if (sActive == this) sActive = null;
             removeNotification();
+            closeWalkCheckpoints();
             super.onDestroy();
             return;
         }
@@ -449,8 +497,11 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         boolean clearDraft = mClearDraftOnDestroy
                 || mSharedPreferencesTemp.getBoolean(KEY_CLEAR_DRAFT_ON_DESTROY, false);
         if (clearDraft) {
-            mSharedPreferencesTemp.edit().clear().commit();
-            HyperLog.v(Constants.TAG, "WalkEditService.onDestroy: draft cleared (explicit stop)");
+            if (WalkSessionStore.commitDraftPreferences(mSharedPreferencesTemp, mSharedPreferencesTemp.edit().clear())) {
+                if (mCheckpointRoot != null && !WalkCheckpointWriter.deleteFinished(mCheckpointRoot, mCheckpointOwner))
+                    HyperLog.w(Constants.TAG, "Explicitly discarded walk journal cleanup is pending");
+                HyperLog.v(Constants.TAG, "WalkEditService.onDestroy: draft cleared (explicit stop)");
+            }
         } else {
             // Unexpected end (process death, FGS kill, permission stop): keep durable draft.
             HyperLog.w(Constants.TAG, "WalkEditService unexpected walk end; keeping walkedit_temp draft");
@@ -467,22 +518,59 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (mRecordingSoundMonitor != null)
             mRecordingSoundMonitor.release();
 
+        closeWalkCheckpoints();
         super.onDestroy();
     }
 
-    private void finishOwnedSession(boolean discard) {
-        if (!discard) {
-            flushWalkLocationFilterToGeometry();
-            if (mGeometry != null && !persistWalkGeometryToTempPrefs()) {
-                WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.RECORDING);
-                android.widget.Toast.makeText(this, R.string.walk_save_failed,
-                        android.widget.Toast.LENGTH_LONG).show();
-                return;
-            }
+    private void closeWalkCheckpoints() {
+        if (mCheckpointWriter != null) mCheckpointWriter.close();
+    }
+
+    private void finishLegacyStop(boolean discard) {
+        mClearDraftOnDestroy = discard;
+        if (!WalkSessionStore.commitDraftPreferences(mSharedPreferencesTemp,
+                mSharedPreferencesTemp.edit().putBoolean(KEY_CLEAR_DRAFT_ON_DESTROY, discard))) {
+            checkpointRejected();
+            return;
         }
-        boolean saved = discard ? WalkSessionStore.clear(this, mSessionId)
-                : WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.FINISHED);
-        if (!saved) return;
+        mTerminalHandled = true;
+        mGeometry = null;
+        mLayerId = Constants.NOT_FOUND;
+        mFeatureId = Constants.NOT_FOUND;
+        if (mSampler != null) mSampler.reset();
+        removeNotification();
+        stopSelf();
+    }
+
+    private void finishOwnedSession(boolean discard) {
+        if (mFinishPending) return;
+        if (!discard) flushWalkLocationFilterToGeometry();
+        mGpsSource.removeRecordingListener(this);
+        if (!discard && mCheckpointWriter == null && mGeometry instanceof GeoLineString
+                && !initializeWalkCheckpoints(false)) {
+            checkpointRejected();
+            WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.RECORDING);
+            return;
+        }
+        mFinishPending = true;
+        if (mCheckpointWriter == null) { completeOwnedFinish(discard, true); return; }
+        mCheckpointWriter.finishAsync(discard, saved -> mCheckpointHandler.post(() -> {
+            if (!mDestroying) completeOwnedFinish(discard, saved);
+        }));
+    }
+
+    private void completeOwnedFinish(boolean discard, boolean checkpointSaved) {
+        mFinishPending = false;
+        if (checkpointSaved) mCheckpointWriter = null;
+        boolean saved = checkpointSaved && (discard ? WalkSessionStore.clear(this, mSessionId)
+                : WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.FINISHED));
+        if (!saved) {
+            WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.RECORDING);
+            checkpointRejected();
+            android.widget.Toast.makeText(this, R.string.walk_save_failed,
+                    android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
         mTerminalHandled = true;
         mGpsSource.removeRecordingListener(this);
         if (mSampler != null) mSampler.reset();
@@ -535,7 +623,14 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             GeoPoint point = new GeoPoint(correction.getLongitude(), correction.getLatitude());
             point.setCRS(GeoConstants.CRS_WGS84);
             point.project(GeoConstants.CRS_WEB_MERCATOR);
-            changed |= WalkGeometryInsertion.correct(line, mLastSampledIndex, point);
+            if (mLastSampledIndex >= 0 && mLastSampledIndex < line.getPointCount()) {
+                WalkCheckpointWriter.Admission admitted = mCheckpointWriter == null
+                        ? WalkCheckpointWriter.Admission.REJECTED
+                        : mCheckpointWriter.correct(mLastSampledIndex, point, mInsertIndex, mGpsPaused);
+                if (admitted != WalkCheckpointWriter.Admission.REJECTED)
+                    changed |= WalkGeometryInsertion.correct(line, mLastSampledIndex, point);
+                if (admitted != WalkCheckpointWriter.Admission.DURABLE) checkpointRejected();
+            }
         }
         if (changed) {
             persistWalkGeometryToTempPrefs();
@@ -571,68 +666,116 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
     }
 
     private boolean appendWalkGeometryPoint(Location location) {
+        if (!(mGeometry instanceof GeoLineString)) return false;
         GeoPoint point = new GeoPoint(location.getLongitude(), location.getLatitude());
         point.setCRS(GeoConstants.CRS_WGS84);
         point.project(GeoConstants.CRS_WEB_MERCATOR);
-
-        switch (mGeometry.getType()) {
-            case GeoConstants.GTLineString:
-                GeoLineString line = (GeoLineString) mGeometry;
-                mInsertIndex = WalkGeometryInsertion.insert(line, mInsertIndex, point);
-                mLastSampledIndex = mInsertIndex - 1;
-                break;
-            case GeoConstants.GTLinearRing:
-                GeoLinearRing ring = (GeoLinearRing) mGeometry;
-                mInsertIndex = WalkGeometryInsertion.insert(ring, mInsertIndex, point);
-                mLastSampledIndex = mInsertIndex - 1;
-                break;
-            default:
-                HyperLog.w(Constants.TAG, "WalkEditService: unsupported geometry type "
-                        + mGeometry.getType() + ", ignoring location update");
-                return false;
-        }
+        GeoLineString line = (GeoLineString) mGeometry;
+        int index = Math.max(0, Math.min(mInsertIndex, line.getPointCount()));
+        WalkCheckpointWriter.Admission admitted = mCheckpointWriter == null
+                ? WalkCheckpointWriter.Admission.REJECTED
+                : mCheckpointWriter.insert(index, point, index + 1, mGpsPaused);
+        if (admitted == WalkCheckpointWriter.Admission.REJECTED) { checkpointRejected(); return false; }
+        mInsertIndex = WalkGeometryInsertion.insert(line, index, point);
+        mLastSampledIndex = mInsertIndex - 1;
+        if (admitted != WalkCheckpointWriter.Admission.DURABLE) checkpointRejected();
         return true;
     }
 
-    private boolean persistWalkGeometryToTempPrefs() {
-        return persistWalkDraftSnapshot(false);
+    private void checkpointRejected() {
+        mCheckpointRejected = true;
+        mGpsPaused = true;
+        reportWalkPersistence(false);
     }
+
+    /** Recover the recorded part once at startup; GPS callbacks only journal small edits. */
+    private boolean initializeWalkCheckpoints(boolean explicitPause) {
+        if (mCheckpointWriter != null) return true;
+        if (!(mGeometry instanceof GeoLineString) || !PermissionUtil.hasLocationPermissions(this)) return false;
+        try {
+            String mapPath = mSessionId == null ? MapBase.getInstance().getPath().getAbsolutePath()
+                    : mSharedPreferencesTemp.getString(WalkSessionStore.KEY_MAP, "");
+            if (mapPath.isEmpty()) throw new IOException("Walk workspace is unavailable");
+            mCheckpointRoot = new File(mapPath);
+            mCheckpointOwner = mSharedPreferencesTemp.getString(WalkCheckpointWriter.KEY_OWNER,
+                    mSessionId == null ? UUID.randomUUID().toString() : mSessionId);
+            if (mSessionId == null && !mSharedPreferencesTemp.contains(WalkCheckpointWriter.KEY_OWNER)) {
+                if (!writeWalkCheckpoint((GeoLineString) mGeometry, mInsertIndex, mGpsPaused,
+                        0, mCheckpointOwner, true)) throw new IOException("Cannot retain initial walk");
+            }
+            if (mSharedPreferencesTemp.getInt(ConstantsUI.KEY_LAYER_ID, Constants.NOT_FOUND) != mLayerId
+                    || mSharedPreferencesTemp.getLong(ConstantsUI.KEY_FEATURE_ID, Constants.NOT_FOUND) != mFeatureId)
+                throw new IOException("Walk checkpoint identity changed");
+            String root = mSharedPreferencesTemp.getString(WalkCheckpointWriter.KEY_ROOT, mapPath);
+            if (!new File(root).getCanonicalFile().equals(mCheckpointRoot.getCanonicalFile()))
+                throw new IOException("Walk checkpoint belongs to another workspace");
+            GeoGeometry geometry = GeoGeometryFactory.fromWKT(
+                    mSharedPreferencesTemp.getString(ConstantsUI.KEY_GEOMETRY, ""), GeoConstants.CRS_WEB_MERCATOR);
+            if (!(geometry instanceof GeoLineString)) throw new IOException("Walk checkpoint part is unavailable");
+            GeoLineString seed = (GeoLineString) geometry;
+            if (seed instanceof GeoLinearRing && seed.getPointCount() > 1
+                    && seed.getPoint(0).equals(seed.getPoint(seed.getPointCount() - 1))) seed.remove(seed.getPointCount() - 1);
+            boolean requestedPause = mGpsPaused;
+            final String owner = mCheckpointOwner;
+            mCheckpointWriter = new WalkCheckpointWriter(mCheckpointRoot, owner, seed,
+                    mSharedPreferencesTemp.getInt(KEY_INSERT_INDEX, seed.getPointCount()),
+                    mSharedPreferencesTemp.getBoolean(KEY_GPS_PAUSED, false),
+                    mSharedPreferencesTemp.getLong(WalkCheckpointWriter.KEY_SEQUENCE, 0),
+                    (part, insertion, paused, sequence) -> writeWalkCheckpoint(part, insertion, paused, sequence, owner, false),
+                    saved -> mCheckpointHandler.post(() -> {
+                        if (!mDestroying && !mTerminalHandled && owner.equals(mCheckpointOwner)) {
+                            if (!saved) checkpointRejected();
+                            else reportWalkPersistence(!mCheckpointRejected);
+                        }
+                    }));
+            WalkCheckpointWriter.State recovered = mCheckpointWriter.initialState();
+            mGeometry = recovered.part; mInsertIndex = recovered.insertion;
+            mGpsPaused = explicitPause ? requestedPause : recovered.paused;
+            mCheckpointWriter.checkpoint(mInsertIndex, mGpsPaused);
+            return true;
+        } catch (IOException | RuntimeException | OutOfMemoryError failure) {
+            HyperLog.w(Constants.TAG, "Walk checkpoint recovery is pending", failure);
+            return false;
+        }
+    }
+
+    private boolean persistWalkGeometryToTempPrefs() { return persistWalkDraftSnapshot(false); }
 
     private boolean persistWalkDraftSnapshot(boolean includeMeta) {
-        boolean persisted;
-        try {
-            persisted = writeWalkDraftSnapshot(includeMeta);
-        } catch (RuntimeException error) {
-            HyperLog.w(Constants.TAG, "Walk geometry checkpoint failed", error);
-            persisted = false;
+        if (mGeometry == null) return false;
+        if (mCheckpointWriter == null && !initializeWalkCheckpoints(false)) {
+            checkpointRejected(); return false;
         }
-        reportWalkPersistence(persisted);
-        return persisted;
+        boolean accepted = mCheckpointWriter.checkpoint(mInsertIndex, mGpsPaused, includeMeta);
+        if (!accepted) checkpointRejected();
+        return accepted;
     }
 
-    private boolean writeWalkDraftSnapshot(boolean includeMeta) {
-        if (mGeometry == null)
-            return false;
-        if (mSessionId != null) {
-            return WalkSessionStore.updateGeometry(this, mSessionId, (GeoLineString) mGeometry,
-                    mInsertIndex, mGpsPaused);
-        }
-        SharedPreferences.Editor edit = mSharedPreferencesTemp.edit();
-        edit.putString(ConstantsUI.KEY_GEOMETRY, mGeometry.toWKT(true));
-        edit.putLong(KEY_UPDATED_AT, System.currentTimeMillis());
-        edit.putBoolean(KEY_CLEAR_DRAFT_ON_DESTROY, false);
-        edit.putInt(KEY_GEOMETRY_INDEX, mGeometryIndex);
-        edit.putInt(KEY_RING_INDEX, mRingIndex);
-        edit.putInt(KEY_INSERT_INDEX, mInsertIndex);
-        edit.putBoolean(KEY_GPS_PAUSED, mGpsPaused);
-        if (includeMeta) {
-            edit.putInt(ConstantsUI.KEY_LAYER_ID, mLayerId);
-            edit.putLong(ConstantsUI.KEY_FEATURE_ID, mFeatureId);
-            edit.putString(ConstantsUI.TARGET_CLASS, mTargetActivity);
-            edit.putBoolean(ConstantsUI.KEY_MESSAGE, mShowNotification);
-            saveBundle(edit, mTargetExtras);
-        }
-        return edit.commit();
+    /** Runs on the ordered worker, except the one-time legacy seed before GPS subscription. */
+    private boolean writeWalkCheckpoint(GeoLineString part, int insertion, boolean paused,
+            long sequence, String owner, boolean includeMeta) {
+        if (mSessionId != null) return WalkSessionStore.updateGeometry(this, mSessionId, part,
+                insertion, paused, sequence, owner);
+        try {
+            String wkt = part.toWKT(true);
+            NgwSyncResourceBudget.requireFeatureBytes(wkt.length());
+            NgwSyncResourceBudget.requireSpace(getFilesDir(), 2L * wkt.length() + 32768);
+            SharedPreferences.Editor edit = mSharedPreferencesTemp.edit()
+                    .putString(ConstantsUI.KEY_GEOMETRY, wkt)
+                    .putLong(KEY_UPDATED_AT, System.currentTimeMillis())
+                    .putBoolean(KEY_CLEAR_DRAFT_ON_DESTROY, false)
+                    .putInt(KEY_GEOMETRY_INDEX, mGeometryIndex).putInt(KEY_RING_INDEX, mRingIndex)
+                    .putInt(KEY_INSERT_INDEX, insertion).putBoolean(KEY_GPS_PAUSED, paused)
+                    .putLong(WalkCheckpointWriter.KEY_SEQUENCE, sequence)
+                    .putString(WalkCheckpointWriter.KEY_OWNER, owner)
+                    .putString(WalkCheckpointWriter.KEY_ROOT, mCheckpointRoot.getAbsolutePath());
+            if (includeMeta) {
+                edit.putInt(ConstantsUI.KEY_LAYER_ID, mLayerId).putLong(ConstantsUI.KEY_FEATURE_ID, mFeatureId)
+                        .putString(ConstantsUI.TARGET_CLASS, mTargetActivity).putBoolean(ConstantsUI.KEY_MESSAGE, mShowNotification);
+                saveBundle(edit, mTargetExtras);
+            }
+            return WalkSessionStore.commitDraftPreferences(mSharedPreferencesTemp, edit);
+        } catch (IOException | RuntimeException failure) { return false; }
     }
 
     private void reportWalkPersistence(boolean persisted) {
@@ -642,7 +785,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
             HyperLog.w(Constants.TAG, "WalkEditService: failed to persist walk geometry");
             mRecordingSoundMonitor.onPersistenceFailed();
         }
-        if (changed && mGeometry != null && !mTerminalHandled) {
+        if (changed && mGeometry != null && !mTerminalHandled && !mDestroying) {
             try {
                 addNotification();
                 sendGeometryBroadcast();

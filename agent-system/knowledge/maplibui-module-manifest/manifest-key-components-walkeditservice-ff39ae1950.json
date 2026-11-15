@@ -12,7 +12,7 @@
       "role": "module_manifest_definition",
       "value": {
         "path": "maplibui/src/main/java/com/nextgis/maplibui/service/WalkEditService.java",
-        "responsibility": "Own independent full-geometry GNSS recording, validate session/point/phase on commands, resume automatically after GPS gaps without changing user pause intent, acknowledge a durable final snapshot before foreground editing, retain geometry on recovery, and provide an exact-session emergency stop/clear path across map identity changes; app task removal or double-Back exit releases automatic owners without stopping this recording service."
+        "responsibility": "Own independent full-geometry GNSS recording, validate session/point/phase on commands, resume automatically after GPS gaps without changing user pause intent, acknowledge a durable final snapshot before foreground editing, retain geometry on recovery, and provide an exact-session emergency stop/clear path across map identity changes; app task removal or double-Back exit releases automatic owners without stopping this recording service. REL-03 admits short durable/pending deltas before mutating live geometry, uses one background checkpoint worker, preserves live sticky state and waits for an async final barrier."
       }
     },
     "manifest-field": {

@@ -182,7 +182,7 @@ public class WalkRecordingPanel extends FittedPanelLayout {
         title.setText(layerName);
         ViewCompat.setTooltipText(title, layerName);
         boolean running = WalkEditService.isSessionRunning(session.id);
-        boolean failed = WalkEditService.isPersistenceFailed(session.id);
+        boolean failed = session.hasCheckpointFailure() || WalkEditService.isPersistenceFailed(session.id);
         title.setContentDescription(getContext().getString(R.string.walk_panel_title, layerName));
         boolean enabled = actionableSession() != null;
         finish.setEnabled(enabled && listener != null);
