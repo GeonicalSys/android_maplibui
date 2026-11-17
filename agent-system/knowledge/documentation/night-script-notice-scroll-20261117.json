@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:evidence:night-script-notice-scroll-20261117",
+  "kind": "evidence",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "documentation",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [],
+    "scope_refs": [
+      "lisa:maplibui:resource:module-readme-frontmatter-and-title"
+    ],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "source_verification": "NOT_APPLICABLE",
+    "merge": "not_applicable",
+    "runtime_verification": "NOT_APPLICABLE",
+    "release": "not_applicable",
+    "retention": "Retain scoped tested-input receipts and negative findings; this dated note does not accept the whole library or publication."
+  },
+  "facets": {
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    },
+    "body": {
+      "role": "owner_dated_markdown_lines",
+      "value": [
+        "## Script notices with normal font and scrolling — 17.11.2026",
+        "",
+        "Only `ProjectScriptFormController` messages use `ScriptNoticeDialogs`; global",
+        "`FittedDialogs` and script APIs remain unchanged. A bounded scrollable message panel",
+        "keeps normal/system-scaled text, while the complete title and actions stay fixed.",
+        "Short messages use natural height. Large-font landscape omits optional header top",
+        "padding. Existing views/listeners, warn/block distinction, ack keys and",
+        "back/cancel/close/draft behavior are preserved.",
+        "",
+        "Phone/API37, tablet/API30 and CPU/API36 each passed4 native cases with24 local window",
+        "profiles: both themes/orientations, font100/200%, widths360/320/280dp and density up",
+        "to620dpi, real keyboard, last line, accessibility actions and protected form path.",
+        "No device font/density setting was changed. Manual TalkBack reading and General Full",
+        "remain NOT_RUN; merge and APK publication are separate. See update card",
+        "`maplibui-20261117-script-notice-scroll`.",
+        ""
+      ]
+    },
+    "scope": {
+      "role": "verification_boundary",
+      "value": "Executed targeted receipts on exact source snapshots; current delivery only rebinds unchanged code, no new device execution."
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:evidence:night-script-notice-scroll-20261117"
+    ]
+  }
+}

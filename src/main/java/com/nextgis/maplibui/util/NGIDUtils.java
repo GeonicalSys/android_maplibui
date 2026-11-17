@@ -98,6 +98,7 @@ public final class NGIDUtils {
     public static final String COLLECTOR_PROJECTS_URL = "/api/collector/projects";
 
     private static SharedPreferences mPreferences;
+    private static final ThreadLocal<NGIDLoginDiagnostics.Attempt> LOGIN_DIAGNOSTICS = new ThreadLocal<>();
 
     public interface OnFinish {
         void onFinish(HttpResponse response);
@@ -119,7 +120,7 @@ public final class NGIDUtils {
 
         String base = mPreferences.getString("ngid_url", NGIDUtils.NGID_MY);
         base = NetworkUtil.trimSlash(base);
-        new Load(context, callback, base).execute(USER_INFO, "GET", null,
+        new Load(context, callback, base, true).execute(USER_INFO, "GET", null,
                 NGIDLoginName.normalize(login), password);
     }
 
@@ -127,9 +128,13 @@ public final class NGIDUtils {
         private OnFinish mCallback;
         private String mBaseUrl;
         private WeakReference<Context> contextRef;
+        private final boolean loginAttempt;
 
 
-        Load(Context context, OnFinish callback, String base) {
+        Load(Context context, OnFinish callback, String base) { this(context,callback,base,false); }
+
+        Load(Context context, OnFinish callback, String base, boolean loginAttempt) {
+            this.loginAttempt=loginAttempt;
             mCallback = callback;
             mBaseUrl = base;
             this.contextRef = new WeakReference<>(context.getApplicationContext()); // или activity, если надо
@@ -137,6 +142,16 @@ public final class NGIDUtils {
 
         @Override
         protected HttpResponse doInBackground(String... args) {
+            if (!loginAttempt) return load(args);
+            NGIDLoginDiagnostics.Attempt attempt=NGIDLoginDiagnostics.begin(mBaseUrl);
+            LOGIN_DIAGNOSTICS.set(attempt);
+            HttpResponse result=null;
+            try { result=load(args);return result; }
+            catch(RuntimeException failure) { attempt.failed(failure);throw failure; }
+            finally { attempt.end(result!=null && result.isOk());LOGIN_DIAGNOSTICS.remove(); }
+        }
+
+        private HttpResponse load(String... args) {
             String url = mBaseUrl + args[0];
             String method = args[1];
             String token = args[2];
@@ -177,7 +192,7 @@ public final class NGIDUtils {
                                 createNGWAccount(contextRef.get(), originalLogin, originalPass);
                         }
                     } catch (Exception ex) {
-                        Log.e(TAG, ex.getMessage());
+                        Log.e(TAG, "NextGIS ID account registration failed: " + ex.getClass().getSimpleName());
                     }
 
                     getHubUrls(mBaseUrl, token);
@@ -254,7 +269,7 @@ public final class NGIDUtils {
 
     private static void createNGWAccount(Context context, final  String login, final   String password){
         Set<String> webGis = mPreferences.getStringSet(PREF_NGW_ACCOUNT, new HashSet<>());
-        HyperLog.v(Constants.TAG, "create NGW webGis: " + webGis.toString());
+        HyperLog.v(Constants.TAG, "NextGIS ID account registration candidates=" + webGis.size());
 
         if (webGis.size() > 0){
             for (String webGisItem : webGis){
@@ -284,7 +299,7 @@ public final class NGIDUtils {
                         boolean accountAdded = app.addAccount(host, ngwurl.toLowerCase(), login, password, tokenContainer.token);
 
                         if (!accountAdded)
-                            Log.e(TAG, "account  not added: " + host);
+                            Log.e(TAG, "NextGIS ID account registration rejected");
 //                    if (null != mOnAddAccountListener) {
 //                        Account account = null;
 //                        if (accountAdded)
@@ -294,7 +309,7 @@ public final class NGIDUtils {
 //                    }
                     }
                 } catch (Exception ex){
-                    Log.e(TAG, ex.getMessage());
+                    Log.e(TAG, "NextGIS ID account registration failed: " + ex.getClass().getSimpleName());
 
                 }
             }
@@ -317,7 +332,8 @@ public final class NGIDUtils {
                     .putString(PREF_LAST_NAME, json.getString(PREF_LAST_NAME))
                     .putStringSet(PREF_NGW_ACCOUNT, webGiss)
                     .apply();
-        } catch (JSONException | NullPointerException ignored) {}
+            loginParse("profile",true);
+        } catch (JSONException | NullPointerException ignored) { loginParse("profile",false); }
     }
 
     public static Set<String> jsonArrayToSet(JSONArray jsonArray) {
@@ -349,12 +365,22 @@ public final class NGIDUtils {
             token = json.getString("token_type") + " " + json.getString(PREF_ACCESS_TOKEN);
             refreshToken = json.getString(PREF_REFRESH_TOKEN);
             mPreferences.edit().putString(PREF_ACCESS_TOKEN, token).putString(PREF_REFRESH_TOKEN, refreshToken).apply();
-        } catch (JSONException | NullPointerException ignored) {}
+            loginParse("token",true);
+        } catch (JSONException | NullPointerException ignored) { loginParse("token",false); }
 
         return token;
     }
 
+    private static void loginParse(String stage,boolean valid) {
+        NGIDLoginDiagnostics.Attempt attempt=LOGIN_DIAGNOSTICS.get();
+        if(attempt!=null) { if(valid)attempt.validResponse(stage);else attempt.invalidResponse(stage); }
+    }
+
     private static HttpResponse getResponse(String target, String method, String token, String payload) {
+        NGIDLoginDiagnostics.Attempt attempt=LOGIN_DIAGNOSTICS.get();
+        String kind=target.endsWith(OAUTH_URL)?"token":target.endsWith(USER_INFO)?"profile":target.endsWith(HUB_INFO_URL)?"settings":"support";
+        NGIDLoginDiagnostics.Stage diagnostic=attempt==null?null:attempt.stage(kind);
+        int status=-1;IOException failure=null;
         try {
             URL url = new URL(target);
             HttpURLConnection conn;
@@ -365,6 +391,10 @@ public final class NGIDUtils {
             else
                 conn = (HttpURLConnection) url.openConnection();
 
+            if (attempt != null) {
+                conn.setConnectTimeout(NetworkUtil.TIMEOUT_CONNECTION);
+                conn.setReadTimeout(NetworkUtil.TIMEOUT_SOCKET);
+            }
             conn.setRequestProperty("User-Agent", getUserAgent(Constants.MAPLIB_USER_AGENT_PART));
             conn.setRequestProperty("connection", "keep-alive");
 
@@ -388,7 +418,8 @@ public final class NGIDUtils {
 
             conn.connect();
 
-            if (conn.getResponseCode() != 200) {
+            status=conn.getResponseCode();
+            if (status != 200) {
                 int code = NetworkUtil.ERROR_CONNECT_FAILED;
                 String msg = NetworkUtil.responseToString(conn.getErrorStream());
                 if (msg == null)
@@ -408,9 +439,10 @@ public final class NGIDUtils {
             response.setResponseBody(data);
             response.setOk(true);
             return response;
-        } catch (IOException ignored) {
-            ignored.printStackTrace();
-        }
+        } catch (IOException error) {
+            failure=error;
+            if(diagnostic==null)Log.w(TAG,"NextGIS ID request failed category="+NGIDLoginDiagnostics.category(status,error));
+        } finally { if(diagnostic!=null)diagnostic.end(status,failure); }
 
         return new HttpResponse(NetworkUtil.ERROR_CONNECT_FAILED);
     }
