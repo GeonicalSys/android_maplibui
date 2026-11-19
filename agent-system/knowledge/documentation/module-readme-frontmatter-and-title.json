@@ -73,6 +73,16 @@
   },
   "relations": [
     {
+      "type": "contains",
+      "target": "lisa:maplibui:evidence:night-script-notice-scroll-20261117",
+      "status": "source_backed"
+    },
+    {
+      "type": "contains",
+      "target": "lisa:maplibui:evidence:night-ngid-login-diagnostics-20261117",
+      "status": "source_backed"
+    },
+    {
       "status": "source_backed",
       "target": "lisa:maplibui:contract:mobile-project-wording-with-stable-ngw-collector-project-identity",
       "type": "contains"

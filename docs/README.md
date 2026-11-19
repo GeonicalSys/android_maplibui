@@ -6,6 +6,38 @@ last_verified: 2026-11-02
 
 # maplibui — GIS UI, layer fill и мобильные проекты
 
+## Script notices with normal font and scrolling — 17.11.2026
+
+Only `ProjectScriptFormController` messages use `ScriptNoticeDialogs`; global
+`FittedDialogs` and script APIs remain unchanged. A bounded scrollable message panel
+keeps normal/system-scaled text, while the complete title and actions stay fixed.
+Short messages use natural height. Large-font landscape omits optional header top
+padding. Existing views/listeners, warn/block distinction, ack keys and
+back/cancel/close/draft behavior are preserved.
+
+Phone/API37, tablet/API30 and CPU/API36 each passed4 native cases with24 local window
+profiles: both themes/orientations, font100/200%, widths360/320/280dp and density up
+to620dpi, real keyboard, last line, accessibility actions and protected form path.
+No device font/density setting was changed. Manual TalkBack reading and General Full
+remain NOT_RUN; merge and APK publication are separate. See update card
+`maplibui-20261117-script-notice-scroll`.
+
+## NextGIS ID local diagnostics — 17.11.2026
+
+`NGIDLoginDiagnostics` supplies one correlated interactive attempt with numbered
+paired token/profile/settings/support stages. `NGIDUtils` scopes it with ThreadLocal
+and finally cleanup. Only safe hostname, monotonic duration, original status/unknown
+and typed categories reach existing local HyperLog. Identifiers, passwords, tokens,
+URL query, headers/bodies and raw exceptions are excluded; logging failure does not
+change login. Normalization, unchanged password and callbacks remain protected.
+
+Seven new unit cases pass. Phone/API37 and CPU/API36 each passed9 native cases,
+including success,401,503,DNS,TLS,actual180s read timeout, malformed token/profile and
+the prior login contract. The normal HyperLog export is taken once after a bounded
+non-clearing wait for its terminal event; async partial-export failures remain in
+prior evidence. This does not add remote sending or certify a General Full/release.
+See update card `maplibui-20261117-ngid-login-diagnostics`.
+
 ## Мобильные проекты в нашем приложении — 1 ноября 2026
 
 Названия и сообщения RU/EN используют «Мобильный проект» / «Mobile project».

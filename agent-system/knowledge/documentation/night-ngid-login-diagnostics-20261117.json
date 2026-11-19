@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "id": "lisa:maplibui:evidence:night-ngid-login-diagnostics-20261117",
+  "kind": "evidence",
+  "owner": "android_projects/android_gisapp/maplibui",
+  "topic": "documentation",
+  "status": "active",
+  "execution_permission": false,
+  "applicability": {
+    "review_status": "reviewed",
+    "paths": [],
+    "scope_refs": [
+      "lisa:maplibui:resource:module-readme-frontmatter-and-title"
+    ],
+    "conditions": [],
+    "unknown_behavior": "include_with_unknown_reason"
+  },
+  "lifecycle": {
+    "goal": "not_applicable",
+    "implementation": "not_applicable",
+    "source_verification": "NOT_APPLICABLE",
+    "merge": "not_applicable",
+    "runtime_verification": "NOT_APPLICABLE",
+    "release": "not_applicable",
+    "retention": "Retain scoped tested-input receipts and negative findings; this dated note does not accept the whole library or publication."
+  },
+  "facets": {
+    "view-path": {
+      "role": "ordinary_markdown_address",
+      "value": "docs/README.md"
+    },
+    "body": {
+      "role": "owner_dated_markdown_lines",
+      "value": [
+        "## NextGIS ID local diagnostics — 17.11.2026",
+        "",
+        "`NGIDLoginDiagnostics` supplies one correlated interactive attempt with numbered",
+        "paired token/profile/settings/support stages. `NGIDUtils` scopes it with ThreadLocal",
+        "and finally cleanup. Only safe hostname, monotonic duration, original status/unknown",
+        "and typed categories reach existing local HyperLog. Identifiers, passwords, tokens,",
+        "URL query, headers/bodies and raw exceptions are excluded; logging failure does not",
+        "change login. Normalization, unchanged password and callbacks remain protected.",
+        "",
+        "Seven new unit cases pass. Phone/API37 and CPU/API36 each passed9 native cases,",
+        "including success,401,503,DNS,TLS,actual180s read timeout, malformed token/profile and",
+        "the prior login contract. The normal HyperLog export is taken once after a bounded",
+        "non-clearing wait for its terminal event; async partial-export failures remain in",
+        "prior evidence. This does not add remote sending or certify a General Full/release.",
+        "See update card `maplibui-20261117-ngid-login-diagnostics`.",
+        ""
+      ]
+    },
+    "scope": {
+      "role": "verification_boundary",
+      "value": "Executed targeted receipts on exact source snapshots; current delivery only rebinds unchanged code, no new device execution."
+    }
+  },
+  "relations": [],
+  "provenance": {
+    "manifest": "agent-system/provenance/documentation.json",
+    "scopes": [
+      "lisa:maplibui:evidence:night-ngid-login-diagnostics-20261117"
+    ]
+  }
+}
