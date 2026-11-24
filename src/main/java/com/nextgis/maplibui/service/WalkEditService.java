@@ -567,8 +567,7 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (!saved) {
             WalkSessionStore.setPhase(this, mSessionId, WalkSessionPolicy.Phase.RECORDING);
             checkpointRejected();
-            android.widget.Toast.makeText(this, R.string.walk_save_failed,
-                    android.widget.Toast.LENGTH_LONG).show();
+            showWalkSaveFailed(this);
             return;
         }
         mTerminalHandled = true;
@@ -578,6 +577,12 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (sActive == this) sActive = null;
         removeNotification();
         stopSelf();
+    }
+
+    private static void showWalkSaveFailed(Context context) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(context, R.string.walk_save_failed,
+                        android.widget.Toast.LENGTH_LONG).show());
     }
 
     public static boolean isSessionRunning(String id) {
@@ -1045,9 +1050,14 @@ public class WalkEditService extends Service implements GpsEventSource.Recording
         if (command == WalkSessionPolicy.Command.DISCARD && !isSessionRunning(id))
             return WalkSessionStore.clear(context, id);
         if (command == WalkSessionPolicy.Command.FINISH) {
+            // A stopped recorder may still be closing its checkpoint writer.
+            // Leave the draft retryable if the final commit cannot run yet.
+            if (!isSessionRunning(id)) {
+                boolean saved = WalkSessionStore.setPhase(context, id, WalkSessionPolicy.Phase.FINISHED);
+                if (!saved) showWalkSaveFailed(context);
+                return saved;
+            }
             if (!WalkSessionStore.setPhase(context, id, WalkSessionPolicy.Phase.FINISHING)) return false;
-            if (!isSessionRunning(id))
-                return WalkSessionStore.setPhase(context, id, WalkSessionPolicy.Phase.FINISHED);
         }
         if (command == WalkSessionPolicy.Command.RESUME && !isSessionRunning(id)) {
             return resumeFromDraft(context, preferencesActivity(context));
