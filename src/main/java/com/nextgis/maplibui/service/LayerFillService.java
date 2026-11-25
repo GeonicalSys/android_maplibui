@@ -32,6 +32,8 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.database.DatabaseUtils;
+import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.os.Build;
@@ -66,6 +68,9 @@ import com.nextgis.maplib.util.AccountUtil;
 import com.nextgis.maplib.util.Constants;
 import com.nextgis.maplib.util.CoordinatePointLayerImporter;
 import com.nextgis.maplib.util.CoordinatePointParser;
+import com.nextgis.maplib.util.DatabaseContext;
+import com.nextgis.maplib.util.FeatureAttachments;
+import com.nextgis.maplib.util.FeatureChanges;
 import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.GeoConstants;
 import com.nextgis.maplib.util.LayerConfigUtil;
@@ -77,11 +82,13 @@ import com.nextgis.maplib.util.GeoJSONUtil;
 import com.nextgis.maplib.util.NGException;
 import com.nextgis.maplib.util.NGWUtil;
 import com.nextgis.maplib.util.NetworkUtil;
+import com.nextgis.maplib.util.SyncWorkspaceSession;
 import com.nextgis.maplibui.R;
 import com.nextgis.maplibui.mapui.LocalTMSLayerUI;
 import com.nextgis.maplibui.mapui.NGWVectorLayerUI;
 import com.nextgis.maplibui.mapui.VectorLayerUI;
 import com.nextgis.maplibui.util.ConstantsUI;
+import com.nextgis.maplibui.util.LayerBackupManager;
 import com.nextgis.maplibui.util.LayerUtil;
 import com.nextgis.maplibui.util.LayerFillStaging;
 import com.nextgis.maplibui.util.LayerFillErrorMessage;
@@ -540,9 +547,16 @@ public class LayerFillService extends Service implements IProgressor {
         }
     }
 
-    private static void copyLayerOriginExtras(Bundle from, Bundle to) {
+    private static void copyFormLayerExtras(Bundle from, Bundle to) {
         if (from == null || to == null) {
             return;
+        }
+        if (from.containsKey(KEY_LAYER_RESTORE_INSERT_INDEX)) {
+            to.putInt(KEY_LAYER_RESTORE_INSERT_INDEX, from.getInt(KEY_LAYER_RESTORE_INSERT_INDEX, -1));
+        }
+        if (from.containsKey(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY)) {
+            to.putBoolean(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY,
+                    from.getBoolean(KEY_DEFER_MAP_RELOAD_UNTIL_QUEUE_EMPTY, false));
         }
         if (from.containsKey(KEY_COLLECTOR_PROJECT_UID)) {
             to.putString(KEY_COLLECTOR_PROJECT_UID, from.getString(KEY_COLLECTOR_PROJECT_UID));
@@ -913,140 +927,178 @@ public class LayerFillService extends Service implements IProgressor {
         sendBroadcast(mProgressIntent);
     }
 
+    /** Keep all local edit records, including drafts and edits excluded from the next push. */
+    public static boolean hasPendingReplacementChanges(NGWVectorLayer layer) {
+        try {
+            SQLiteDatabase database = DatabaseContext.getDatabaseForLayer(layer, true);
+            String changes = layer.getChangeTableName();
+            String attachments = layer.getAttachmentsTableName();
+            return (hasLayerTable(database, changes) && FeatureChanges.isRecords(database, changes, null))
+                    || (hasLayerTable(database, attachments) && FeatureAttachments.isChanges(attachments));
+        } catch (RuntimeException error) {
+            HyperLog.w(Constants.TAG, "Cannot check pending edits before replacing layer remoteId="
+                    + layer.getRemoteId(), error);
+            return true;
+        }
+    }
+
+    private static boolean hasLayerTable(SQLiteDatabase database, String table) {
+        return DatabaseUtils.longForQuery(database,
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)",
+                new String[]{table}) != 0;
+    }
+
     private boolean replaceExistingNgwLayerAfterSuccessfulFill(
             LayerFillTask task,
             NGWVectorLayer replacement) {
-        final List<NGWVectorLayer> retired = new ArrayList<>();
-        final boolean[] published = {false};
-        final CountDownLatch swapLatch = new CountDownLatch(1);
-
-        com.nextgis.maplib.util.SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), () -> {
-            List<LayerGroup> retiredParents = new ArrayList<>();
-            List<Integer> retiredIndexes = new ArrayList<>();
-            boolean replacementInserted = false;
-            try {
-                List<ILayer> candidates = new ArrayList<>();
-                LayerGroup.getLayersByType(
-                        task.mLayerGroup, Constants.LAYERTYPE_NGW_VECTOR, candidates);
-                for (ILayer candidate : candidates) {
-                    if (!(candidate instanceof NGWVectorLayer) || candidate == replacement) {
-                        continue;
-                    }
-                    NGWVectorLayer existing = (NGWVectorLayer) candidate;
-                    if (existing.getRemoteId() != replacement.getRemoteId()
-                            || !TextUtils.equals(
-                                    existing.getAccountName(), replacement.getAccountName())
-                            || !hasSameReplacementScope(existing, replacement)) {
-                        continue;
-                    }
-                    ILayer parent = existing.getParent();
-                    LayerGroup existingParent = parent instanceof LayerGroup
-                            ? (LayerGroup) parent : task.mLayerGroup;
-                    int oldIndex = existingParent.getChildLayerIndex(existing);
-                    existingParent.removeLayer(existing);
-                    retired.add(existing);
-                    retiredParents.add(existingParent);
-                    retiredIndexes.add(Math.max(0, oldIndex));
-                }
-
-                int insertAt;
-                if (task.mCollectorOrderIndex >= 0
-                        && task.mCollectorProjectRemoteIds != null) {
-                    insertAt = LayerGroup.computeCollectorOrderedInsertIndex(
-                            task.mLayerGroup,
-                            replacement.getAccountName(),
-                            task.mCollectorProjectRemoteIds,
-                            task.mCollectorOrderIndex);
-                } else {
-                    insertAt = Math.min(
-                            Math.max(0, task.mLayerRestoreInsertIndex),
-                            task.mLayerGroup.getLayerCount());
-                }
-                task.mLayerGroup.insertLayer(insertAt, replacement);
-                replacementInserted = true;
-
-                // This is the commit point: disk contains either the previous map or a map with
-                // only the replacement, never a saved intermediate old+new state.
-                published[0] = task.mLayerGroup.save();
-            } catch (RuntimeException e) {
-                HyperLog.w(Constants.TAG, "LayerFillService: atomic layer swap failed "
-                        + task.logContext(), e);
-            } finally {
-                if (!published[0]) {
-                    if (replacementInserted) {
-                        task.mLayerGroup.removeLayer(replacement);
-                    }
-                    for (int i = retired.size() - 1; i >= 0; i--) {
-                        LayerGroup parent = retiredParents.get(i);
-                        parent.insertLayer(
-                                Math.min(retiredIndexes.get(i), parent.getLayerCount()),
-                                retired.get(i));
-                    }
-                    retired.clear();
-                }
-                swapLatch.countDown();
-            }
-        });
-
-        boolean interrupted = false;
-        try {
-            while (true) {
-                try {
-                    swapLatch.await();
-                    break;
-                } catch (InterruptedException e) {
-                    // Once the main-thread mutation has been posted, returning early would let
-                    // the caller clean up a replacement that may be committed a moment later.
-                    interrupted = true;
-                }
-            }
-        } finally {
-            if (interrupted) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        if (!published[0]) {
+        IGISApplication app = (IGISApplication) getApplicationContext();
+        final List<NGWVectorLayer> previous = new ArrayList<>();
+        if (!runLayerFillCallback(() -> previous.addAll(
+                findReplacementLayers(task.mLayerGroup, replacement)))) {
             return false;
         }
 
-        // Physical storage is retired only after the new map composition is durable. This work is
-        // deliberately kept off the main thread; removeLayer/onLayerDeleted above is UI-only.
-        for (NGWVectorLayer oldLayer : retired) {
-            // removeLayer() already notified the renderer on main. Prevent Table.delete() from
-            // forwarding the same callback from this worker while it drops SQLite/files.
-            oldLayer.setParent(null);
-            oldLayer.delete(true);
+        for (NGWVectorLayer existing : previous) {
+            if (hasPendingReplacementChanges(existing)) {
+                HyperLog.w(Constants.TAG, "Layer replacement deferred because of pending edits remoteId="
+                        + existing.getRemoteId());
+                return false;
+            }
+            if (!app.backupEditableLayerData(existing, LayerBackupManager.REASON_SCHEMA_REBUILD)) {
+                return false;
+            }
         }
-        if (!retired.isEmpty()) {
-            HyperLog.i(Constants.TAG, "LayerFillService: atomically replaced " + retired.size()
+
+        final boolean[] published = {false};
+        if (!runLayerFillCallback(() -> published[0] = publishLayerReplacement(
+                task.mLayerGroup, replacement, previous, task.mLayerRestoreInsertIndex,
+                task.mCollectorOrderIndex, task.mCollectorProjectRemoteIds)) || !published[0]) {
+            return false;
+        }
+
+        // Drop old SQLite and files only after the new map composition is durable.
+        for (NGWVectorLayer existing : previous) {
+            existing.setParent(null);
+            existing.delete(true);
+        }
+        if (!previous.isEmpty()) {
+            HyperLog.i(Constants.TAG, "LayerFillService: atomically replaced " + previous.size()
                     + " old NGW layer(s) remoteId=" + replacement.getRemoteId()
                     + " account=" + replacement.getAccountName());
         }
         return true;
     }
 
-    private void discardUnpublishedLayer(LayerFillTask task, ILayer filled) {
-        CountDownLatch discardLatch = new CountDownLatch(1);
-        com.nextgis.maplib.util.SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), () -> {
-            try {
-                if (task.mLayerGroup.getChildLayerIndex(filled) >= 0) {
-                    task.mLayerGroup.removeLayer(filled);
+    private static List<NGWVectorLayer> findReplacementLayers(
+            LayerGroup group, NGWVectorLayer replacement) {
+        List<ILayer> candidates = new ArrayList<>();
+        LayerGroup.getLayersByType(group, Constants.LAYERTYPE_NGW_VECTOR, candidates);
+        List<NGWVectorLayer> matching = new ArrayList<>();
+        for (ILayer candidate : candidates) {
+            if (candidate instanceof NGWVectorLayer && candidate != replacement) {
+                NGWVectorLayer existing = (NGWVectorLayer) candidate;
+                if (existing.getRemoteId() == replacement.getRemoteId()
+                        && TextUtils.equals(existing.getAccountName(), replacement.getAccountName())
+                        && hasSameReplacementScope(existing, replacement)) {
+                    matching.add(existing);
                 }
-                // cancel() deletes physical storage. Detach so it cannot dispatch another
-                // renderer callback from the worker thread.
-                filled.setParent(null);
-            } finally {
-                discardLatch.countDown();
             }
-        });
+        }
+        return matching;
+    }
+
+    private static boolean publishLayerReplacement(
+            LayerGroup group, NGWVectorLayer replacement, List<NGWVectorLayer> previous,
+            int restoreIndex, int collectorOrder, long[] collectorRemoteIds) {
+        if (!previous.equals(findReplacementLayers(group, replacement))) {
+            HyperLog.w(Constants.TAG, "Layer replacement deferred because the project changed remoteId="
+                    + replacement.getRemoteId());
+            return false;
+        }
+        for (NGWVectorLayer existing : previous) {
+            if (hasPendingReplacementChanges(existing)) {
+                HyperLog.w(Constants.TAG, "Layer replacement deferred because of pending edits remoteId="
+                        + existing.getRemoteId());
+                return false;
+            }
+        }
+
+        List<LayerGroup> retiredParents = new ArrayList<>();
+        List<Integer> retiredIndexes = new ArrayList<>();
+        boolean replacementInserted = false;
+        boolean published = false;
+        try {
+            for (NGWVectorLayer existing : previous) {
+                LayerGroup parent = (LayerGroup) existing.getParent();
+                int oldIndex = parent.getChildLayerIndex(existing);
+                if (oldIndex < 0) {
+                    return false;
+                }
+                retiredParents.add(parent);
+                retiredIndexes.add(oldIndex);
+                parent.removeLayer(existing);
+            }
+
+            int insertAt = collectorOrder >= 0 && collectorRemoteIds != null
+                    ? LayerGroup.computeCollectorOrderedInsertIndex(
+                            group, replacement.getAccountName(), collectorRemoteIds, collectorOrder)
+                    : Math.min(Math.max(0, restoreIndex), group.getLayerCount());
+            group.insertLayer(insertAt, replacement);
+            replacementInserted = true;
+            published = group.save();
+            return published;
+        } finally {
+            if (!published) {
+                if (replacementInserted || group.getChildLayerIndex(replacement) >= 0) {
+                    group.removeLayer(replacement);
+                }
+                for (int index = retiredParents.size() - 1; index >= 0; index--) {
+                    LayerGroup parent = retiredParents.get(index);
+                    NGWVectorLayer existing = previous.get(index);
+                    if (parent.getChildLayerIndex(existing) < 0) {
+                        parent.insertLayer(Math.min(retiredIndexes.get(index), parent.getLayerCount()), existing);
+                    }
+                }
+            }
+        }
+    }
+
+    private void discardUnpublishedLayer(LayerFillTask task, ILayer filled) {
+        if (runLayerFillCallback(() -> {
+            if (task.mLayerGroup.getChildLayerIndex(filled) >= 0) {
+                task.mLayerGroup.removeLayer(filled);
+            }
+            // Remove the staged files after detaching their renderer callback.
+            filled.setParent(null);
+        })) {
+            task.cancel();
+        }
+    }
+
+    private static boolean runLayerFillCallback(Runnable action) {
+        CountDownLatch finished = new CountDownLatch(1);
+        final boolean[] succeeded = {false};
+        if (!SyncWorkspaceSession.post(new Handler(Looper.getMainLooper()), () -> {
+            try {
+                action.run();
+                succeeded[0] = true;
+            } catch (RuntimeException error) {
+                HyperLog.w(Constants.TAG, "LayerFillService: staged layer callback failed", error);
+            } finally {
+                finished.countDown();
+            }
+        })) {
+            return false;
+        }
 
         boolean interrupted = false;
         try {
             while (true) {
                 try {
-                    discardLatch.await();
-                    break;
-                } catch (InterruptedException e) {
+                    finished.await();
+                    return succeeded[0];
+                } catch (InterruptedException error) {
+                    // Wait for the posted map change before deciding whether to discard the stage.
                     interrupted = true;
                 }
             }
@@ -1055,7 +1107,6 @@ public class LayerFillService extends Service implements IProgressor {
                 Thread.currentThread().interrupt();
             }
         }
-        task.cancel();
     }
 
     private static boolean hasSameReplacementScope(
@@ -1958,7 +2009,7 @@ public class LayerFillService extends Service implements IProgressor {
                         if (!TextUtils.isEmpty(formHash)) {
                             extra.putString(KEY_LAYER_FORM_HASH, formHash);
                         }
-                        copyLayerOriginExtras(mEnqueueBundle, extra);
+                        copyFormLayerExtras(mEnqueueBundle, extra);
                         if (mCollectorOrderIndex >= 0 && mCollectorProjectRemoteIds != null) {
                             extra.putInt(KEY_COLLECTOR_ORDER_INDEX, mCollectorOrderIndex);
                             extra.putLongArray(KEY_COLLECTOR_PROJECT_REMOTE_IDS, mCollectorProjectRemoteIds);

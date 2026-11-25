@@ -75,7 +75,6 @@ import com.nextgis.maplib.util.FileUtil;
 import com.nextgis.maplib.util.LayerFormHashUtil;
 import com.nextgis.maplib.util.NGWUtil;
 import com.nextgis.maplib.util.FeatureChanges;
-import com.nextgis.maplib.util.FeatureAttachments;
 import com.nextgis.maplib.util.NetworkUtil;
 import com.nextgis.maplib.util.PermissionUtil;
 import com.nextgis.maplib.util.SettingsConstants;
@@ -817,27 +816,33 @@ public abstract class GISApplication extends Application
             if (duplicates.size() < 2) {
                 continue;
             }
+            NGWVectorLayer retained = null;
             for (NGWVectorLayer duplicate : duplicates) {
-                if (FeatureChanges.isChanges(duplicate.getChangeTableName())
-                        || FeatureAttachments.isChanges(duplicate.getAttachmentsTableName())) {
-                    HyperLog.w(Constants.TAG, "Pre-sync project repair blocked: duplicate layer has"
-                            + " unsent changes remoteId=" + duplicate.getRemoteId()
-                            + " account=" + duplicate.getAccountName());
-                    return false;
+                if (LayerFillService.hasPendingReplacementChanges(duplicate)) {
+                    if (retained != null) {
+                        HyperLog.w(Constants.TAG, "Pre-sync project repair blocked: multiple copies have"
+                                + " local edits remoteId=" + duplicate.getRemoteId());
+                        return false;
+                    }
+                    retained = duplicate;
                 }
             }
 
-            // Prefer a committed, complete table with the most rows. The final path tie-breaker
-            // makes recovery deterministic across retries and process restarts.
-            duplicates.sort(Comparator
-                    .comparing((NGWVectorLayer layer) -> LayerFillStaging.isMarked(layer.getPath()))
-                    .thenComparing((NGWVectorLayer layer) -> !layer.hasLocalDataTable())
-                    .thenComparing(Comparator.comparingInt(
-                            (NGWVectorLayer layer) -> layer.getSqliteTableRowCount()).reversed())
-                    .thenComparing(layer -> layer.getPath() != null
-                            ? layer.getPath().getAbsolutePath() : ""));
-            for (int i = 1; i < duplicates.size(); i++) {
-                NGWVectorLayer duplicate = duplicates.get(i);
+            if (retained == null) {
+                // Without local edits, keep the existing deterministic choice.
+                duplicates.sort(Comparator
+                        .comparing((NGWVectorLayer layer) -> LayerFillStaging.isMarked(layer.getPath()))
+                        .thenComparing((NGWVectorLayer layer) -> !layer.hasLocalDataTable())
+                        .thenComparing(Comparator.comparingInt(
+                                (NGWVectorLayer layer) -> layer.getSqliteTableRowCount()).reversed())
+                        .thenComparing(layer -> layer.getPath() != null
+                                ? layer.getPath().getAbsolutePath() : ""));
+                retained = duplicates.get(0);
+            }
+            for (NGWVectorLayer duplicate : duplicates) {
+                if (duplicate == retained) {
+                    continue;
+                }
                 if (!backupEditableLayerData(
                         duplicate, LayerBackupManager.REASON_DUPLICATE_REPAIR)) {
                     return false;
@@ -852,10 +857,17 @@ public abstract class GISApplication extends Application
 
         final boolean[] saved = {false};
         CountDownLatch repairLatch = new CountDownLatch(1);
-        postWorkspaceTask(() -> {
+        if (!postWorkspaceTask(() -> {
             List<LayerGroup> parents = new ArrayList<>();
             List<Integer> indexes = new ArrayList<>();
             try {
+                for (NGWVectorLayer duplicate : retired) {
+                    if (LayerFillService.hasPendingReplacementChanges(duplicate)) {
+                        HyperLog.w(Constants.TAG, "Pre-sync project repair deferred: duplicate acquired"
+                                + " local edits remoteId=" + duplicate.getRemoteId());
+                        return;
+                    }
+                }
                 for (NGWVectorLayer duplicate : retired) {
                     LayerGroup parent = resolveLayerParentGroup(duplicate);
                     if (parent == null) {
@@ -879,7 +891,9 @@ public abstract class GISApplication extends Application
                 }
                 repairLatch.countDown();
             }
-        });
+        })) {
+            return false;
+        }
 
         boolean interrupted = false;
         try {
@@ -1385,32 +1399,8 @@ public abstract class GISApplication extends Application
             return;
         }
 
-        final String changeTable = layer.getChangeTableName();
-        if (FeatureChanges.isChanges(changeTable)) {
-            SyncResult flushSr = new SyncResult();
-            boolean flushOk = false;
-            try {
-                flushOk = layer.sendLocalChanges(flushSr);
-            } catch (RuntimeException e) {
-                HyperLog.w(Constants.TAG, "Collector composition sync: sendLocalChanges crashed for \""
-                        + layer.getName() + "\": " + e.getMessage(), e);
-            }
-            if (!flushOk) {
-                HyperLog.w(Constants.TAG, "Collector composition sync: sendLocalChanges reported failure for \""
-                        + layer.getName() + "\"");
-            }
-        }
-        if (FeatureChanges.isChanges(changeTable)) {
-            if (!backupEditableLayerData(layer, LayerBackupManager.REASON_SCHEMA_REBUILD)) {
-                HyperLog.w(Constants.TAG, "Collector composition sync: skipped refill for \""
-                        + layer.getName() + "\" because backup gate blocked");
-                return;
-            }
-            postLayerBackupAlert(getString(
-                    com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
-                    layer.getName()));
-            HyperLog.v(Constants.TAG, "Collector composition sync: backup created before refill for \""
-                    + layer.getName() + "\"");
+        if (!flushLayerEditsBeforeReplacement(layer)) {
+            return;
         }
 
         final String layerName = layer.getName();
@@ -2329,19 +2319,6 @@ public abstract class GISApplication extends Application
         final com.nextgis.maplib.util.SyncWorkspaceSession syncOwner = com.nextgis.maplib.util.SyncWorkspaceSession.current();
         final String workspaceKey = syncOwner != null ? syncOwner.getWorkspaceKey()
                 : ProjectOperationCoordinator.activeWorkspaceKey(this);
-        final SchemaRebuildRetryGuard.Decision retryDecision =
-                SchemaRebuildRetryGuard.tryRecordAttempt(
-                        this,
-                        workspaceKey,
-                        rebuildAccountName,
-                        rebuildRemoteId,
-                        mismatchSignature);
-        if (retryDecision != SchemaRebuildRetryGuard.Decision.ALLOWED) {
-            HyperLog.w(Constants.TAG, "NGW schema rebuild suppressed decision=" + retryDecision
-                    + " layer=\"" + layer.getName() + "\" remoteId=" + rebuildRemoteId
-                    + " account=" + rebuildAccountName);
-            return;
-        }
         final ProjectOperationCoordinator.Lease rebuildLease =
                 ProjectOperationCoordinator.tryBegin(
                         this, ProjectOperationCoordinator.Kind.SCHEMA_REBUILD);
@@ -2350,13 +2327,13 @@ public abstract class GISApplication extends Application
                     + " layer=\"" + layer.getName() + "\"");
             return;
         }
-        final String changeTable = layer.getChangeTableName();
         try {
             com.nextgis.maplib.util.SyncWorkspaceSession.execute(mSchemaRebuildExecutor, () -> prepareNgwLayerRebuild(
                     layer,
-                    changeTable,
                     rebuildAccountName,
                     rebuildRemoteId,
+                    workspaceKey,
+                    mismatchSignature,
                     rebuildLease));
         } catch (RuntimeException e) {
             rebuildLease.close();
@@ -2367,9 +2344,10 @@ public abstract class GISApplication extends Application
 
     private void prepareNgwLayerRebuild(
             NGWVectorLayer layer,
-            String changeTable,
             String accountName,
             long remoteId,
+            String workspaceKey,
+            String mismatchSignature,
             ProjectOperationCoordinator.Lease rebuildLease) {
         boolean handedToMainThread = false;
         try {
@@ -2378,32 +2356,18 @@ public abstract class GISApplication extends Application
                         + layer.getName() + "\"");
                 return;
             }
-            if (FeatureChanges.isChanges(changeTable)) {
-                SyncResult flushResult = new SyncResult();
-                boolean flushOk = false;
-                try {
-                    flushOk = layer.sendLocalChanges(flushResult);
-                } catch (RuntimeException e) {
-                    HyperLog.w(Constants.TAG, "NGW schema rebuild: sendLocalChanges crashed for \""
-                            + layer.getName() + "\": " + e.getMessage(), e);
-                }
-                if (!flushOk) {
-                    HyperLog.w(Constants.TAG,
-                            "NGW schema rebuild: sendLocalChanges reported failure for \""
-                                    + layer.getName() + "\"");
-                }
+            if (!flushLayerEditsBeforeReplacement(layer)) {
+                return;
             }
-            if (FeatureChanges.isChanges(changeTable)) {
-                if (!backupEditableLayerData(layer, LayerBackupManager.REASON_SCHEMA_REBUILD)) {
-                    HyperLog.w(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                            + "\" - skipped rebuild because backup gate blocked");
-                    return;
-                }
-                postLayerBackupAlert(getString(
-                        com.nextgis.maplib.R.string.ngw_schema_mismatch_backup_reload,
-                        layer.getName()));
-                HyperLog.v(Constants.TAG, "NGW schema mismatch: \"" + layer.getName()
-                        + "\" - backup created before staged rebuild");
+
+            SchemaRebuildRetryGuard.Decision retryDecision = SchemaRebuildRetryGuard.tryRecordAttempt(
+                    this, workspaceKey, accountName, remoteId, mismatchSignature);
+            if (retryDecision != SchemaRebuildRetryGuard.Decision.ALLOWED) {
+                com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
+                HyperLog.w(Constants.TAG, "NGW schema rebuild suppressed decision=" + retryDecision
+                        + " layer=\"" + layer.getName() + "\" remoteId=" + remoteId
+                        + " account=" + accountName);
+                return;
             }
 
             long formId = resolveNgwLayerRebuildFormId(layer, accountName, remoteId);
@@ -2426,6 +2390,26 @@ public abstract class GISApplication extends Application
                 rebuildLease.close();
             }
         }
+    }
+
+    private boolean flushLayerEditsBeforeReplacement(NGWVectorLayer layer) {
+        if (!LayerFillService.hasPendingReplacementChanges(layer)) {
+            return true;
+        }
+        try {
+            layer.sendLocalChanges(new SyncResult());
+        } catch (RuntimeException error) {
+            HyperLog.w(Constants.TAG, "Cannot send edits before replacing layer remoteId="
+                    + layer.getRemoteId(), error);
+        }
+        if (!LayerFillService.hasPendingReplacementChanges(layer)) {
+            return true;
+        }
+        com.nextgis.maplib.util.SyncWorkspaceSession.markFailed();
+        HyperLog.w(Constants.TAG, "Layer replacement deferred because of pending edits remoteId="
+                + layer.getRemoteId());
+        postLayerBackupAlert(getString(R.string.ngw_layer_replacement_pending_edits, layer.getName()));
+        return false;
     }
 
     private void enqueueNgwLayerRebuild(

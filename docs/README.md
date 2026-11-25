@@ -531,6 +531,9 @@ app и maplib; shared UI, account identities и OpenGL backend сохраняю�
 - Повторяется rebuild тяжёлого слоя: проверить mismatch fingerprint в
   `SchemaRebuildRetryGuard`, staged replacement и число остановленных слоёв в
   настройках проекта; не удалять старый слой до успешного fill.
+- Пересборка через форму передаёт позицию замены до загрузки данных.
+  Слой с неотправленными правками остаётся в проекте. Замена проверяет
+  очередь повторно и требует резервную копию каждого удаляемого слоя.
 - Fill закончен, identify видит объекты, но слой не отрисован: pending reload
   снимается только callback после проверки MapLibre source/style layer; проверить
   `MapLibre post-load verification`, а не перезапускать приложение как штатный путь.

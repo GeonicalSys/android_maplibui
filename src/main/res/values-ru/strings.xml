@@ -25,6 +25,7 @@
     <string name="choose_feature_type">Выберите тип объекта</string>
     <string name="feature_type_unavailable">Не удалось подготовить этот тип объекта. Обновите настройки проекта и попробуйте снова.</string>
     <string name="layer_pending_changes">Несинхронизированные изменения</string>
+    <string name="ngw_layer_replacement_pending_edits">В слое «%1$s» есть неотправленные правки. Отправьте их или завершите сверку перед обновлением слоя. Правки сохранены на устройстве.</string>
     <string name="layers_drawer_open">Открыть список слоёв</string>
     <string name="layers_drawer_close">Закрыть список слоёв</string>
     <string name="ok">OK</string>

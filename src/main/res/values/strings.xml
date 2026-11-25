@@ -25,6 +25,7 @@
     <string name="choose_feature_type">Choose object type</string>
     <string name="feature_type_unavailable">This object type could not be prepared. Update the project settings and try again.</string>
     <string name="layer_pending_changes">Unsynchronized changes</string>
+    <string name="ngw_layer_replacement_pending_edits">Layer %1$s has unsent edits. Send or reconcile them before updating the layer. Your edits remain on the device.</string>
     <!-- Overridden by app module flavors (resValue app_name in app/build.gradle). -->
     <string name="app_name" translatable="false">NextGIS Mobile</string>
     <string name="layer_fill_fgs_minimal" translatable="false">…</string>
