@@ -17,6 +17,8 @@ public final class SchemaRebuildRetryGuard {
 
     private static final String PREFS = "ngw_schema_rebuild_guard";
     private static final String KEY_PREFIX = "guard_";
+    // A rebuild attempt made by the old form handoff did not try an atomic replacement.
+    private static final int REBUILD_REVISION = 2;
 
     public enum Decision {
         ALLOWED,
@@ -152,7 +154,7 @@ public final class SchemaRebuildRetryGuard {
         return Integer.toHexString(value != null ? value.hashCode() : 0);
     }
 
-    private static final class State {
+    static final class State {
         final String signature;
         final long windowStartedAt;
         final long lastAttemptAt;
@@ -168,6 +170,7 @@ public final class SchemaRebuildRetryGuard {
         String encode() {
             try {
                 return new JSONObject()
+                        .put("rebuild_revision", REBUILD_REVISION)
                         .put("signature", signature)
                         .put("window_started_at", windowStartedAt)
                         .put("last_attempt_at", lastAttemptAt)
@@ -179,15 +182,18 @@ public final class SchemaRebuildRetryGuard {
         }
 
         static State decode(String value) {
-            if (TextUtils.isEmpty(value)) {
+            if (value == null || value.isEmpty()) {
                 return null;
             }
             try {
                 JSONObject json = new JSONObject(value);
+                if (json.optInt("rebuild_revision") != REBUILD_REVISION) {
+                    return null;
+                }
                 String signature = json.optString("signature", null);
                 long windowStartedAt = json.optLong("window_started_at", 0L);
                 int attemptCount = json.optInt("attempt_count", -1);
-                if (TextUtils.isEmpty(signature) || windowStartedAt <= 0L || attemptCount < 0) {
+                if (signature == null || signature.isEmpty() || windowStartedAt <= 0L || attemptCount < 0) {
                     return null;
                 }
                 return new State(
